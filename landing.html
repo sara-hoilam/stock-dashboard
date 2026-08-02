@@ -177,7 +177,7 @@ svg{display:block;max-width:100%}
 .tile span{position:absolute;left:4px;font-family:"IBM Plex Mono",monospace;
   color:rgba(255,255,255,.88);line-height:1;white-space:nowrap}
 .sectorbox{position:absolute}
-.sectorbox>h4{font-size:11.5px;font-weight:600;color:var(--ink-2);margin:0 0 3px 1px;
+.sectorbox>h4{font-size:14.5px;font-weight:600;color:var(--ink-2);margin:0 0 3px 1px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Compact tables for the trade panels. */
@@ -668,7 +668,7 @@ function renderHeatmap(sectors){
     document.getElementById("hm-legend").innerHTML = "";
     return;
   }
-  const W = 1180, H = 620, GAP = 8, HEAD = 16;
+  const W = 1180, H = 460, GAP = 8, HEAD = 22;
   const blocks = treemap(sectors, 0, 0, W, H, s => s.marketCap);
 
   const html = blocks.map(({it: sec, x, y, w, h}) => {
