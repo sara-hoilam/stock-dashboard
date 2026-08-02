@@ -7,6 +7,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py backfill           drain the request queue once
     python worker.py sweep [YYYY-MM-DD] ingest that day's new 10-Q/10-K
     python worker.py market             refresh prices, movers and sectors
+    python worker.py sections           refresh heatmap, rotation and trades
     python worker.py intraday TICKER    refresh one chart series
     python worker.py stats              coverage summary
     python worker.py run                the long-running loop (this is what
@@ -240,11 +241,14 @@ def refresh_market() -> bool:
     if sectors:
         store.replace_sectors(sectors, as_of)
 
+    store_movers: dict[str, list[dict]] = {}
     for kind, fetch in (("gainer", market.gainers),
                         ("loser", market.losers),
                         ("active", market.actives)):
         try:
-            store.replace_movers(kind, fetch(25), as_of)
+            rows = fetch(25)
+            store_movers[kind] = rows
+            store.replace_movers(kind, rows, as_of)
         except market.MarketError as exc:
             log(f"  movers {kind}: {exc}")
 
@@ -252,9 +256,13 @@ def refresh_market() -> bool:
     if quotes:
         store.upsert_quotes(quotes)
 
-    # Chart series for every watchlist symbol, so whichever the list happens
-    # to rank first always has a chart to show.
-    for sym in WATCHLIST:
+    # Chart series for the watchlist and for the top few movers, so every
+    # view of the summary list has something to draw when it is opened.
+    chart_syms = list(dict.fromkeys(
+        WATCHLIST
+        + [r["symbol"] for r in (store_movers.get("gainer") or [])[:6]]
+        + [r["symbol"] for r in (store_movers.get("loser") or [])[:6]]))
+    for sym in chart_syms:
         try:
             pts = market.intraday(sym, days=2)
             if pts:
@@ -263,7 +271,46 @@ def refresh_market() -> bool:
             continue
 
     log(f"market: {len(sectors)} sectors, {len(quotes)} quotes, "
-        f"as of {as_of}, {time.time()-started:.1f}s")
+        f"{len(chart_syms)} charts, as of {as_of}, {time.time()-started:.1f}s")
+    return True
+
+
+def refresh_sections() -> bool:
+    """Heatmap, sector rotation, insider and congressional trades.
+
+    Slower and less time-critical than prices, so it runs on its own cadence:
+    the treemap costs one request per constituent.
+    """
+    if not market.configured():
+        return False
+    started = time.time()
+    _, as_of = market.sectors()
+
+    try:
+        rows = market.heatmap()
+        if rows:
+            store.replace_heatmap(rows, as_of)
+    except market.MarketError as exc:
+        log(f"  heatmap: {exc}")
+        rows = []
+
+    try:
+        hist = market.sector_history(45)
+        if hist:
+            store.replace_sector_history(hist)
+    except market.MarketError as exc:
+        log(f"  sector history: {exc}")
+        hist = []
+
+    try:
+        ins, con = market.insider_trades(40), market.congress_trades(40)
+        store.replace_trades(ins, con)
+    except market.MarketError as exc:
+        log(f"  trades: {exc}")
+        ins = con = []
+
+    log(f"sections: {len(rows)} heatmap, {len(hist)} sector series, "
+        f"{len(ins)} insider, {len(con)} congress, {time.time()-started:.1f}s")
     return True
 
 
@@ -302,8 +349,10 @@ def run() -> None:
     log("worker up — the only process talking to the SEC and to FMP")
     last_directory = 0.0
     last_market = 0.0
+    last_sections = 0.0
     last_sweep_day: dt.date | None = None
     market_every = int(os.environ.get("MARKET_REFRESH_SECONDS", "900"))
+    sections_every = int(os.environ.get("SECTIONS_REFRESH_SECONDS", "3600"))
 
     while True:
         try:
@@ -319,6 +368,13 @@ def run() -> None:
                 except market.MarketError as exc:
                     log(f"market refresh failed (continuing): {exc}")
                 last_market = now
+
+            if now - last_sections > sections_every:
+                try:
+                    refresh_sections()
+                except market.MarketError as exc:
+                    log(f"sections refresh failed (continuing): {exc}")
+                last_sections = now
 
             # Visitors first: a queued company should appear within a minute.
             if drain_backfill():
@@ -369,6 +425,9 @@ def main(argv: list[str]) -> int:
         sweep(dt.date.fromisoformat(argv[1]) if len(argv) > 1 else None)
     elif cmd == "market":
         log("market refreshed" if refresh_market()
+            else "FMP_API_KEY not set; nothing to do")
+    elif cmd == "sections":
+        log("sections refreshed" if refresh_sections()
             else "FMP_API_KEY not set; nothing to do")
     elif cmd == "intraday":
         if len(argv) < 2:

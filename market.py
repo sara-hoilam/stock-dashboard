@@ -72,19 +72,41 @@ def _get(path: str, **params):
 # volume. A "top stock of the day" that is a $0.09 shell up 200% is noise, not
 # information, so anything below this price is left out.
 MIN_MOVER_PRICE = float(os.environ.get("MIN_MOVER_PRICE", "5"))
+MIN_MOVER_CAP = float(os.environ.get("MIN_MOVER_CAP", "1e9"))
+
+# The screener returns the whole large-cap universe in one call, which is what
+# makes the market-cap filter affordable: the alternative is a quote request
+# per candidate. Cached for the length of a refresh so gainers, losers and
+# actives share the one call.
+_caps_cache: dict[str, object] = {"at": 0.0, "symbols": set()}
 
 
-def _movers(path: str, kind: str, limit: int) -> list[dict]:
+def large_caps(min_cap: float | None = None, ttl: int = 900) -> set[str]:
+    """Symbols above `min_cap`, as a set for cheap membership tests."""
+    if time.time() - float(_caps_cache["at"]) < ttl and _caps_cache["symbols"]:
+        return _caps_cache["symbols"]          # type: ignore[return-value]
+    rows = _get("company-screener",
+                marketCapMoreThan=int(min_cap or MIN_MOVER_CAP),
+                isActivelyTrading="true", limit=5000) or []
+    syms = {r["symbol"] for r in rows if r.get("symbol")}
+    if syms:
+        _caps_cache.update(at=time.time(), symbols=syms)
+    return syms
+
+
+def _movers(path: str, kind: str, limit: int, allowed: set[str] | None) -> list[dict]:
     rows = _get(path) or []
     out = []
     for r in rows:
-        price = r.get("price")
-        if not r.get("symbol") or price is None or price < MIN_MOVER_PRICE:
+        sym, price = r.get("symbol"), r.get("price")
+        if not sym or price is None or price < MIN_MOVER_PRICE:
+            continue
+        if allowed is not None and sym not in allowed:
             continue
         out.append({
             "kind": kind,
             "rank": len(out) + 1,
-            "symbol": r.get("symbol"),
+            "symbol": sym,
             "name": r.get("name"),
             "price": price,
             "change": r.get("change"),
@@ -96,16 +118,16 @@ def _movers(path: str, kind: str, limit: int) -> list[dict]:
     return out
 
 
-def gainers(limit: int = 25) -> list[dict]:
-    return _movers("biggest-gainers", "gainer", limit)
+def gainers(limit: int = 25, min_cap: float | None = None) -> list[dict]:
+    return _movers("biggest-gainers", "gainer", limit, large_caps(min_cap))
 
 
-def losers(limit: int = 25) -> list[dict]:
-    return _movers("biggest-losers", "loser", limit)
+def losers(limit: int = 25, min_cap: float | None = None) -> list[dict]:
+    return _movers("biggest-losers", "loser", limit, large_caps(min_cap))
 
 
-def actives(limit: int = 25) -> list[dict]:
-    return _movers("most-actives", "active", limit)
+def actives(limit: int = 25, min_cap: float | None = None) -> list[dict]:
+    return _movers("most-actives", "active", limit, large_caps(min_cap))
 
 
 # ---------------------------------------------------------------------------
@@ -195,3 +217,137 @@ def intraday(symbol: str, days: int = 2) -> list[dict]:
     # Keep the most recent two sessions' worth without needing a calendar.
     sessions = sorted({p["t"][:10] for p in pts})[-days:]
     return [p for p in pts if p["t"][:10] in sessions]
+
+
+# ---------------------------------------------------------------------------
+# Heatmap constituents
+# ---------------------------------------------------------------------------
+# FMP's index-constituent endpoint is not in every plan, so the heatmap runs
+# off a curated large-cap list instead. Sector membership barely moves, and a
+# treemap of ~55 names reads better than one of 500 anyway -- the small tiles
+# in a full-index map are unreadable.
+HEATMAP_UNIVERSE = [
+    # Technology
+    "AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "AMD", "ADBE", "CSCO", "ACN",
+    "TXN", "QCOM", "INTU", "IBM",
+    # Communication services
+    "GOOGL", "META", "NFLX", "DIS", "TMUS", "VZ", "T",
+    # Consumer cyclical
+    "AMZN", "TSLA", "HD", "MCD", "NKE", "SBUX", "LOW", "BKNG",
+    # Consumer defensive
+    "WMT", "PG", "COST", "KO", "PEP", "PM",
+    # Healthcare
+    "LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "PFE",
+    # Financials
+    "BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS",
+    # Industrials, energy, utilities, materials, real estate
+    "CAT", "GE", "RTX", "UNP", "XOM", "CVX", "COP", "NEE", "DUK",
+    "LIN", "SHW", "AMT", "PLD",
+]
+
+
+def heatmap(symbols: list[str] | None = None) -> list[dict]:
+    """Sector, market cap and day change per symbol, for the treemap.
+
+    `profile` returns all three in one call, so this costs one request per
+    name rather than three.
+    """
+    out = []
+    for sym in (symbols or HEATMAP_UNIVERSE):
+        try:
+            rows = _get("profile", symbol=sym) or []
+        except MarketError:
+            continue
+        if not rows:
+            continue
+        r = rows[0]
+        if r.get("marketCap") and r.get("sector"):
+            out.append({
+                "symbol": r.get("symbol"),
+                "name": r.get("companyName"),
+                "sector": r.get("sector"),
+                "industry": r.get("industry"),
+                "market_cap": r.get("marketCap"),
+                "price": r.get("price"),
+                "change_pct": r.get("changePercentage"),
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Sector movement over time
+# ---------------------------------------------------------------------------
+
+SECTOR_NAMES = [
+    "Technology", "Communication Services", "Consumer Cyclical",
+    "Consumer Defensive", "Healthcare", "Financial Services",
+    "Industrials", "Energy", "Utilities", "Real Estate", "Basic Materials",
+]
+
+
+def sector_history(days: int = 45) -> list[dict]:
+    """Daily average change per sector, for the rotation chart."""
+    end = dt.date.today()
+    start = end - dt.timedelta(days=days)
+    out = []
+    for sector in SECTOR_NAMES:
+        try:
+            rows = _get("historical-sector-performance", sector=sector,
+                        **{"from": start.isoformat(), "to": end.isoformat()}) or []
+        except MarketError:
+            continue
+        # One row per exchange per day; average them into a single series.
+        by_day: dict[str, list[float]] = {}
+        for r in rows:
+            d, v = r.get("date"), r.get("averageChange")
+            if d and v is not None:
+                by_day.setdefault(d, []).append(float(v))
+        series = [{"d": d, "v": sum(v) / len(v)} for d, v in sorted(by_day.items())]
+        if series:
+            out.append({"sector": sector, "series": series})
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Insider and congressional trades
+# ---------------------------------------------------------------------------
+
+def insider_trades(limit: int = 40) -> list[dict]:
+    rows = _get("insider-trading/latest", page=0, limit=limit) or []
+    out = []
+    for r in rows:
+        shares = r.get("securitiesTransacted") or 0
+        price = r.get("price") or 0
+        code = (r.get("transactionType") or r.get("acquisitionOrDisposition") or "")
+        buy = str(code).upper().startswith(("P", "A"))
+        out.append({
+            "filed": r.get("filingDate", "")[:10],
+            "symbol": r.get("symbol"),
+            "side": "Buy" if buy else "Sell",
+            "shares": shares,
+            "amount": (shares * price) * (1 if buy else -1),
+            "person": r.get("reportingName"),
+        })
+    return [r for r in out if r["symbol"]]
+
+
+def congress_trades(limit: int = 40) -> list[dict]:
+    """Recent disclosures from both chambers, newest first."""
+    rows = []
+    for path, chamber in (("senate-latest", "Senate"), ("house-latest", "House")):
+        try:
+            for r in _get(path, page=0, limit=limit) or []:
+                rows.append({
+                    "disclosed": (r.get("disclosureDate") or "")[:10],
+                    "traded": (r.get("transactionDate") or "")[:10],
+                    "symbol": r.get("symbol"),
+                    "person": " ".join(x for x in (r.get("firstName"), r.get("lastName")) if x),
+                    "chamber": chamber,
+                    "side": r.get("type"),
+                    "amount": r.get("amount"),
+                })
+        except MarketError:
+            continue
+    rows = [r for r in rows if r["symbol"]]
+    rows.sort(key=lambda r: r["disclosed"], reverse=True)
+    return rows[:limit]

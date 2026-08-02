@@ -88,7 +88,9 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
 
-.rows{border-right:1px solid var(--rule);overflow-y:auto;max-height:560px}
+/* Eight rows, then scroll -- enough to see the shape of the list without the
+   panel growing taller than the chart beside it. */
+.rows{border-right:1px solid var(--rule);overflow-y:auto;max-height:365px}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 thead th{
   position:sticky;top:0;background:var(--card);z-index:1;
@@ -402,9 +404,73 @@ function drawChart(points){
       text-anchor="middle" font-size="10.5" class="tnum" fill="var(--ink-3)">${points[i].t.slice(11,16)}</text>`);
   });
 
+  // Crosshair, hidden until the pointer is actually over the plot.
+  parts.push(`<g id="cross" style="display:none;pointer-events:none">
+      <line id="cx" y1="${mt}" y2="${mt+ph}" stroke="var(--ink-3)"
+            stroke-width="1" stroke-dasharray="4 4"></line>
+      <line id="cy" x1="${ml}" x2="${W-mr}" stroke="var(--ink-3)"
+            stroke-width="1" stroke-dasharray="4 4"></line>
+      <circle id="cdot" r="4" fill="var(--ink-2)" stroke="var(--card)" stroke-width="2"></circle>
+      <g id="cplab"><rect x="${W-mr+2}" width="56" height="18" rx="4" fill="var(--ink)"></rect>
+        <text x="${W-mr+30}" text-anchor="middle" font-size="11" class="tnum"
+              fill="var(--card)" font-weight="600"></text></g>
+      <g id="ctlab"><rect height="18" rx="4" fill="var(--ink)"></rect>
+        <text text-anchor="middle" font-size="10.5" class="tnum"
+              fill="var(--card)" font-weight="600"></text></g>
+    </g>`);
+  // A transparent surface above everything, so the pointer is tracked even
+  // between data points rather than only over the line itself.
+  parts.push(`<rect id="hit" x="${ml}" y="${mt}" width="${pw}" height="${ph}"
+      fill="transparent" style="cursor:crosshair"></rect>`);
+
   document.getElementById("chart").innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
        aria-label="Intraday price">${parts.join("")}</svg>`;
+
+  wireCrosshair({points, x, y, W, H, ml, mr, mt, mb, ph});
+}
+
+/** Follow the pointer along the series, snapping to the nearest bar. */
+function wireCrosshair(g){
+  const svg = document.querySelector("#chart svg");
+  const hit = svg.querySelector("#hit"), cross = svg.querySelector("#cross");
+  const cx = svg.querySelector("#cx"), cy = svg.querySelector("#cy");
+  const dot = svg.querySelector("#cdot");
+  const pRect = svg.querySelector("#cplab rect"), pText = svg.querySelector("#cplab text");
+  const tRect = svg.querySelector("#ctlab rect"), tText = svg.querySelector("#ctlab text");
+
+  const toLocal = ev => {
+    const b = svg.getBoundingClientRect();
+    return (ev.clientX - b.left) * (g.W / b.width);
+  };
+
+  hit.addEventListener("mousemove", ev => {
+    const px = toLocal(ev);
+    const step = (g.W - g.ml - g.mr) / Math.max(1, g.points.length - 1);
+    const i = Math.max(0, Math.min(g.points.length - 1, Math.round((px - g.ml) / step)));
+    const p = g.points[i], X = g.x(i), Y = g.y(p.c);
+
+    cross.style.display = "";
+    cx.setAttribute("x1", X); cx.setAttribute("x2", X);
+    cy.setAttribute("y1", Y); cy.setAttribute("y2", Y);
+    dot.setAttribute("cx", X); dot.setAttribute("cy", Y);
+
+    pRect.setAttribute("y", Y - 9);
+    pText.setAttribute("y", Y + 4);
+    pText.textContent = p.c.toFixed(2);
+
+    // Date and time, clamped so the label never runs off either end.
+    const label = `${p.t.slice(8,10)} ${MONTHS[+p.t.slice(5,7)-1]} '${p.t.slice(2,4)}  ${p.t.slice(11,16)}`;
+    const w = Math.max(96, label.length * 6.2);
+    const lx = Math.min(Math.max(X - w/2, g.ml), g.W - g.mr - w);
+    tRect.setAttribute("x", lx); tRect.setAttribute("width", w);
+    tRect.setAttribute("y", g.H - g.mb + 2);
+    tText.setAttribute("x", lx + w/2);
+    tText.setAttribute("y", g.H - g.mb + 15);
+    tText.textContent = label;
+  });
+
+  hit.addEventListener("mouseleave", () => { cross.style.display = "none"; });
 }
 
 /* ---- ticker search ------------------------------------------------------- */

@@ -157,3 +157,16 @@ def replace_sectors(rows: list[dict], as_of: str | None) -> int:
 def upsert_intraday(symbol: str, points: list[dict], as_of: str | None) -> None:
     rpc("upsert_intraday",
         {"p_symbol": symbol, "p_points": points, "p_as_of": as_of})
+
+
+def replace_heatmap(rows: list[dict], as_of: str | None) -> int:
+    return rpc("replace_heatmap", {"p_rows": rows, "p_as_of": as_of}) or 0
+
+
+def replace_sector_history(rows: list[dict]) -> int:
+    return rpc("replace_sector_history", {"p_rows": rows}) or 0
+
+
+def replace_trades(insiders: list[dict], congress: list[dict]) -> int:
+    return rpc("replace_trades",
+               {"p_insiders": insiders, "p_congress": congress}) or 0
