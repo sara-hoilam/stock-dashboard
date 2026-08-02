@@ -691,10 +691,15 @@ function renderHeatmap(sectors){
       // still name themselves.
       const fs = Math.max(8, Math.min(26, Math.sqrt(tw * th) / 4.6));
       const showPct = th > 34 && tw > 52;
+      const colour = heatColour(c.changePct);
       return `<a class="tile" href="company.html?t=${encodeURIComponent(c.symbol)}"
                  style="left:${tx}px;top:${ty}px;width:${Math.max(0,tw-2)}px;height:${Math.max(0,th-2)}px;
-                        background:${heatColour(c.changePct)}"
-                 title="${esc(c.name || c.symbol)} · ${esc(pct(c.changePct))} · ${esc(cap(c.marketCap))}">
+                        background:${colour}"
+                 data-name="${esc(c.name || c.symbol)}"
+                 data-symbol="${esc(c.symbol)}"
+                 data-pct="${esc(pct(c.changePct))}"
+                 data-cap="${esc(cap(c.marketCap))}"
+                 data-colour="${esc(colour)}">
                 <b style="font-size:${fs.toFixed(1)}px">${esc(c.symbol)}</b>
                 ${showPct ? `<span style="font-size:${Math.max(9, fs*0.5).toFixed(1)}px;
                    top:${(fs*1.15).toFixed(0)}px">${esc(pct(c.changePct))}</span>` : ""}
@@ -711,6 +716,16 @@ function renderHeatmap(sectors){
     `<span>Day change</span>` +
     [-6,-3,-1.5,-0.5,0.5,1.5,3,6].map(v =>
       `<span><i style="background:${heatColour(v)}"></i>${v > 0 ? "+" : ""}${v}%</span>`).join("");
+
+  // Same tip chrome as the sector charts: coloured swatch + label + value,
+  // plus market cap on a second row.
+  host.querySelectorAll("a.tile").forEach(el => {
+    el.addEventListener("mousemove", ev => showTip(ev, el.dataset.name, [
+      [el.dataset.symbol, el.dataset.pct, el.dataset.colour],
+      ["Market cap", el.dataset.cap],
+    ]));
+    el.addEventListener("mouseleave", hideTip);
+  });
 }
 
 /* ===========================================================================
