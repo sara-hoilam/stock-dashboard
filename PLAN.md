@@ -1,4 +1,4 @@
-# Plan — hosting Ledger as a live web dashboard
+# Plan — hosting Alpha Ticker as a live web dashboard
 
 How the local tool becomes a service that many people can use, and stays current
 with every filer without anyone pressing refresh.

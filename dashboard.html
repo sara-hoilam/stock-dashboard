@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Quarterly Financials — SEC EDGAR</title>
+<title>Alpha Ticker — quarterly financials from SEC filings</title>
 <!-- Deployed builds ship this pointing at Supabase. Absent locally, where the
      page falls back to server.py. -->
 <script src="config.js"></script>
@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* ---------------------------------------------------------------------------
-   Ledger — a reading surface for filed financial statements.
+   Alpha Ticker — a reading surface for filed financial statements.
 
    Neutrals are biased blue so the accent belongs to the same family; the
    categorical data colours are the validated palette (see README) and are the
@@ -230,7 +230,7 @@ tbody tr:hover td{background:var(--sunk)}
 
 <div class="bar">
   <div class="bar-in">
-    <div class="brand"><b>Ledger</b><span>SEC EDGAR</span></div>
+    <div class="brand"><b>Alpha Ticker</b><span>SEC EDGAR</span></div>
 
     <div class="field">
       <label for="q">Company, ticker or CIK</label>
@@ -336,7 +336,10 @@ const S = { company:null, quarter:null, breakdowns:null, cut:0, ticker:null };
    Local: config.js is absent, so this falls back to server.py and the page
    works exactly as it did before.
 =========================================================================== */
-const CFG = window.LEDGER_CONFIG || {};
+// ALPHATICKER_CONFIG is set by config.js. The older LEDGER_CONFIG name is
+// still honoured so a cached copy of the previous config.js cannot silently
+// drop the page back to local mode.
+const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
 const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 
 async function rpc(fn, args){
@@ -1712,7 +1715,7 @@ const themeBtn = document.getElementById("theme");
 function setTheme(t){
   document.documentElement.setAttribute("data-theme", t);
   themeBtn.textContent = t === "dark" ? "Light" : "Dark";
-  try { localStorage.setItem("ledger-theme", t); } catch {}
+  try { localStorage.setItem("alphaticker-theme", t); } catch {}
   if (S.company) { renderSankey(); renderMix(); renderRevTrend(); renderMargins(); renderCostStack(); }
 }
 themeBtn.onclick = () =>
@@ -1720,7 +1723,9 @@ themeBtn.onclick = () =>
 
 (function boot(){
   let t = null;
-  try { t = localStorage.getItem("ledger-theme"); } catch {}
+  // Fall back to the old key so an existing visitor keeps their theme.
+  try { t = localStorage.getItem("alphaticker-theme")
+            || localStorage.getItem("ledger-theme"); } catch {}
   if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   setTheme(t);
 

@@ -1,4 +1,4 @@
-# Ledger — quarterly financials dashboard
+# Alpha Ticker — quarterly financials dashboard
 
 Search any SEC-registered company, pick a quarter, and read its income
 statement as charts. Every figure comes from the company's own filings with the
