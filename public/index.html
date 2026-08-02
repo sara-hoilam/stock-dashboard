@@ -26,6 +26,12 @@
   /* The same validated categorical palette the company page uses. */
   --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
   --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  /* Eleven saturated hues for the sector lines. Twelve overlapping series
+     need more separation than the eight-slot palette gives, and identity here
+     never rests on colour alone: there is a legend and a hover readout. */
+  --k1:#6c63f0; --k2:#f28a70; --k3:#3fbf5f; --k4:#f2c14a;
+  --k5:#cf922f; --k6:#5aa9f0; --k7:#7fc47f; --k8:#4b3fe0;
+  --k9:#b13fd6; --k10:#d45a7a; --k11:#ef4136;
   --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
   --r:10px;
 }
@@ -40,6 +46,9 @@
   --revenue:#3987e5;
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
   --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --k1:#8b83ff; --k2:#ff9c81; --k3:#4ed46f; --k4:#ffd05c;
+  --k5:#e0a63c; --k6:#6fb9ff; --k7:#93d693; --k8:#6a5cff;
+  --k9:#c655e8; --k10:#e86b8c; --k11:#ff5347;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
 }
 
@@ -146,6 +155,9 @@ svg{display:block;max-width:100%}
 
 /* ---- the sections below Market Summary ---------------------------------- */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+/* The rotation chart carries twelve series and a date axis; the bar
+   chart beside it is eleven short rows and needs much less. */
+.grid2.wide{grid-template-columns:1.7fr 1fr}
 .hmhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
   padding:15px 18px 4px;flex-wrap:wrap}
 .hmhead p{font-size:12px;color:var(--ink-3);max-width:64ch;margin:0}
@@ -160,10 +172,10 @@ svg{display:block;max-width:100%}
 .tile{position:absolute;border-radius:3px;overflow:hidden;text-decoration:none;
   display:block;border:1px solid var(--ground)}
 .tile:hover{outline:2px solid var(--ink);outline-offset:-2px;z-index:3}
-.tile b{position:absolute;left:5px;top:3px;font-family:"IBM Plex Sans",sans-serif;
-  font-weight:600;color:#fff;letter-spacing:-.01em;line-height:1}
-.tile span{position:absolute;left:5px;top:20px;font-family:"IBM Plex Mono",monospace;
-  color:rgba(255,255,255,.86);line-height:1}
+.tile b{position:absolute;left:4px;top:3px;font-family:"IBM Plex Sans",sans-serif;
+  font-weight:600;color:#fff;letter-spacing:-.02em;line-height:1;white-space:nowrap}
+.tile span{position:absolute;left:4px;font-family:"IBM Plex Mono",monospace;
+  color:rgba(255,255,255,.88);line-height:1;white-space:nowrap}
 .sectorbox{position:absolute}
 .sectorbox>h4{font-size:11.5px;font-weight:600;color:var(--ink-2);margin:0 0 3px 1px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -186,6 +198,20 @@ svg{display:block;max-width:100%}
 .who{font-family:"IBM Plex Sans",sans-serif;color:var(--ink-2);max-width:150px;
   overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
 
+#tip{
+  position:fixed;z-index:200;pointer-events:none;opacity:0;transition:opacity .1s;
+  background:var(--card);border:1px solid var(--rule);border-radius:8px;
+  box-shadow:var(--shadow);padding:9px 11px;font-size:12.5px;max-width:280px;
+}
+#tip.on{opacity:1}
+#tip b{display:block;font-size:12.5px;margin-bottom:4px;
+  font-family:"IBM Plex Mono",monospace;font-weight:600}
+#tip .r{display:flex;justify-content:space-between;gap:16px;align-items:center;color:var(--ink-2)}
+#tip .r span:last-child{font-family:"IBM Plex Mono",monospace;color:var(--ink);
+  font-variant-numeric:tabular-nums;font-weight:600}
+#tip .sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:7px;
+  vertical-align:-1px}
+
 .note{padding:30px 18px;color:var(--ink-3);font-size:13px;text-align:center}
 .foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--rule);
   font-size:12px;color:var(--ink-3);line-height:1.7}
@@ -196,7 +222,7 @@ svg{display:block;max-width:100%}
 @keyframes sp{to{transform:rotate(360deg)}}
 
 @media (max-width:1180px){ .cards{grid-template-columns:repeat(3,minmax(0,1fr))} .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
-@media (max-width:900px){ .grid2{grid-template-columns:1fr} }
+@media (max-width:900px){ .grid2, .grid2.wide{grid-template-columns:1fr} }
 @media (max-width:640px){ .cards{grid-template-columns:repeat(2,minmax(0,1fr))} .top h1{font-size:26px} main{padding:18px 14px 60px} .search input{width:160px} }
 </style>
 </head>
@@ -257,10 +283,19 @@ svg{display:block;max-width:100%}
   </section>
 
   <h2 style="margin-top:26px">Sectors Movement</h2>
-  <div class="grid2">
+  <div class="grid2 wide">
     <section class="panel">
-      <div class="hmhead"><div><h3>Sector Rotations</h3>
-        <p>Cumulative performance per sector over the last six weeks.</p></div></div>
+      <div class="hmhead">
+        <div><h3>Sector Rotations</h3>
+          <p id="rot-sub">Cumulative performance per sector.</p></div>
+        <div class="seg" id="rot-range">
+          <button data-d="7"   aria-pressed="false">7d</button>
+          <button data-d="15"  aria-pressed="false">15d</button>
+          <button data-d="30"  aria-pressed="true">30d</button>
+          <button data-d="60"  aria-pressed="false">60d</button>
+          <button data-d="120" aria-pressed="false">120d</button>
+        </div>
+      </div>
       <div class="scroll" id="rotation"><div class="note"><span class="load"></span></div></div>
       <div class="legend" id="rot-legend"></div>
     </section>
@@ -289,6 +324,8 @@ svg{display:block;max-width:100%}
 
   <div class="foot" id="foot"></div>
 </main>
+
+<div id="tip" role="status" aria-live="polite"></div>
 
 <script>
 "use strict";
@@ -331,7 +368,23 @@ const avatarColour = s => {
   return c.startsWith("--") ? `var(${c})` : c;
 };
 
-const S = { view: "market_cap", rows: [], symbol: null, overview: null };
+const S = { view: "market_cap", rows: [], symbol: null, overview: null, movement: null };
+
+/* ---- shared tooltip ------------------------------------------------------ */
+const tipEl = document.getElementById("tip");
+function showTip(ev, title, rows){
+  tipEl.innerHTML = `<b>${esc(title)}</b>` + rows.map(([k, v, colour]) =>
+    `<div class="r"><span>${colour ? `<i class="sw" style="background:${colour}"></i>` : ""}${esc(k)}</span>` +
+    `<span>${esc(v)}</span></div>`).join("");
+  tipEl.classList.add("on");
+  const pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+  tipEl.style.left = Math.max(8, x) + "px";
+  tipEl.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => tipEl.classList.remove("on");
 
 /* ---- headline cards ------------------------------------------------------ */
 function renderCards(o){
@@ -570,17 +623,18 @@ function wireCrosshair(g){
    scale with a neutral middle, so "flat" reads as flat rather than as a weak
    version of either direction.
 =========================================================================== */
-const HEAT_STOPS = [-3, -1.5, -0.4, 0.4, 1.5, 3];
+// Deep and desaturated in the middle, bright at the extremes, so the day's
+// real movers separate from the crowd instead of being one shade off it.
+const HEAT_SCALE = [
+  [-6,   "#e8433a"], [-3,   "#c9342c"], [-1.5, "#8f3029"],
+  [-0.5, "#5c2b28"], [-0.05,"#3b2f2e"],
+  [ 0.05,"#2c3a30"], [ 0.5, "#26543a"], [ 1.5, "#2c8a4e"],
+  [ 3,   "#39b862"], [ 6,   "#5fe083"],
+];
 function heatColour(p){
   if (p === null || p === undefined) return "var(--rule)";
-  // Muted at the centre, saturated at the extremes; the same two hues the
-  // company page uses for cost and profit.
-  const s = [
-    [-99,  "#7f1d17"], [-3, "#9c2b23"], [-1.5, "#7c3b36"], [-0.4, "#4a4f52"],
-    [0.4,  "#2f6f4a"], [1.5, "#22874f"], [3,   "#12a355"],
-  ];
-  let c = s[0][1];
-  for (const [t, col] of s) if (p >= t) c = col;
+  let c = HEAT_SCALE[0][1];
+  for (const [t, col] of HEAT_SCALE) if (p >= t) c = col;
   return c;
 }
 
@@ -614,25 +668,40 @@ function renderHeatmap(sectors){
     document.getElementById("hm-legend").innerHTML = "";
     return;
   }
-  const W = 1180, H = 560, GAP = 8, HEAD = 16;
+  const W = 1180, H = 620, GAP = 8, HEAD = 16;
   const blocks = treemap(sectors, 0, 0, W, H, s => s.marketCap);
 
   const html = blocks.map(({it: sec, x, y, w, h}) => {
     const iw = Math.max(0, w - GAP), ih = Math.max(0, h - GAP - HEAD);
-    const tiles = treemap(sec.items, 0, 0, iw, ih, c => c.marketCap).map(({it: c, x: tx, y: ty, w: tw, h: th}) => {
-      // Only label a tile that can actually hold the text.
-      const big = tw > 46 && th > 30;
-      const huge = tw > 92 && th > 54;
+
+    // Every tile must be able to carry its ticker. Rather than leave the
+    // smallest ones blank, drop them until the remainder are all legible --
+    // a tile nobody can read is not information, it is texture.
+    let items = sec.items.slice();
+    let laid = treemap(items, 0, 0, iw, ih, c => c.marketCap);
+    while (items.length > 1 &&
+           laid.some(t => t.w < 30 || t.h < 15)) {
+      items = items.slice(0, -1);
+      laid = treemap(items, 0, 0, iw, ih, c => c.marketCap);
+    }
+    const hidden = sec.items.length - items.length;
+
+    const tiles = laid.map(({it: c, x: tx, y: ty, w: tw, h: th}) => {
+      // Type scales with the tile: big names read as headlines, small ones
+      // still name themselves.
+      const fs = Math.max(8, Math.min(26, Math.sqrt(tw * th) / 4.6));
+      const showPct = th > 34 && tw > 52;
       return `<a class="tile" href="company.html?t=${encodeURIComponent(c.symbol)}"
                  style="left:${tx}px;top:${ty}px;width:${Math.max(0,tw-2)}px;height:${Math.max(0,th-2)}px;
                         background:${heatColour(c.changePct)}"
                  title="${esc(c.name || c.symbol)} · ${esc(pct(c.changePct))} · ${esc(cap(c.marketCap))}">
-                ${big ? `<b style="font-size:${huge ? 15 : 10.5}px">${esc(c.symbol)}</b>` : ""}
-                ${huge ? `<span style="font-size:11px">${esc(pct(c.changePct))}</span>` : ""}
+                <b style="font-size:${fs.toFixed(1)}px">${esc(c.symbol)}</b>
+                ${showPct ? `<span style="font-size:${Math.max(9, fs*0.5).toFixed(1)}px;
+                   top:${(fs*1.15).toFixed(0)}px">${esc(pct(c.changePct))}</span>` : ""}
               </a>`;
     }).join("");
     return `<div class="sectorbox" style="left:${x}px;top:${y}px;width:${iw}px;height:${h-GAP}px">
-              <h4>${esc(sec.sector)}</h4>
+              <h4>${esc(sec.sector)}${hidden ? ` <span style="font-weight:400;color:var(--ink-3)">+${hidden}</span>` : ""}</h4>
               <div style="position:relative;width:${iw}px;height:${ih}px">${tiles}</div>
             </div>`;
   }).join("");
@@ -640,77 +709,135 @@ function renderHeatmap(sectors){
   host.innerHTML = `<div style="position:relative;width:${W}px;height:${H}px">${html}</div>`;
   document.getElementById("hm-legend").innerHTML =
     `<span>Day change</span>` +
-    [-3,-1.5,-0.4,0.4,1.5,3].map(v =>
+    [-6,-3,-1.5,-0.5,0.5,1.5,3,6].map(v =>
       `<span><i style="background:${heatColour(v)}"></i>${v > 0 ? "+" : ""}${v}%</span>`).join("");
 }
 
 /* ===========================================================================
    Sector movement
 =========================================================================== */
-const SECTOR_COLOURS = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8",
-                        "#2f6f4a","#9c2b23","#7c5cbf"];
-const sectorColour = i => {
-  const c = SECTOR_COLOURS[i % SECTOR_COLOURS.length];
-  return c.startsWith("--") ? `var(${c})` : c;
-};
+const SECTOR_COLOURS = ["--k1","--k2","--k3","--k4","--k5","--k6",
+                        "--k7","--k8","--k9","--k10","--k11"];
+const sectorColour = i => `var(${SECTOR_COLOURS[i % SECTOR_COLOURS.length]})`;
+
+// The chart holds 120 days; the filter decides how much of it to show.
+const ROT = { days: 30, history: null };
 
 function renderRotation(history){
+  if (history) ROT.history = history;
   const host = document.getElementById("rotation");
-  if (!history || !history.length){
+  if (!ROT.history || !ROT.history.length){
     host.innerHTML = `<div class="note">No sector history yet.</div>`; return;
   }
+
   // Cumulative from the start of the window: the question is which sectors
-  // have led over six weeks, not what each did on one day.
-  const series = history.map((s, i) => {
+  // have led over the period, not what each did on a single day. Re-based on
+  // every filter change so the window always starts at zero.
+  const series = ROT.history.map((s, i) => {
+    const pts = s.series.slice(-ROT.days);
     let acc = 0;
     return {sector: s.sector, colour: sectorColour(i),
-            pts: s.series.map(p => ({d: p.d, v: (acc += p.v)}))};
-  });
+            pts: pts.map(p => ({d: p.d, v: (acc += p.v)}))};
+  }).filter(s => s.pts.length);
+
   const days = series[0].pts.map(p => p.d);
   const all = series.flatMap(s => s.pts.map(p => p.v));
   const lo = Math.min(...all, 0), hi = Math.max(...all, 0);
+  const pad = (hi - lo) * 0.08 || 1;
 
-  const W = 560, H = 300, ml = 40, mr = 12, mt = 14, mb = 42;
+  const W = 900, H = 380, ml = 62, mr = 14, mt = 14, mb = 58;
   const pw = W - ml - mr, ph = H - mt - mb;
   const x = i => ml + pw * i / Math.max(1, days.length - 1);
-  const y = v => mt + ph - ((v - lo) / ((hi - lo) || 1)) * ph;
+  const y = v => mt + ph - ((v - (lo - pad)) / (((hi + pad) - (lo - pad)) || 1)) * ph;
 
   const parts = [];
-  const step = Math.max(1, Math.round((hi - lo) / 4));
-  for (let v = Math.floor(lo); v <= hi; v += step)
+  const span = (hi + pad) - (lo - pad);
+  const step = span > 40 ? 10 : span > 16 ? 5 : span > 8 ? 2 : 1;
+  for (let v = Math.ceil((lo - pad) / step) * step; v <= hi + pad; v += step)
     parts.push(`<line x1="${ml}" y1="${y(v)}" x2="${W-mr}" y2="${y(v)}"
-        stroke="${Math.abs(v) < 0.01 ? "var(--rule)" : "var(--rule-2)"}"></line>
-      <text x="${ml-7}" y="${y(v)+4}" text-anchor="end" font-size="10" class="tnum"
-        fill="var(--ink-3)">${v}%</text>`);
+        stroke="${Math.abs(v) < 1e-9 ? "var(--rule)" : "var(--rule-2)"}"></line>
+      <text x="${ml-9}" y="${y(v)+4}" text-anchor="end" font-size="10.5" class="tnum"
+        fill="var(--ink-3)">${v}</text>`);
+
+  parts.push(`<text transform="translate(15,${mt + ph/2}) rotate(-90)"
+      text-anchor="middle" font-size="11.5" fill="var(--ink-3)">Stock Change (%)</text>`);
 
   series.forEach(s => {
     const d = s.pts.map((p,i) => `${i?"L":"M"}${x(i)},${y(p.v)}`).join(" ");
-    parts.push(`<path d="${d}" fill="none" stroke="${s.colour}" stroke-width="1.6"
-      stroke-linejoin="round"><title>${esc(s.sector)}</title></path>`);
+    parts.push(`<path d="${d}" fill="none" stroke="${s.colour}" stroke-width="1.9"
+      stroke-linejoin="round" stroke-linecap="round"></path>`);
   });
 
-  [0, Math.floor(days.length/2), days.length-1].forEach(i =>
-    parts.push(`<text x="${Math.min(Math.max(x(i),ml+22), W-mr-22)}" y="${H-mb+16}"
-      text-anchor="middle" font-size="10" class="tnum" fill="var(--ink-3)">${days[i].slice(5)}</text>`));
+  // Dates: a handful of evenly spaced labels, angled so they never collide.
+  const every = Math.max(1, Math.ceil(days.length / 9));
+  days.forEach((d, i) => {
+    if (i % every && i !== days.length - 1) return;
+    parts.push(`<text transform="translate(${x(i)},${H-mb+14}) rotate(-40)"
+      text-anchor="end" font-size="10" class="tnum" fill="var(--ink-3)">${d.slice(5)}</text>`);
+  });
+
+  parts.push(`<g id="rcross" style="display:none;pointer-events:none">
+      <line id="rcx" y1="${mt}" y2="${mt+ph}" stroke="var(--ink-3)"
+            stroke-width="1" stroke-dasharray="4 4"></line>
+      <circle id="rdot" r="4.5" fill="none" stroke-width="2.5"></circle>
+    </g>`);
+  parts.push(`<rect id="rhit" x="${ml}" y="${mt}" width="${pw}" height="${ph}"
+      fill="transparent" style="cursor:crosshair"></rect>`);
 
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
     aria-label="Cumulative sector performance">${parts.join("")}</svg>`;
+
   document.getElementById("rot-legend").innerHTML = series.map(s =>
     `<span><i style="background:${s.colour}"></i>${esc(s.sector)}</span>`).join("");
+  document.getElementById("rot-sub").textContent =
+    `Cumulative performance per sector over the last ${ROT.days} days.`;
+
+  wireRotationHover({series, days, x, y, W, ml, mr, mt, ph});
+}
+
+/** Nearest date, then nearest line at that date. */
+function wireRotationHover(g){
+  const svg = document.querySelector("#rotation svg");
+  const hit = svg.querySelector("#rhit"), cross = svg.querySelector("#rcross");
+  const cx = svg.querySelector("#rcx"), dot = svg.querySelector("#rdot");
+
+  hit.addEventListener("mousemove", ev => {
+    const b = svg.getBoundingClientRect();
+    const px = (ev.clientX - b.left) * (g.W / b.width);
+    const py = (ev.clientY - b.top) * (g.W / b.width);
+    const stepX = (g.W - g.ml - g.mr) / Math.max(1, g.days.length - 1);
+    const i = Math.max(0, Math.min(g.days.length - 1, Math.round((px - g.ml) / stepX)));
+
+    let best = null, bestD = Infinity;
+    g.series.forEach(s => {
+      const p = s.pts[i];
+      if (!p) return;
+      const d = Math.abs(g.y(p.v) - py);
+      if (d < bestD) { bestD = d; best = {s, p}; }
+    });
+    if (!best) return;
+
+    cross.style.display = "";
+    cx.setAttribute("x1", g.x(i)); cx.setAttribute("x2", g.x(i));
+    dot.setAttribute("cx", g.x(i)); dot.setAttribute("cy", g.y(best.p.v));
+    dot.setAttribute("stroke", best.s.colour);
+    dot.setAttribute("fill", "var(--card)");
+
+    showTip(ev, g.days[i], [[best.s.sector, `${best.p.v >= 0 ? "+" : ""}${best.p.v.toFixed(2)}%`, best.s.colour]]);
+  });
+  hit.addEventListener("mouseleave", () => { cross.style.display = "none"; hideTip(); });
 }
 
 function renderSectorPerf(rows){
   const host = document.getElementById("sectorperf");
   if (!rows || !rows.length){ host.innerHTML = `<div class="note">No sector data yet.</div>`; return; }
-  const W = 560, H = 300, ml = 152, mr = 20, mt = 10, mb = 30;
+  const W = 460, H = 320, ml = 132, mr = 16, mt = 10, mb = 26;
   const pw = W - ml - mr, ph = H - mt - mb;
   const max = Math.max(...rows.map(r => Math.abs(r.changePct)), 0.5);
   const zero = ml + pw / 2;
-  // The longest bar stops well short of the axis edge: the value sits just
-  // beyond the bar's tip, and without this reserve the biggest negative would
-  // run its label into the sector name on the left.
+  // The longest bar stops short of the edge so its value label has room.
   const scale = v => (v / max) * (pw / 2) * 0.68;
-  const bh = Math.min(18, ph / rows.length - 4);
+  const bh = Math.min(17, ph / rows.length - 5);
 
   const parts = [`<line x1="${zero}" y1="${mt}" x2="${zero}" y2="${mt+ph}" stroke="var(--rule)"></line>`];
   rows.forEach((r, i) => {
@@ -718,7 +845,8 @@ function renderSectorPerf(rows){
     const w = scale(r.changePct);
     const up = r.changePct >= 0;
     parts.push(`<rect x="${up ? zero : zero + w}" y="${cy - bh/2}" width="${Math.abs(w)}"
-        height="${bh}" rx="3" fill="var(${up ? "--up" : "--down"})"></rect>
+        height="${bh}" rx="3" fill="var(${up ? "--up" : "--down"})"
+        data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:default"></rect>
       <text x="${ml-10}" y="${cy+4}" text-anchor="end" font-size="11.5"
         fill="var(--ink-2)">${esc(r.sector)}</text>
       <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+4}"
@@ -727,6 +855,13 @@ function renderSectorPerf(rows){
   });
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
     aria-label="Sector performance">${parts.join("")}</svg>`;
+
+  const asOf = (S.movement && S.movement.asOf) || "";
+  host.querySelectorAll("rect[data-s]").forEach(el => {
+    el.addEventListener("mousemove", ev => showTip(ev, el.dataset.s,
+      [["Last trading day", asOf], ["Change", pct(+el.dataset.v)]]));
+    el.addEventListener("mouseleave", hideTip);
+  });
 }
 
 /* ===========================================================================
@@ -874,8 +1009,15 @@ themeBtn.onclick = () =>
     document.getElementById("heatmap").innerHTML = `<div class="note">Heatmap unavailable.</div>`);
 
   rpc("get_sector_movement").then(d => {
+    S.movement = d;
     renderRotation(d && d.history);
     renderSectorPerf(d && d.performance);
+    document.querySelectorAll("#rot-range button").forEach(b => b.onclick = () => {
+      ROT.days = +b.dataset.d;
+      document.querySelectorAll("#rot-range button").forEach(x =>
+        x.setAttribute("aria-pressed", x === b));
+      renderRotation();
+    });
   }).catch(() => {
     document.getElementById("rotation").innerHTML = `<div class="note">Unavailable.</div>`;
     document.getElementById("sectorperf").innerHTML = `<div class="note">Unavailable.</div>`;

@@ -295,7 +295,8 @@ def refresh_sections() -> bool:
         rows = []
 
     try:
-        hist = market.sector_history(45)
+        # 120 days so the chart's longest time filter has data behind it.
+        hist = market.sector_history(120)
         if hist:
             store.replace_sector_history(hist)
     except market.MarketError as exc:
