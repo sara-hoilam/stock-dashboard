@@ -6,6 +6,8 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py ingest TICKER ...  ingest specific companies
     python worker.py backfill           drain the request queue once
     python worker.py sweep [YYYY-MM-DD] ingest that day's new 10-Q/10-K
+    python worker.py market             refresh prices, movers and sectors
+    python worker.py intraday TICKER    refresh one chart series
     python worker.py stats              coverage summary
     python worker.py run                the long-running loop (this is what
                                         Render runs)
@@ -28,6 +30,7 @@ import traceback
 import envload  # noqa: F401  -- must precede edgar/store
 
 import edgar
+import market
 import store
 
 POLL = int(os.environ.get("BACKFILL_POLL_SECONDS", "20"))
@@ -211,6 +214,74 @@ def sweep(day: dt.date | None = None) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Market data (FMP)
+# ---------------------------------------------------------------------------
+
+# The watchlist behind Market Summary. Broad-market ETFs first so the page
+# always has an index to call the day's leader.
+WATCHLIST = os.environ.get("WATCHLIST", "").split(",") if os.environ.get("WATCHLIST") else [
+    "SPY", "QQQ", "IWM", "DIA",
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD",
+    "AVGO", "JPM", "UBER", "COIN", "MU", "NFLX",
+]
+
+
+def refresh_market() -> bool:
+    """Pull the day's market picture into Supabase.
+
+    Runs on a timer, not on a visitor's request, because the FMP key is a paid
+    secret that must never reach a browser.
+    """
+    if not market.configured():
+        return False
+    started = time.time()
+
+    sectors, as_of = market.sectors()
+    if sectors:
+        store.replace_sectors(sectors, as_of)
+
+    for kind, fetch in (("gainer", market.gainers),
+                        ("loser", market.losers),
+                        ("active", market.actives)):
+        try:
+            store.replace_movers(kind, fetch(25), as_of)
+        except market.MarketError as exc:
+            log(f"  movers {kind}: {exc}")
+
+    quotes = market.quotes(WATCHLIST)
+    if quotes:
+        store.upsert_quotes(quotes)
+
+    # Chart series for every watchlist symbol, so whichever the list happens
+    # to rank first always has a chart to show.
+    for sym in WATCHLIST:
+        try:
+            pts = market.intraday(sym, days=2)
+            if pts:
+                store.upsert_intraday(sym, pts, pts[-1]["t"][:10])
+        except market.MarketError:
+            continue
+
+    log(f"market: {len(sectors)} sectors, {len(quotes)} quotes, "
+        f"as of {as_of}, {time.time()-started:.1f}s")
+    return True
+
+
+def refresh_intraday(symbol: str) -> bool:
+    """Fetch one symbol's chart series on demand."""
+    if not market.configured():
+        return False
+    pts = market.intraday(symbol, days=2)
+    if not pts:
+        return False
+    store.upsert_intraday(symbol, pts, pts[-1]["t"][:10])
+    q = market.quote(symbol)
+    if q:
+        store.upsert_quotes([q])
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Scheduled refresh of companies we already hold
 # ---------------------------------------------------------------------------
 
@@ -228,9 +299,11 @@ def refresh_stale(limit: int = 20) -> int:
 # ---------------------------------------------------------------------------
 
 def run() -> None:
-    log("worker up — the only process talking to the SEC")
+    log("worker up — the only process talking to the SEC and to FMP")
     last_directory = 0.0
+    last_market = 0.0
     last_sweep_day: dt.date | None = None
+    market_every = int(os.environ.get("MARKET_REFRESH_SECONDS", "900"))
 
     while True:
         try:
@@ -239,6 +312,13 @@ def run() -> None:
             if now - last_directory > 24 * 3600:
                 sync_directory()
                 last_directory = now
+
+            if now - last_market > market_every:
+                try:
+                    refresh_market()
+                except market.MarketError as exc:
+                    log(f"market refresh failed (continuing): {exc}")
+                last_market = now
 
             # Visitors first: a queued company should appear within a minute.
             if drain_backfill():
@@ -287,6 +367,15 @@ def main(argv: list[str]) -> int:
         log(f"drained {drain_backfill()} request(s)")
     elif cmd == "sweep":
         sweep(dt.date.fromisoformat(argv[1]) if len(argv) > 1 else None)
+    elif cmd == "market":
+        log("market refreshed" if refresh_market()
+            else "FMP_API_KEY not set; nothing to do")
+    elif cmd == "intraday":
+        if len(argv) < 2:
+            print("usage: python worker.py intraday TICKER")
+            return 2
+        for t in argv[1:]:
+            log(f"{t}: {'ok' if refresh_intraday(t.upper()) else 'no data'}")
     elif cmd == "stats":
         for k, v in (store.stats() or {}).items():
             print(f"  {k:<24} {v}")

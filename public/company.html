@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alpha Ticker — quarterly financials from SEC filings</title>
+<!-- Deployed builds ship this pointing at Supabase. Absent locally, where the
+     page falls back to server.py. -->
+<script src="config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ---------------------------------------------------------------------------
+   Alpha Ticker — a reading surface for filed financial statements.
+
+   Neutrals are biased blue so the accent belongs to the same family; the
+   categorical data colours are the validated palette (see README) and are the
+   only saturated hues that appear on a chart.
+--------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+  --ground:#eef0f3; --card:#ffffff; --sunk:#f6f7f9;
+  --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
+  --rule:#dde2e8; --rule-2:#eaeef2;
+  --accent:#1e4fbf; --accent-soft:#e6ecfb;
+  --up:#0b7a4b; --down:#c0392e;
+
+  --revenue:#2a78d6; --profit:#008300; --cost:#e34948;
+
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+
+  --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
+  --r:10px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:#0d1219; --card:#151c25; --sunk:#111821;
+  --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
+  --rule:#232d3a; --rule-2:#1c2531;
+  --accent:#6e9bff; --accent-soft:#1a2740;
+  --up:#38b37d; --down:#f0736a;
+
+  --revenue:#3987e5; --profit:#00a300; --cost:#e66767;
+
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  background:var(--ground); color:var(--ink);
+  font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* ---- command bar --------------------------------------------------------- */
+.bar{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--ground) 88%, transparent);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--rule);
+}
+.bar-in{
+  max-width:1360px; margin:0 auto; padding:12px 24px;
+  display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+}
+.brand{display:flex;align-items:baseline;gap:9px;margin-right:4px}
+.brand b{font-family:"IBM Plex Serif",Georgia,serif;font-weight:600;font-size:16px;letter-spacing:-.01em}
+.brand span{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
+
+.field{position:relative;display:flex;flex-direction:column;gap:3px}
+.field>label{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+input,select,button{font:inherit;color:inherit}
+input[type=text],select{
+  background:var(--card); border:1px solid var(--rule); border-radius:7px;
+  padding:7px 10px; min-height:34px; color:var(--ink);
+}
+input[type=text]{width:230px;font-family:"IBM Plex Mono",monospace;font-size:13px}
+select{cursor:pointer;font-size:13px;padding-right:26px;
+  appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
+  background-position:calc(100% - 14px) 51%, calc(100% - 9px) 51%;
+  background-size:5px 5px,5px 5px; background-repeat:no-repeat;
+}
+input:focus-visible,select:focus-visible,button:focus-visible{
+  outline:2px solid var(--accent); outline-offset:1px;
+}
+select:disabled{opacity:.45;cursor:not-allowed}
+
+.ac{
+  position:absolute; top:calc(100% + 5px); left:0; z-index:60; width:340px;
+  background:var(--card); border:1px solid var(--rule); border-radius:9px;
+  box-shadow:var(--shadow); overflow:hidden; display:none;
+}
+.ac.open{display:block}
+.ac div{padding:8px 11px;cursor:pointer;display:flex;gap:10px;align-items:baseline;border-bottom:1px solid var(--rule-2)}
+.ac div:last-child{border-bottom:0}
+.ac div:hover,.ac div[aria-selected=true]{background:var(--accent-soft)}
+.ac b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;min-width:62px;color:var(--accent)}
+.ac span{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.spacer{flex:1}
+.ghost{
+  background:transparent;border:1px solid var(--rule);border-radius:7px;
+  padding:7px 11px;cursor:pointer;color:var(--ink-2);font-size:12.5px;min-height:34px;
+}
+.ghost:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ---- page ---------------------------------------------------------------- */
+main{max-width:1360px;margin:0 auto;padding:24px 24px 72px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow)}
+.pad{padding:20px 22px}
+
+.ident{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;margin-bottom:20px}
+.ident h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:31px;font-weight:600;letter-spacing:-.018em;line-height:1.14}
+.ident .sub{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:7px;color:var(--ink-3);font-size:12.5px}
+.chip{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.02em;
+  border:1px solid var(--rule);border-radius:5px;padding:2px 7px;color:var(--ink-2);
+}
+.chip.key{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.period{text-align:right}
+.period .big{font-family:"IBM Plex Serif",Georgia,serif;font-size:25px;font-weight:600;letter-spacing:-.01em}
+.period .small{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+.period a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.period a:hover{border-bottom-color:var(--accent)}
+
+/* ---- KPI ----------------------------------------------------------------- */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);padding:14px 15px;box-shadow:var(--shadow)}
+.kpi .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .v{font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600;letter-spacing:-.035em;margin-top:7px;font-variant-numeric:tabular-nums}
+.kpi .d{font-size:11.5px;margin-top:4px;color:var(--ink-3);display:flex;align-items:center;gap:4px}
+.kpi .d b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+.kpi .h{font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.35}
+.kpi .h b{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--ink-2)}
+.up{color:var(--up)} .down{color:var(--down)}
+
+/* ---- panels -------------------------------------------------------------- */
+.panel{margin-bottom:20px}
+.phead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:16px 22px 0;flex-wrap:wrap}
+.phead h2{font-size:14px;font-weight:600;letter-spacing:-.005em}
+.phead p{font-size:12px;color:var(--ink-3);margin-top:2px;max-width:62ch}
+.seg{display:flex;gap:0;border:1px solid var(--rule);border-radius:7px;overflow:hidden;flex-shrink:0}
+.seg button{background:transparent;border:0;padding:6px 11px;font-size:12px;cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+
+.scroll{overflow-x:auto;padding:8px 22px 20px}
+svg{display:block;max-width:100%}
+svg text{font-family:"IBM Plex Sans",sans-serif}
+.tnum{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:0 22px 16px}
+.legend div{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2)}
+.legend i{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
+/* ---- table --------------------------------------------------------------- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+thead th{
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;border-bottom:1px solid var(--rule);
+}
+tbody td{border-bottom:1px solid var(--rule-2);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+tbody td:first-child{font-family:"IBM Plex Sans",sans-serif}
+tbody tr.rule td{font-weight:600;border-bottom:1px solid var(--rule)}
+tbody tr.sub td:first-child{padding-left:26px;color:var(--ink-2)}
+tbody tr:hover td{background:var(--sunk)}
+.tag{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-3);border:1px solid var(--rule);border-radius:4px;padding:1px 5px;margin-left:7px;vertical-align:2px}
+
+/* ---- chart builder ------------------------------------------------------- */
+.bpad{padding:16px 22px 4px}
+.bctl{margin-top:2px}
+.bctl + .bctl{margin-top:15px}
+.bctl>label,.bctl div>label{
+  display:block;font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;margin-bottom:5px;
+}
+.bctl.row{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{
+  background:var(--sunk);border:1px solid var(--rule);border-radius:6px;
+  padding:5px 10px;font-size:12px;color:var(--ink-2);cursor:pointer;
+}
+.chips button:hover{border-color:var(--accent)}
+.chips button[aria-checked=true]{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.axes{display:flex;gap:14px;font-size:11.5px;color:var(--ink-3);padding-bottom:8px;flex-wrap:wrap}
+.axes b{font-family:"IBM Plex Mono",monospace;color:var(--ink-2);margin-right:3px}
+
+/* ---- tooltip ------------------------------------------------------------- */
+#tip{
+  position:fixed;z-index:200;pointer-events:none;opacity:0;transition:opacity .1s;
+  background:var(--card);border:1px solid var(--rule);border-radius:8px;
+  box-shadow:var(--shadow);padding:9px 11px;font-size:12.5px;max-width:290px;
+}
+#tip.on{opacity:1}
+#tip b{display:block;font-size:12.5px;margin-bottom:3px}
+#tip .r{display:flex;justify-content:space-between;gap:16px;color:var(--ink-2)}
+#tip .r span:last-child{font-family:"IBM Plex Mono",monospace;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* ---- states -------------------------------------------------------------- */
+.note{padding:26px 22px;color:var(--ink-3);font-size:13px;text-align:center}
+.err{border-color:var(--down);color:var(--down)}
+.foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.7}
+.foot a{color:var(--accent);text-decoration:none}
+.foot a:hover{text-decoration:underline}
+.foot code{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--sunk);padding:1px 5px;border-radius:4px}
+
+.load{display:inline-block;width:13px;height:13px;border:2px solid var(--rule);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+
+@media (max-width:1180px){ .kpis{grid-template-columns:repeat(3,1fr)} .grid2{grid-template-columns:1fr} }
+@media (max-width:640px){ .kpis{grid-template-columns:repeat(2,1fr)} .ident h1{font-size:25px} main{padding:16px 14px 60px} .bar-in{padding:10px 14px} }
+@media print{ .bar{display:none} .card{box-shadow:none} body{background:#fff} }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-in">
+    <div class="brand"><b>Alpha Ticker</b><span>SEC EDGAR</span></div>
+
+    <div class="field">
+      <label for="q">Company, ticker or CIK</label>
+      <input type="text" id="q" placeholder="GOOGL, Apple, or a CIK…" autocomplete="off"
+             role="combobox" aria-expanded="false" aria-controls="ac">
+      <div class="ac" id="ac" role="listbox"></div>
+    </div>
+
+    <div class="field">
+      <label for="fy">Fiscal year</label>
+      <select id="fy" disabled></select>
+    </div>
+
+    <div class="field">
+      <label for="fq">Quarter</label>
+      <select id="fq" disabled></select>
+    </div>
+
+    <div class="spacer"></div>
+    <button class="ghost" id="theme" aria-label="Switch colour theme">Dark</button>
+  </div>
+</div>
+
+<main id="main">
+  <div class="card note" id="boot">Loading the latest filed quarter…</div>
+</main>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+/* ===========================================================================
+   Formatting
+=========================================================================== */
+const money = (v, dp) => {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  const a = Math.abs(v), s = v < 0 ? "−" : "";
+  const d = dp === undefined ? 2 : dp;
+  if (a >= 1e12) return `${s}$${(a/1e12).toFixed(d)}T`;
+  if (a >= 1e9)  return `${s}$${(a/1e9 ).toFixed(d)}B`;
+  if (a >= 1e6)  return `${s}$${(a/1e6 ).toFixed(d)}M`;
+  if (a >= 1e3)  return `${s}$${(a/1e3 ).toFixed(0)}K`;
+  return `${s}$${a.toFixed(0)}`;
+};
+const pct  = (v, d=1) => (v===null||v===undefined||Number.isNaN(v)) ? "—" : `${v.toFixed(d)}%`;
+const sign = v => v>0 ? "+" : "";
+const esc  = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const SERIES = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
+/** Long segment names have to be cut to fit a chart edge; the full name
+    stays available in the tooltip and in the table. */
+const clip = (s,n) => s.length > n ? s.slice(0, n-1).trimEnd() + "…" : s;
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+const MONTHS = ["January","February","March","April","May","June","July",
+                "August","September","October","November","December"];
+const longDate = iso => {
+  if (!iso) return "";
+  const [y,m,d] = iso.split("-").map(Number);
+  return `${MONTHS[m-1]} ${d}, ${y}`;
+};
+const shortDate = iso => {
+  if (!iso) return "";
+  const [y,m,d] = iso.split("-").map(Number);
+  return `${d} ${MONTHS[m-1].slice(0,3)} ${y}`;
+};
+
+/* ===========================================================================
+   Tooltip
+=========================================================================== */
+const tipEl = document.getElementById("tip");
+function showTip(ev, title, rows){
+  tipEl.innerHTML = `<b>${esc(title)}</b>` +
+    rows.map(r => `<div class="r"><span>${esc(r[0])}</span>` +
+      `<span class="${r[2] || ""}">${esc(r[1])}</span></div>`).join("");
+  tipEl.classList.add("on");
+  const pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + w > innerWidth  - 8) x = ev.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+  tipEl.style.left = Math.max(8,x) + "px";
+  tipEl.style.top  = Math.max(8,y) + "px";
+}
+const hideTip = () => tipEl.classList.remove("on");
+function hoverable(el, title, rows){
+  el.style.cursor = "default";
+  el.addEventListener("mousemove", e => showTip(e, title, rows));
+  el.addEventListener("mouseleave", hideTip);
+}
+
+/* ===========================================================================
+   State
+=========================================================================== */
+const S = { company:null, quarter:null, breakdowns:null, cut:0, ticker:null };
+
+/* ===========================================================================
+   Where the data comes from
+
+   Hosted: Supabase, through four read-only functions. The key below is the
+   anon key, which is meant to be public — it reaches those four functions and
+   nothing else, because the tables live in a schema the API does not expose.
+
+   Local: config.js is absent, so this falls back to server.py and the page
+   works exactly as it did before.
+=========================================================================== */
+// ALPHATICKER_CONFIG is set by config.js. The older LEDGER_CONFIG name is
+// still honoured so a cached copy of the previous config.js cannot silently
+// drop the page back to local mode.
+const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
+const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+
+async function rpc(fn, args){
+  const r = await fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+    body: JSON.stringify(args || {}),
+  });
+  if (!r.ok) throw new Error(`${fn} failed (${r.status})`);
+  return r.json();
+}
+const asJson = r => r.json();
+
+const API = {
+  search: term => HOSTED
+    ? rpc("search_companies", { q: term })
+    : fetch("/api/search?q=" + encodeURIComponent(term)).then(asJson).then(j => j.results || []),
+
+  company: ticker => HOSTED
+    ? rpc("get_company", { p_ticker: ticker })
+    : fetch("/api/company?ticker=" + encodeURIComponent(ticker)).then(asJson),
+
+  segments: (ticker, end) => HOSTED
+    ? rpc("get_segments", { p_ticker: ticker, p_end: end })
+    : fetch(`/api/segments?ticker=${encodeURIComponent(ticker)}&end=${end}`)
+        .then(asJson).then(j => j.breakdowns || []),
+
+  requestBackfill: ticker => HOSTED
+    ? rpc("request_backfill", { p_ticker: ticker })
+    : Promise.resolve(null),
+};
+
+/* ===========================================================================
+   Ticker search
+=========================================================================== */
+const qEl = document.getElementById("q"), acEl = document.getElementById("ac");
+let acItems = [], acIdx = -1, acTimer = null;
+
+qEl.addEventListener("input", () => {
+  clearTimeout(acTimer);
+  const term = qEl.value.trim();
+  if (term.length < 1) return closeAc();
+  acTimer = setTimeout(async () => {
+    try {
+      acItems = (await API.search(term)) || [];
+      acIdx = -1;
+      if (!acItems.length) return closeAc();
+      acEl.innerHTML = acItems.map((x,i) =>
+        `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`
+      ).join("");
+      acEl.classList.add("open");
+      qEl.setAttribute("aria-expanded","true");
+    } catch { closeAc(); }
+  }, 130);
+});
+
+function closeAc(){
+  acEl.classList.remove("open");
+  qEl.setAttribute("aria-expanded","false");
+  acIdx = -1;
+}
+acEl.addEventListener("mousedown", e => {
+  const d = e.target.closest("[data-i]");
+  if (d) { e.preventDefault(); choose(acItems[+d.dataset.i]); }
+});
+qEl.addEventListener("keydown", e => {
+  if (!acEl.classList.contains("open")) {
+    if (e.key === "Enter" && qEl.value.trim()) load(qEl.value.trim().toUpperCase());
+    return;
+  }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    acIdx = (acIdx + (e.key === "ArrowDown" ? 1 : acItems.length - 1)) % acItems.length;
+    [...acEl.children].forEach((c,i) => c.setAttribute("aria-selected", i === acIdx));
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    choose(acIdx >= 0 ? acItems[acIdx] : acItems[0]);
+  } else if (e.key === "Escape") closeAc();
+});
+qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
+function choose(item){ if(!item) return; qEl.value = item.ticker; closeAc(); load(item.ticker); }
+
+/* ===========================================================================
+   Load
+=========================================================================== */
+const main = document.getElementById("main");
+const fyEl = document.getElementById("fy"), fqEl = document.getElementById("fq");
+
+function fail(msg){
+  main.innerHTML = `<div class="card note err">${esc(msg)}</div>`;
+}
+
+const busy = msg => { main.innerHTML = `<div class="card note"><span class="load"></span> &nbsp;${esc(msg)}</div>`; };
+
+/** A company nobody has opened yet is not in the database. Ask the worker to
+    fetch it, then wait for it to land. Reading the filings takes a few
+    seconds, and it only ever happens once per company. */
+async function waitForBackfill(ticker){
+  const asked = await API.requestBackfill(ticker);
+  if (asked && asked.queued === false) return { refused: asked.reason };
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    busy(`Reading ${ticker} from SEC EDGAR — ${Math.round(i * 3)}s…`);
+    const j = await API.company(ticker);
+    if (j && j.quarters && j.quarters.length) return { company: j };
+  }
+  return { timedOut: true };
+}
+
+async function load(ticker){
+  S.ticker = ticker;
+  busy(`Loading ${ticker}…`);
+  fyEl.disabled = fqEl.disabled = true;
+  try {
+    let j = await API.company(ticker);
+
+    if (j && j.error) return fail(j.error);
+
+    if (!j || !j.quarters || !j.quarters.length) {
+      if (!HOSTED)
+        return fail(`No quarterly income-statement data found for ${ticker} in SEC XBRL filings.`);
+      busy(`${ticker} has not been read yet — fetching it from SEC EDGAR…`);
+      const got = await waitForBackfill(ticker);
+      if (got.refused)  return fail(`${ticker}: ${got.refused}.`);
+      if (got.timedOut) return fail(
+        `${ticker} is still being read from SEC EDGAR. Give it a minute and reload.`);
+      j = got.company;
+    }
+    S.company = j;
+    // Default to the most recent quarter the company has actually reported.
+    S.quarter = j.quarters[0];
+    buildPeriodControls();
+    render();
+    loadSegments();
+    history.replaceState(null,"", "?t=" + encodeURIComponent(ticker));
+  } catch (e) {
+    fail("Could not reach the local server. Is server.py still running? (" + e.message + ")");
+  }
+}
+
+function buildPeriodControls(){
+  const qs = S.company.quarters;
+  const years = [...new Set(qs.map(q => q.fy))].sort((a,b) => b-a);
+  fyEl.innerHTML = years.map(y => `<option value="${y}">FY ${y}</option>`).join("");
+  fyEl.value = S.quarter.fy;
+  syncQuarters();
+  fyEl.disabled = fqEl.disabled = false;
+}
+function syncQuarters(){
+  const fy = +fyEl.value;
+  const avail = S.company.quarters.filter(q => q.fy === fy).sort((a,b) => a.fq - b.fq);
+  fqEl.innerHTML = avail.map(q => `<option value="${q.fq}">Q${q.fq}</option>`).join("");
+  const match = avail.find(q => q.fq === S.quarter.fq) || avail[avail.length-1];
+  fqEl.value = match.fq;
+  return match;
+}
+fyEl.addEventListener("change", () => { S.quarter = syncQuarters(); render(); loadSegments(); });
+fqEl.addEventListener("change", () => {
+  S.quarter = S.company.quarters.find(q => q.fy === +fyEl.value && q.fq === +fqEl.value);
+  render(); loadSegments();
+});
+
+async function loadSegments(){
+  S.breakdowns = null; S.cut = 0;
+  renderMix();
+  try{
+    S.breakdowns = (await API.segments(S.ticker, S.quarter.end)) || [];
+  } catch { S.breakdowns = []; }
+  renderMix();
+  renderSankey();
+}
+
+/* ===========================================================================
+   Derived helpers
+=========================================================================== */
+const at = (q,k) => q && q.lines ? q.lines[k] : null;
+function yoy(key){
+  const qs = S.company.quarters;
+  const i = qs.indexOf(S.quarter);
+  const prior = qs.find(q => q.fy === S.quarter.fy - 1 && q.fq === S.quarter.fq);
+  const a = at(S.quarter,key), b = at(prior,key);
+  if (a === null || b === null || !b) return null;
+  return (a - b) / Math.abs(b) * 100;
+}
+const marginOf = k => {
+  const r = at(S.quarter,"revenue"), v = at(S.quarter,k);
+  return (r && v !== null) ? v / r * 100 : null;
+};
+/** The last n quarters up to and including the selected one, oldest first. */
+function recentQuarters(n){
+  const qs = S.company.quarters;
+  const i = qs.indexOf(S.quarter);
+  return qs.slice(i, i + n).reverse();
+}
+
+/** Change against the previous quarter and the same quarter a year earlier. */
+function growth(q, key){
+  const qs = S.company.quarters;
+  const i = qs.indexOf(q);
+  const prev = i >= 0 ? qs[i + 1] : null;                       // newest-first
+  const back = qs.find(x => x.fy === q.fy - 1 && x.fq === q.fq) || null;
+  const rel = (a, b) =>
+    (a === null || a === undefined || b === null || b === undefined || !b)
+      ? null : (a - b) / Math.abs(b) * 100;
+  return {qoq: rel(q.lines[key], prev && prev.lines[key]),
+          yoy: rel(q.lines[key], back && back.lines[key])};
+}
+
+/** Tooltip rows for the two growth rates, coloured by direction. */
+function growthRows(q, key){
+  const g = growth(q, key);
+  const fmt = v => v === null ? ["—", ""]
+    : [`${sign(v)}${v.toFixed(1)}%`, v >= 0 ? "up" : "down"];
+  const [qs_, qc] = fmt(g.qoq), [ys, yc] = fmt(g.yoy);
+  return [["QoQ", qs_, qc], ["YoY", ys, yc]];
+}
+
+/* ---------------------------------------------------------------------------
+   The fields a chart can plot. Only those the loaded company actually
+   reports are ever offered, so a chart can never be built from data that
+   is not in the filings.
+--------------------------------------------------------------------------- */
+const FIELDS = [
+  {k:"revenue",           label:"Revenue",              unit:"usd",   syn:["revenue","sales","top line","turnover"]},
+  {k:"cogs",              label:"Cost of revenue",      unit:"usd",   syn:["cost of revenue","cogs","cost of sales","cost of goods"]},
+  {k:"grossProfit",       label:"Gross profit",         unit:"usd",   syn:["gross profit","gross margin","gross income"]},
+  {k:"rd",                label:"R&D",                  unit:"usd",   syn:["r&d","rd","research","research and development","research & development"]},
+  {k:"sm",                label:"Sales & marketing",    unit:"usd",   syn:["sales and marketing","sales & marketing","s&m","marketing"]},
+  {k:"ga",                label:"General & admin",      unit:"usd",   syn:["general and admin","g&a","administrative"]},
+  {k:"sga",               label:"SG&A",                 unit:"usd",   syn:["sga","sg&a","selling general"]},
+  {k:"opexOther",         label:"Other operating exp.", unit:"usd",   syn:["other operating"]},
+  {k:"opex",              label:"Operating expenses",   unit:"usd",   syn:["operating expenses","opex","operating cost","non-interest expense","noninterest expense"]},
+  {k:"provisions",        label:"Credit provisions",    unit:"usd",   syn:["provisions","credit provisions","provision for credit losses","loan losses"]},
+  {k:"operatingIncome",   label:"Operating income",     unit:"usd",   syn:["operating income","operating profit","ebit"]},
+  {k:"otherIncome",       label:"Other income",         unit:"usd",   syn:["other income","non-operating"]},
+  {k:"pretaxIncome",      label:"Pre-tax income",       unit:"usd",   syn:["pre-tax","pretax","before tax"]},
+  {k:"tax",               label:"Income tax",           unit:"usd",   syn:["tax","income tax","taxes"]},
+  {k:"netIncome",         label:"Net income",           unit:"usd",   syn:["net income","net profit","bottom line","earnings"]},
+  {k:"epsDiluted",        label:"Diluted EPS",          unit:"eps",   syn:["eps","earnings per share","diluted eps"]},
+  {k:"sharesDiluted",     label:"Diluted shares",       unit:"count", syn:["shares","share count","diluted shares"]},
+  {k:"operatingCashFlow", label:"Operating cash flow",  unit:"usd",   syn:["operating cash flow","cash from operations","ocf","cfo","cash flow"]},
+  {k:"capex",             label:"Capital expenditure",  unit:"usd",   syn:["capex","capital expenditure","capital spending","ppe"]},
+  {k:"freeCashFlow",      label:"Free cash flow",       unit:"usd",   syn:["free cash flow","fcf"]},
+  {k:"investingCashFlow", label:"Investing cash flow",  unit:"usd",   syn:["investing cash flow","cash from investing"]},
+  {k:"financingCashFlow", label:"Financing cash flow",  unit:"usd",   syn:["financing cash flow","cash from financing"]},
+  {k:"depreciation",      label:"Depreciation & amort.",unit:"usd",   syn:["depreciation","amortization","d&a"]},
+  {k:"stockComp",         label:"Stock compensation",   unit:"usd",   syn:["stock compensation","sbc","share-based"]},
+];
+const FIELD = Object.fromEntries(FIELDS.map(f => [f.k, f]));
+
+/** Fields this company reports — anything else is never offered. */
+function availableFields(){
+  const qs = S.company.quarters;
+  return FIELDS.filter(f => qs.some(q => q.lines[f.k] !== null && q.lines[f.k] !== undefined));
+}
+
+function fmtBy(unit, v, dp){
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  if (unit === "eps")   return (v < 0 ? "−$" : "$") + Math.abs(v).toFixed(2);
+  if (unit === "count") return (v/1e6).toFixed(0) + "M";
+  return money(v, dp);
+}
+
+/* ===========================================================================
+   Render
+=========================================================================== */
+function render(){
+  const c = S.company, q = S.quarter;
+  const filingUrl = q.accession
+    ? `https://www.sec.gov/Archives/edgar/data/${c.cik}/${q.accession.replace(/-/g,"")}/`
+    : `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${c.cik}&type=10-`;
+
+  main.innerHTML = `
+    <div class="ident">
+      <div>
+        <h1>${esc(c.name)}</h1>
+        <div class="sub">
+          <span class="chip key">${esc(c.ticker)}</span>
+          ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
+          <span class="chip">CIK ${c.cik}</span>
+          ${c.sic ? `<span>${esc(c.sic)}</span>` : ""}
+        </div>
+      </div>
+      <div class="period">
+        <div class="big">Q${q.fq} FY${q.fy}</div>
+        <div class="small">
+          ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)}<br>
+          ${q.basis === "derived"
+            ? `derived from the ${esc(q.form || "10-K")}`
+            : `as filed in the ${esc(q.form || "10-Q")}`}${
+            q.filed ? ` filed ${shortDate(q.filed)}` : ""} ·
+          <a href="${filingUrl}" target="_blank" rel="noopener">filing ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <section class="card panel" id="sankey-panel">
+      <div class="phead">
+        <div>
+          <h2>How the quarter's revenue became profit</h2>
+          <p id="sankey-sub"></p>
+        </div>
+      </div>
+      <div class="scroll" id="sankey"></div>
+    </section>
+
+    <div class="grid2">
+      <section class="card panel" id="mix-panel">
+        <div class="phead">
+          <div><h2>Where the revenue came from</h2><p id="mix-sub"></p></div>
+          <div class="seg" id="mix-cuts"></div>
+        </div>
+        <div class="scroll" id="mix"></div>
+      </section>
+
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Revenue by quarter</h2>
+          <p>The twelve quarters ending with the one selected. Bars derived from an
+             annual report rather than filed directly are outlined.</p>
+        </div></div>
+        <div class="scroll" id="revtrend"></div>
+      </section>
+    </div>
+
+    <div class="grid2">
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Margins</h2>
+          <p>Gross, operating and net profit as a share of revenue — all three on one scale.</p>
+        </div></div>
+        <div class="scroll" id="margins"></div>
+        <div class="legend" id="margins-legend"></div>
+      </section>
+
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Where the revenue went</h2>
+          <p>Cost and expense structure each quarter, as a share of revenue.</p>
+        </div></div>
+        <div class="scroll" id="coststack"></div>
+        <div class="legend" id="coststack-legend"></div>
+      </section>
+    </div>
+
+    <section class="card panel">
+      <div class="phead"><div>
+        <h2>Income statement</h2>
+        <p>Quarterly figures for Q${q.fq} FY${q.fy}, against the same quarter a year earlier
+           and the quarter immediately before.</p>
+      </div></div>
+      <div class="scroll" id="istmt"></div>
+    </section>
+
+    <section class="card panel" id="builder">
+      <div class="phead"><div>
+        <h2>Build your own chart</h2>
+        <p>Pick what to plot. Only the lines this company actually reports are
+           offered, so a chart here can never show data that is not in the filings.</p>
+      </div></div>
+
+      <div class="bpad">
+        <div class="bctl">
+          <label>y axis — click to add or remove</label>
+          <div class="chips" id="b-fields"></div>
+        </div>
+
+        <div class="bctl row">
+          <div><label for="b-type">Chart</label>
+            <select id="b-type">
+              <option value="bar">Bars</option>
+              <option value="stack">Stacked bars</option>
+              <option value="line">Line</option>
+              <option value="area">Area</option>
+            </select></div>
+          <div><label for="b-mode">Values</label>
+            <select id="b-mode">
+              <option value="absolute">As filed</option>
+              <option value="pctRevenue">% of revenue</option>
+              <option value="yoy">Change vs year ago</option>
+              <option value="qoq">Change vs prior quarter</option>
+            </select></div>
+          <div><label for="b-n">Period</label>
+            <select id="b-n">
+              <option value="4">Last 4 quarters</option>
+              <option value="8">Last 8 quarters</option>
+              <option value="12">Last 12 quarters</option>
+              <option value="16">Last 16 quarters</option>
+              <option value="24">Everything available</option>
+            </select></div>
+          <div class="axes" id="b-axes"></div>
+        </div>
+      </div>
+
+      <div class="scroll" id="b-chart"></div>
+      <div class="legend" id="b-legend"></div>
+    </section>
+
+    <div class="foot" id="foot"></div>
+  `;
+
+  renderKPIs();
+  renderSankey();
+  renderMix();
+  renderRevTrend();
+  renderMargins();
+  renderCostStack();
+  renderStatement();
+  wireBuilder();
+  renderFoot();
+}
+
+/* ---- KPIs ---------------------------------------------------------------- */
+function renderKPIs(){
+  const q = S.quarter;
+  // Banks and insurers have no cost of revenue, so gross profit and operating
+  // income do not exist for them — showing those tiles empty would imply the
+  // data is missing rather than inapplicable. Their equivalents take the slot.
+  const reports = k => S.company.quarters.some(x => x.lines[k] !== null && x.lines[k] !== undefined);
+  const card = (label, k, unit, hint) => [
+    label,
+    k === "epsDiluted"
+      ? (at(q,k) !== null
+          ? (at(q,k) < 0 ? "−$" : "$") + Math.abs(at(q,k)).toFixed(2) : "—")
+      : money(at(q,k)),
+    yoy(k), unit ? marginOf(k) : null, unit || "", hint || "",
+  ];
+
+  // A margin near or above 100% is almost always non-operating income rather
+  // than an error, so say so on the tile instead of leaving it to be
+  // rediscovered further down the page.
+  const nonOp = at(q,"otherIncome"), pretax = at(q,"pretaxIncome");
+  const netHint = (nonOp !== null && pretax && Math.abs(nonOp) > Math.abs(pretax) * 0.25)
+    ? `includes <b>${money(nonOp,1)}</b> of ${nonOp < 0 ? "non-operating expense" : "non-operating income"},
+       outside the business's operations`
+    : "";
+
+  const cards = [card("Revenue","revenue","")];
+  if (reports("grossProfit"))     cards.push(card("Gross profit","grossProfit","margin"));
+  else if (reports("provisions")) cards.push(card("Credit provisions","provisions","of revenue"));
+  if (reports("operatingIncome")) cards.push(card("Operating income","operatingIncome","margin"));
+  else                            cards.push(card("Pre-tax income","pretaxIncome","margin"));
+  cards.push(card("Net income","netIncome","margin", netHint));
+  cards.push(card("Diluted EPS","epsDiluted",""));
+  cards.push(card(reports("noninterestExpense") ? "Non-interest expense" : "Operating expenses",
+                  "opex","of revenue"));
+  document.getElementById("kpis").innerHTML = cards.map(([k,v,ch,mg,unit,hint]) => `
+    <div class="kpi">
+      <div class="k">${esc(k)}</div>
+      <div class="v">${esc(v)}</div>
+      <div class="d">
+        ${ch===null ? `<span>no prior-year quarter</span>`
+          : `<b class="${ch>=0?"up":"down"}">${sign(ch)}${ch.toFixed(1)}%</b><span>YoY</span>`}
+        ${mg!==null && mg!==undefined ? `<span>· ${pct(mg)} ${esc(unit)}</span>` : ""}
+      </div>
+      ${hint ? `<div class="h">${hint}</div>` : ""}
+    </div>`).join("");
+}
+
+/* ---- Sankey -------------------------------------------------------------- */
+/*  Nodes are laid out in fixed columns and stacked in a fixed order, so the
+    ribbons stay untangled without a general-purpose crossing solver.        */
+function renderSankey(){
+  const host = document.getElementById("sankey");
+  if (!host) return;
+  const q = S.quarter, L = q.lines;
+  const rev = L.revenue;
+  if (!rev) { host.innerHTML = `<div class="note">No revenue reported for this quarter.</div>`; return; }
+
+  const gp = L.grossProfit, cogs = L.cogs, opex = L.opex;
+  const opInc = L.operatingIncome, net = L.netIncome, tax = L.tax;
+  // The non-operating figure has to be the gap between operating profit and
+  // pre-tax income, or the diagram will not balance. Companies tag only part
+  // of that gap — Walmart tags "other gains and losses" but reports interest
+  // separately — so the tagged value cannot be used here.
+  const pretaxRaw = L.pretaxIncome !== null && L.pretaxIncome !== undefined
+    ? L.pretaxIncome
+    : (L.netIncome !== null && L.tax !== null ? L.netIncome + L.tax : null);
+  const other = (pretaxRaw !== null && opInc !== null && opInc !== undefined)
+    ? pretaxRaw - opInc : L.otherIncome;
+  // The minority's share of a partly-owned subsidiary's profit, taken out
+  // between pre-tax income and the group's net income.
+  const nci = (pretaxRaw !== null && tax !== null && net !== null)
+    ? pretaxRaw - tax - net : 0;
+
+  const N = [], K = [], made = new Set();
+  const node = (id,col,val,label,kind,note) => {
+    if (val === null || val === undefined || val <= 0) return null;
+    N.push({id,col,val,label,kind,note}); made.add(id); return id;
+  };
+  // Only join nodes that actually exist — many companies leave parts of the
+  // income statement untagged, and a missing node must drop its flow, not
+  // break the diagram.
+  const link = (a,b,v) => { if (made.has(a) && made.has(b) && v > 0) K.push({a,b,v}); };
+
+  // Column 0 — revenue sources, when the filing discloses them.
+  // Some groups report segment revenue gross and then subtract intersegment
+  // eliminations. Only the positive rows can be drawn as inflows, so the
+  // eliminations are carried as their own outflow and the widths still add up.
+  //
+  // Where the filing nests its members, the revenue side gets two columns:
+  // the lines the company reports, then the groupings it puts them in.
+  const cut = S.breakdowns && S.breakdowns.length ? S.breakdowns[S.cut] : null;
+  const segColour = {};
+  let segGross = 0, segElim = 0;
+  const feeds = [];               // what flows into Revenue: [id, value]
+
+  if (cut) {
+    const pos = cut.rows.filter(r => r.value > 0);
+    cut.rows.forEach(r => { if (r.value <= 0) segElim += -r.value; });
+    pos.forEach(r => { segGross += r.value; });
+
+    // A grouping is only worth its own column if it actually groups more
+    // than one reported line.
+    const kids = {};
+    pos.forEach(r => { if (r.parent) (kids[r.parent] = kids[r.parent] || []).push(r); });
+    const groups = Object.keys(kids).filter(p => kids[p].length > 1);
+    const twoLevel = groups.length > 0;
+
+    pos.forEach((r,i) => { segColour[r.label] = SERIES[i % SERIES.length]; });
+
+    if (twoLevel) {
+      let gi = 0;
+      groups.forEach(p => {
+        const sum = kids[p].reduce((a,r) => a + r.value, 0);
+        const gid = "grp" + (gi++);
+        node(gid, 0, sum, p, "group", pct(sum/rev*100,1));
+        kids[p].forEach((r,j) => {
+          const id = "leaf" + p.replace(/\W/g,"") + j;
+          node(id, -1, r.value, r.label, "seg", pct(r.value/rev*100,1));
+          link(id, gid, r.value);
+        });
+        feeds.push([gid, sum]);
+      });
+      pos.filter(r => !r.parent || kids[r.parent].length <= 1).forEach((r,i) => {
+        node("seg"+i, 0, r.value, r.label, "seg", pct(r.value/rev*100,1));
+        feeds.push(["seg"+i, r.value]);
+      });
+    } else {
+      pos.forEach((r,i) => {
+        node("seg"+i, 0, r.value, r.label, "seg", pct(r.value/rev*100,1));
+        feeds.push(["seg"+i, r.value]);
+      });
+    }
+  }
+
+  node("rev", 1, rev, "Revenue", "revenue", null);
+  if (segElim > 0)
+    node("elim", 1, segElim, "Intersegment eliminations", "cost",
+         pct(segElim/segGross*100,0) + " of gross");
+  // Each source funds consolidated revenue first; what is left over is the
+  // amount eliminated between segments.
+  let remaining = rev;
+  feeds.forEach(([id, v]) => {
+    const toRev = Math.max(0, Math.min(v, remaining));
+    link(id, "rev", toRev);
+    link(id, "elim", v - toRev);
+    remaining -= toRev;
+  });
+
+  const cats = [["rd","R&D"],["sm","Sales & marketing"],["ga","General & admin"],
+                ["sga","Selling, general & admin"],["opexOther","Other operating"]];
+  const pretax = pretaxRaw;
+  const hasGross = gp !== null && cogs !== null && cogs > 0;
+
+  const opexLabel = L.noninterestExpense !== null && L.noninterestExpense !== undefined
+    ? "Non-interest expense" : "Operating expenses";
+  const prov = L.provisions;
+  const isLoss = net !== null && net < 0;
+  S.sankeyLoss = isLoss ? {net, tax} : null;
+
+  if (isLoss) {
+    // A loss quarter cannot be drawn as revenue dividing into profit: the
+    // costs are larger than the revenue. What balances is a sources-and-uses
+    // reading — revenue, plus the loss itself and any tax benefit, are what
+    // covered the quarter's costs. Every width is still a real filed figure.
+    const taxRelief = tax !== null && tax < 0 ? -tax : 0;
+    node("loss", 1, -net, "Net loss", "cost", pct(-net/rev*100,0) + " of revenue");
+    node("relief", 1, taxRelief, "Tax benefit", "cost", null);
+
+    const uses = [];
+    if (hasGross) uses.push(["ucogs", cogs, "Cost of revenue", cogs]);
+    if (opex > 0) uses.push(["uopex", opex, opexLabel, opex]);
+    if (prov > 0) uses.push(["uprov", prov, "Credit provisions", prov]);
+    if (tax > 0)  uses.push(["utax", tax, "Tax", tax]);
+    const funds = rev + (-net) + taxRelief;
+    const rest = funds - uses.reduce((a,u) => a + u[1], 0);
+    if (rest > funds * 0.01) uses.push(["urest", rest, "Other costs & expenses", rest]);
+
+    uses.forEach(([id, v, label]) =>
+      node(id, 2, v, label, "cost", pct(v/rev*100,0) + " of revenue"));
+
+    // Draw on revenue first, then on the loss, then on the tax benefit.
+    const sources = [["rev", rev], ["loss", -net], ["relief", taxRelief]];
+    let si = 0, left = sources[0][1];
+    uses.forEach(([id, v]) => {
+      let need = v;
+      while (need > 1e-6 && si < sources.length) {
+        const take = Math.min(need, left);
+        if (take > 0) link(sources[si][0], id, take);
+        need -= take; left -= take;
+        if (left <= 1e-6) { si++; left = si < sources.length ? sources[si][1] : 0; }
+      }
+    });
+
+    cats.forEach(([k,label]) => {
+      if (L[k] > 0) { node("x"+k, 3, L[k], label, "cost", pct(L[k]/rev*100,0) + " of rev");
+                      link("uopex","x"+k,L[k]); }
+    });
+
+  } else if (hasGross) {
+    // The familiar shape: revenue splits into cost of revenue and gross
+    // profit, gross profit into operating expenses and operating profit.
+    node("gp",   2, gp,   "Gross profit",    "profit", pct(gp/rev*100,0) + " margin");
+    node("cogs", 2, cogs, "Cost of revenue", "cost",   pct(cogs/rev*100,0) + " of rev");
+    link("rev","gp",gp); link("rev","cogs",cogs);
+
+    node("opinc", 3, opInc, "Operating profit", "profit",
+         opInc ? pct(opInc/rev*100,0) + " margin" : null);
+    node("opex",  3, opex,  "Operating expenses", "cost",
+         opex ? pct(opex/rev*100,0) + " of rev" : null);
+    link("gp","opinc",opInc); link("gp","opex",opex);
+
+    cats.forEach(([k,label]) => {
+      if (L[k] > 0) { node("x"+k, 4, L[k], label, "cost", pct(L[k]/rev*100,0) + " of rev");
+                      link("opex","x"+k,L[k]); }
+    });
+
+    const otherIn  = other > 0 ?  other : 0;
+    const otherOut = other < 0 ? -other : 0;
+    // A negative tax charge is a credit: it adds to net profit rather than
+    // taking from it, so it enters as a source alongside operating profit.
+    const taxCredit = tax !== null && tax < 0 ? -tax : 0;
+    node("oth",  3, otherIn,  "Other income", "profit", "non-operating");
+    node("relief", 3, taxCredit, "Tax benefit", "profit", null);
+    node("net",  4, net,      "Net profit",   "profit", pct(net/rev*100,0) + " margin");
+    node("tax",  4, tax,      "Tax", "cost", null);
+    node("othx", 4, otherOut, "Other expense", "cost", "non-operating");
+    link("relief","net", taxCredit);
+
+    // Pre-tax income does not always equal net income plus tax: where a group
+    // consolidates a business it only partly owns, the minority's share of
+    // profit is deducted too. Without it the diagram is short by that amount.
+    node("nci", 4, nci, "Non-controlling interests", "cost", null);
+
+    // Operating profit and any non-operating income together fund net profit,
+    // tax and non-operating expense.
+    link("opinc","net", Math.max(0, net - otherIn - taxCredit));
+    link("oth",  "net", otherIn);
+    link("opinc","tax", tax);
+    link("opinc","othx",otherOut);
+    link("opinc","nci", nci);
+
+  } else {
+    // Banks and insurers report no cost of revenue, so revenue divides
+    // straight into what it costs to run the business and what is left
+    // before tax. Total costs are whatever revenue did not keep, so anything
+    // the filing does not tag is shown as its own line rather than dropped.
+    node("pretax", 2, pretax, "Pre-tax income", "profit",
+         pretax ? pct(pretax/rev*100,0) + " of rev" : null);
+    node("opex",   2, opex, opexLabel, "cost",
+         opex ? pct(opex/rev*100,0) + " of rev" : null);
+    node("prov", 2, prov, "Credit provisions", "cost",
+         prov ? pct(prov/rev*100,0) + " of rev" : null);
+    const totalCosts = rev - (pretax || 0);
+    const rest = totalCosts - (opex || 0) - (prov > 0 ? prov : 0);
+    if (rest > rev * 0.01)
+      node("rest", 2, rest, "Other costs & expenses", "cost", pct(rest/rev*100,0) + " of rev");
+
+    link("rev","pretax",pretax); link("rev","opex",opex);
+    link("rev","prov",prov); link("rev","rest",rest);
+
+    const credit = tax !== null && tax < 0 ? -tax : 0;
+    node("relief", 2, credit, "Tax benefit", "profit", null);
+    node("net", 3, net, "Net profit", "profit", net>0 ? pct(net/rev*100,0)+" margin" : null);
+    node("tax", 3, tax, "Tax", "cost", null);
+    node("nci", 3, nci, "Non-controlling interests", "cost", null);
+    link("pretax","net", Math.max(0, net - credit));
+    link("relief","net", credit);
+    link("pretax","tax",tax); link("pretax","nci",nci);
+
+    cats.forEach(([k,label]) => {
+      if (L[k] > 0) { node("x"+k, 3, L[k], label, "cost", pct(L[k]/rev*100,0) + " of rev");
+                      link("opex","x"+k,L[k]); }
+    });
+  }
+
+  if (N.length < 2) { host.innerHTML = `<div class="note">Not enough detail filed to draw the flow.</div>`; return; }
+
+  // ---- layout ----
+  const cols = [...new Set(N.map(n => n.col))].sort((a,b) => a - b);
+  const hasSeg = cols.includes(0);
+  const twoLevelSrc = cols.includes(-1);
+  const W = twoLevelSrc ? 1560 : hasSeg ? 1300 : 1000;
+  const H = twoLevelSrc ? 580 : 520;
+  const padT = 40, padB = 22;
+  const leftPad  = twoLevelSrc ? 230 : hasSeg ? 250 : 84;
+  const rightPad = 210;
+  const nodeW = 13;
+  const usableW = W - leftPad - rightPad;
+  const colX = {};
+  cols.forEach((c,i) => { colX[c] = leftPad + (usableW * i) / (cols.length - 1 || 1); });
+
+  const order = {seg:0, group:0, revenue:0, profit:0, cost:1};
+  // Every node carries a two-line label, so the gap has to clear it. The
+  // segment column stacks the most nodes and needs the most room.
+  const gapFor = c => 32;
+  const maxTotal = Math.max(...cols.map(c =>
+    N.filter(n => n.col === c).reduce((s,n) => s + n.val, 0)));
+  const maxGaps = Math.max(...cols.map(c =>
+    gapFor(c) * Math.max(0, N.filter(n => n.col === c).length - 1)));
+  const scale = (H - padT - padB - maxGaps) / maxTotal;
+
+  cols.forEach(c => {
+    const gap = gapFor(c);
+    const inCol = N.filter(n => n.col === c)
+      .sort((a,b) => (order[a.kind] ?? 1) - (order[b.kind] ?? 1));
+    const total = inCol.reduce((s,n) => s + n.val * scale, 0) + gap * (inCol.length - 1);
+    let y = padT + (H - padT - padB - total) / 2;
+    inCol.forEach(n => { n.y0 = y; n.h = Math.max(2, n.val * scale); n.y1 = y + n.h; y = n.y1 + gap; });
+  });
+
+  const byId = Object.fromEntries(N.map(n => [n.id, n]));
+  N.forEach(n => { n.outAt = n.y0; n.inAt = n.y0; });
+  K.forEach(k => {
+    const a = byId[k.a], b = byId[k.b];
+    k.sy0 = a.outAt; k.sy1 = a.outAt + k.v * scale; a.outAt = k.sy1;
+    k.ty0 = b.inAt;  k.ty1 = b.inAt  + k.v * scale; b.inAt  = k.ty1;
+  });
+
+  const paint = n => n.kind === "seg" ? `var(${segColour[n.label] || "--s1"})`
+    : n.kind === "group" ? "var(--ink-3)"
+    : n.kind === "cost" ? "var(--cost)" : n.kind === "profit" ? "var(--profit)" : "var(--revenue)";
+
+  const parts = [];
+  K.forEach(k => {
+    const a = byId[k.a], b = byId[k.b];
+    const x1 = colX[a.col] + nodeW, x2 = colX[b.col];
+    const mx = (x1 + x2) / 2;
+    const d = `M${x1},${k.sy0} C${mx},${k.sy0} ${mx},${k.ty0} ${x2},${k.ty0}`
+            + ` L${x2},${k.ty1} C${mx},${k.ty1} ${mx},${k.sy1} ${x1},${k.sy1} Z`;
+    parts.push(`<path d="${d}" fill="${paint(b.kind === "seg" ? b : (a.kind==="revenue"?b:b))}"
+       opacity=".26" data-k="${esc(a.label)}→${esc(b.label)}" data-v="${k.v}"></path>`);
+  });
+
+  N.forEach(n => {
+    const x = colX[n.col];
+    parts.push(`<rect x="${x}" y="${n.y0}" width="${nodeW}" height="${n.h}" rx="2.5"
+        fill="${paint(n)}" data-n="${esc(n.label)}" data-v="${n.val}"></rect>`);
+
+    // Labels sit outside the plot on the two edge columns, otherwise above
+    // the node, so nothing overlaps a ribbon.
+    const isFirst = n.col === cols[0], isLast = n.col === cols[cols.length-1];
+    const fill = n.kind === "cost" ? "var(--cost)" : n.kind === "profit" ? "var(--profit)"
+               : n.kind === "seg" || n.kind === "group" ? "var(--ink)" : "var(--revenue)";
+    if (isFirst || isLast) {
+      const tx = isFirst ? x - 12 : x + nodeW + 12;
+      const anchor = isFirst ? "end" : "start";
+      const cy = (n.y0 + n.y1) / 2;
+      parts.push(`
+        <text x="${tx}" y="${cy - 7}" text-anchor="${anchor}" font-size="12" font-weight="600"
+              fill="${fill}">${esc(clip(n.label, 26))}</text>
+        <text x="${tx}" y="${cy + 11}" text-anchor="${anchor}" font-size="11.5"
+              class="tnum" fill="var(--ink-2)">${esc(money(n.val,1))}${n.note ? " · " + esc(n.note) : ""}</text>`);
+    } else {
+      parts.push(`
+        <text x="${x}" y="${n.y0 - 21}" font-size="12" font-weight="600" fill="${fill}">${esc(clip(n.label, 26))}</text>
+        <text x="${x}" y="${n.y0 - 5}" font-size="11.5" class="tnum" fill="var(--ink-2)">${esc(money(n.val,1))}${n.note ? " · " + esc(n.note) : ""}</text>`);
+    }
+  });
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+      aria-label="Flow of revenue into costs and profit for Q${q.fq} FY${q.fy}">${parts.join("")}</svg>`;
+
+  const sub = document.getElementById("sankey-sub");
+  if (sub) sub.textContent = S.sankeyLoss
+    ? `Costs exceeded revenue this quarter, so revenue alone cannot cover them. `
+    + `The ${money(-S.sankeyLoss.net,1)} net loss`
+    + (S.sankeyLoss.tax < 0 ? ` and the ${money(-S.sankeyLoss.tax,1)} tax benefit` : "")
+    + ` appear on the left as the rest of what funded the quarter's costs.`
+    : "Every dollar of revenue, followed left to right as it is split between costs (red) "
+    + "and what survives as profit (green). Widths are proportional to dollars.";
+
+  host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
+    [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
+  host.querySelectorAll("[data-k]").forEach(el => hoverable(el, el.dataset.k.replace("→"," → "),
+    [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
+}
+
+/* ---- Revenue mix --------------------------------------------------------- */
+function renderMix(){
+  const host = document.getElementById("mix");
+  const sub  = document.getElementById("mix-sub");
+  const cuts = document.getElementById("mix-cuts");
+  if (!host) return;
+
+  if (S.breakdowns === null){
+    cuts.innerHTML = "";
+    sub.textContent = "";
+    host.innerHTML = `<div class="note"><span class="load"></span> &nbsp;Reading the segment note from the filing…</div>`;
+    return;
+  }
+  if (!S.breakdowns.length){
+    cuts.innerHTML = "";
+    sub.textContent = "";
+    host.innerHTML = `<div class="note">This filing's revenue note could not be reconciled to
+      total revenue, so no breakdown is shown rather than an approximate one.</div>`;
+    return;
+  }
+
+  const cut = S.breakdowns[S.cut];
+  const rev = S.quarter.lines.revenue;
+  cuts.innerHTML = S.breakdowns.map((b,i) =>
+    `<button aria-pressed="${i===S.cut}" data-i="${i}">${esc(b.name)}</button>`).join("");
+  cuts.querySelectorAll("button").forEach(b => b.onclick = () => {
+    S.cut = +b.dataset.i; renderMix(); renderSankey();
+  });
+  sub.textContent = cut.basis === "derived"
+    ? "Fourth-quarter figures, derived by subtracting nine months from the annual report."
+    : "As disclosed in the quarter's own segment note.";
+
+  // A donut carries the part-to-whole reading; the ranked rows beside it
+  // carry the comparison, and every slice is labelled so colour is never the
+  // only thing distinguishing two segments.
+  const W = 640, H = 300, cx = 148, cy = 150, rOut = 116, rIn = 68;
+  const total = cut.rows.reduce((s,r) => s + Math.max(0,r.value), 0) || 1;
+  let ang = -Math.PI/2;
+  const arcs = [], rows = [];
+
+  cut.rows.forEach((r,i) => {
+    const frac = Math.max(0,r.value) / total;
+    const a0 = ang, a1 = ang + frac * Math.PI * 2;
+    ang = a1;
+    const large = (a1 - a0) > Math.PI ? 1 : 0;
+    const p = (rad,a) => [cx + rad*Math.cos(a), cy + rad*Math.sin(a)];
+    const [x0,y0] = p(rOut,a0), [x1,y1] = p(rOut,a1);
+    const [x2,y2] = p(rIn ,a1), [x3,y3] = p(rIn ,a0);
+    arcs.push(`<path d="M${x0},${y0} A${rOut},${rOut} 0 ${large} 1 ${x1},${y1}
+        L${x2},${y2} A${rIn},${rIn} 0 ${large} 0 ${x3},${y3} Z"
+        fill="var(${SERIES[i%SERIES.length]})" stroke="var(--card)" stroke-width="2"
+        data-n="${esc(r.label)}" data-v="${r.value}"></path>`);
+
+    const y = cy - (cut.rows.length * 24) / 2 + 16 + i * 24;
+    rows.push(`
+      <rect x="312" y="${y-10}" width="10" height="10" rx="3" fill="var(${SERIES[i%SERIES.length]})"></rect>
+      <text x="330" y="${y-1}" font-size="12.5" fill="var(--ink)">${esc(clip(r.label, 20))}</text>
+      <text x="${W-10}" y="${y-1}" text-anchor="end" font-size="12.5" class="tnum" fill="var(--ink-2)">
+        ${esc(money(r.value,1))} · ${esc(pct(r.value/total*100))}</text>`);
+  });
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+      aria-label="Revenue split ${esc(cut.name)}">
+      ${arcs.join("")}
+      <text x="${cx}" y="${cy-10}" text-anchor="middle" font-size="11" fill="var(--ink-3)"
+        letter-spacing=".08em">REVENUE</text>
+      <text x="${cx}" y="${cy+16}" text-anchor="middle" font-size="18" font-weight="600"
+        class="tnum" fill="var(--ink)">${esc(money(rev,1))}</text>
+      ${rows.join("")}
+    </svg>`;
+
+  host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
+    [["Revenue", money(+el.dataset.v)], ["Share", pct(+el.dataset.v/total*100)]]));
+}
+
+/* ---- shared axis helper -------------------------------------------------- */
+function niceTicks(max, count=4){
+  if (!(max > 0)) return [0, 1];
+  const raw = max / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1,2,2.5,5,10].map(m => m*mag).find(s => s >= raw) || mag*10;
+  // Round the axis up past the largest value, so no bar can exceed the plot.
+  const top = Math.ceil(max / step) * step;
+  const out = [];
+  for (let v = 0; v <= top + step * 1e-6; v += step) out.push(v);
+  return out;
+}
+
+/* ---------------------------------------------------------------------------
+   A general quarter-by-quarter chart, shared by the cash-flow panel and the
+   chart builder. Handles several series, negative values, and the three
+   ways of expressing a value: as filed, as a share of revenue, or as growth.
+--------------------------------------------------------------------------- */
+function valueOf(q, key, mode){
+  const raw = q.lines[key];
+  if (raw === null || raw === undefined) return null;
+  if (mode === "pctRevenue") return q.lines.revenue ? raw / q.lines.revenue * 100 : null;
+  if (mode === "qoq") return growth(q, key).qoq;
+  if (mode === "yoy") return growth(q, key).yoy;
+  return raw;
+}
+
+function renderQuarterChart(host, legendHost, opts){
+  const {series, type = "bar", mode = "absolute", quarters, width = 560, height = 300} = opts;
+  if (!host) return;
+  const qs = quarters;
+  const pct_ = mode !== "absolute";
+
+  const pts = series.map(s => qs.map(q => valueOf(q, s.k, mode)));
+  const flat = pts.flat().filter(v => v !== null);
+  if (!qs.length || !flat.length){
+    host.innerHTML = `<div class="note">No data for this selection.</div>`;
+    if (legendHost) legendHost.innerHTML = "";
+    return;
+  }
+
+  const W = width, H = height, ml = 62, mr = pct_ ? 16 : 16, mt = 18, mb = 48;
+  const pw = W - ml - mr, ph = H - mt - mb;
+
+  // The axis has to reach past the extremes in both directions, and include
+  // zero whenever any value is negative. A stack is bounded by its totals,
+  // not by any single segment.
+  let hiV = Math.max(...flat, 0), loV = Math.min(...flat, 0);
+  if (type === "stack"){
+    const tot = qs.map((q, i) => {
+      let up = 0, dn = 0;
+      series.forEach((s, si) => {
+        const v = pts[si][i];
+        if (v === null) return;
+        if (v >= 0) up += v; else dn += v;
+      });
+      return [up, dn];
+    });
+    hiV = Math.max(...tot.map(t => t[0]), 0);
+    loV = Math.min(...tot.map(t => t[1]), 0);
+  }
+  const ticksPos = niceTicks(hiV || 1);
+  const step = ticksPos.length > 1 ? ticksPos[1] - ticksPos[0] : (hiV || 1);
+  const top = Math.max(step, Math.ceil(hiV / step) * step);
+  const bot = loV < 0 ? Math.floor(loV / step) * step : 0;
+  const y = v => mt + ph - ((v - bot) / (top - bot)) * ph;
+
+  const ticks = [];
+  for (let v = bot; v <= top + step * 1e-6; v += step) ticks.push(v);
+
+  const parts = [];
+  ticks.forEach(t => parts.push(`
+    <line x1="${ml}" y1="${y(t)}" x2="${W-mr}" y2="${y(t)}"
+      stroke="${Math.abs(t) < step*1e-6 ? "var(--rule)" : "var(--rule-2)"}"></line>
+    <text x="${ml-9}" y="${y(t)+4}" text-anchor="end" font-size="10.5" class="tnum"
+      fill="var(--ink-3)">${esc(pct_ ? t.toFixed(0)+"%" : money(t,0))}</text>`));
+
+  const slot = pw / qs.length;
+  const label = (q, s) => `${s.label} · Q${q.fq} FY${q.fy}`;
+  const rowsFor = (q, s, v, i) => {
+    const rows = [
+      [pct_ ? (mode==="pctRevenue" ? "Share of revenue" : "Change") : "Amount",
+       pct_ ? pct(v) : fmtBy(FIELD[s.k].unit, q.lines[s.k])],
+    ];
+    if (type === "stack" && series.length > 1 && !pct_ && opts.totalLabel){
+      const net = series.reduce((a, _s, si) => a + (pts[si][i] ?? 0), 0);
+      if (net) rows.push([opts.totalLabel, pct(v / net * 100)]);
+    }
+    rows.push(...growthRows(q, s.k));
+    rows.push(["Source", q.basis === "derived" ? "derived from annual report" : "as filed"]);
+    return rows;
+  };
+
+  if (type === "stack"){
+    // One bar per quarter. Positive parts stack up from zero and negative
+    // parts hang below it, so a quarter that spent more than it earned still
+    // reads correctly. A tick marks the net total.
+    const bw = Math.min(slot - 12, 46);
+    qs.forEach((q, i) => {
+      const x = ml + slot*i + (slot - bw)/2;
+      let up = 0, dn = 0, net = 0, any = false;
+      series.forEach((s, si) => {
+        const v = pts[si][i];
+        if (v === null) return;
+        any = true; net += v;
+        const from = v >= 0 ? up : dn;
+        const to = from + v;
+        if (v >= 0) up = to; else dn = to;
+        const y0 = y(Math.max(from, to)), y1 = y(Math.min(from, to));
+        parts.push(`<rect x="${x}" y="${y0}" width="${bw}"
+          height="${Math.max(1.5, y1 - y0 - 2)}" rx="3"
+          fill="var(${s.col})" opacity="${q === S.quarter ? 1 : .74}"
+          data-t="${esc(label(q,s))}" data-i="${i}" data-s="${si}"></rect>`);
+      });
+      if (any && series.length > 1)
+        parts.push(`<line x1="${x-3}" y1="${y(net)}" x2="${x+bw+3}" y2="${y(net)}"
+          stroke="var(--ink)" stroke-width="1.5" opacity=".55"></line>`);
+    });
+  } else if (type === "bar"){
+    const gw = Math.min(slot - 8, 44);
+    const bw = Math.max(3, (gw - (series.length - 1) * 3) / series.length);
+    qs.forEach((q, i) => {
+      series.forEach((s, si) => {
+        const v = pts[si][i];
+        if (v === null) return;
+        const x = ml + slot*i + (slot - gw)/2 + si*(bw+3);
+        const y0 = y(Math.max(v, 0)), y1 = y(Math.min(v, 0));
+        parts.push(`<rect x="${x}" y="${y0}" width="${bw}" height="${Math.max(1.5, y1-y0)}" rx="3"
+          fill="var(${s.col})" opacity="${q === S.quarter ? 1 : .72}"
+          data-t="${esc(label(q,s))}" data-i="${i}" data-s="${si}"></rect>`);
+      });
+    });
+  } else {
+    series.forEach((s, si) => {
+      const line = qs.map((q,i) => ({i, v: pts[si][i]})).filter(p => p.v !== null);
+      if (!line.length) return;
+      const px = i => ml + slot*(i+0.5);
+      const d = line.map((p,j) => `${j?"L":"M"}${px(p.i)},${y(p.v)}`).join(" ");
+      if (type === "area")
+        parts.push(`<path d="${d} L${px(line[line.length-1].i)},${y(bot)} L${px(line[0].i)},${y(bot)} Z"
+          fill="var(${s.col})" opacity=".16"></path>`);
+      parts.push(`<path d="${d}" fill="none" stroke="var(${s.col})" stroke-width="2"
+        stroke-linejoin="round" stroke-linecap="round"></path>`);
+      line.forEach(p => parts.push(`<circle cx="${px(p.i)}" cy="${y(p.v)}"
+        r="${qs[p.i] === S.quarter ? 4.5 : 3}" fill="var(${s.col})"
+        stroke="var(--card)" stroke-width="2"
+        data-t="${esc(label(qs[p.i], s))}" data-i="${p.i}" data-s="${si}"></circle>`));
+    });
+  }
+
+  qs.forEach((q,i) => {
+    const cx = ml + slot*(i+0.5);
+    const sel = q === S.quarter;
+    parts.push(`<text x="${cx}" y="${H-mb+16}" text-anchor="middle" font-size="10.5"
+      fill="${sel?"var(--ink)":"var(--ink-3)"}" font-weight="${sel?600:400}">Q${q.fq}</text>
+      <text x="${cx}" y="${H-mb+33}" text-anchor="middle" font-size="9.5" class="tnum"
+      fill="var(--ink-3)">'${String(q.fy).slice(2)}</text>`);
+  });
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+    aria-label="${esc(series.map(s=>s.label).join(", "))} by quarter">${parts.join("")}</svg>`;
+
+  host.querySelectorAll("[data-t]").forEach(el => {
+    const i = +el.dataset.i, si = +el.dataset.s;
+    hoverable(el, el.dataset.t, rowsFor(qs[i], series[si], pts[si][i], i));
+  });
+  if (legendHost)
+    legendHost.innerHTML = series.length > 1
+      ? series.map(s => `<div><i style="background:var(${s.col})"></i>${esc(s.label)}</div>`).join("")
+      : "";
+}
+
+/* ---- Revenue trend ------------------------------------------------------- */
+function renderRevTrend(){
+  const host = document.getElementById("revtrend");
+  const qs = recentQuarters(12).filter(q => q.lines.revenue !== null);
+  if (!qs.length) { host.innerHTML = `<div class="note">No history available.</div>`; return; }
+
+  const W = 560, H = 300, ml = 56, mr = 12, mt = 16, mb = 46;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const max = Math.max(...qs.map(q => q.lines.revenue));
+  const ticks = niceTicks(max);
+  const top = ticks[ticks.length-1];
+  const y = v => mt + ph - (v / top) * ph;
+  const bw = Math.min(38, pw / qs.length - 8);
+
+  const parts = ticks.map(t => `
+    <line x1="${ml}" y1="${y(t)}" x2="${W-mr}" y2="${y(t)}" stroke="var(--rule-2)"></line>
+    <text x="${ml-9}" y="${y(t)+4}" text-anchor="end" font-size="10.5" class="tnum"
+      fill="var(--ink-3)">${esc(money(t,0))}</text>`);
+
+  qs.forEach((q,i) => {
+    const cx = ml + pw*(i+0.5)/qs.length;
+    const v = q.lines.revenue;
+    const h = Math.max(1, ph - (y(v) - mt));
+    const sel = q === S.quarter;
+    const derived = q.basis === "derived";
+    parts.push(`<rect x="${cx-bw/2}" y="${y(v)}" width="${bw}" height="${h}" rx="4"
+      fill="${derived ? "transparent" : (sel ? "var(--revenue)" : "color-mix(in srgb, var(--revenue) 42%, transparent)")}"
+      stroke="var(--revenue)" stroke-width="${derived ? 1.5 : 0}"
+      stroke-dasharray="${derived ? "3 2" : ""}"
+      data-n="Q${q.fq} FY${q.fy}" data-v="${v}" data-b="${q.basis}" data-q="${i}"></rect>`);
+    if (sel) parts.push(`<text x="${Math.min(Math.max(cx, ml+26), W-mr-26)}" y="${y(v)-7}" text-anchor="middle" font-size="11"
+        font-weight="600" class="tnum" fill="var(--revenue)">${esc(money(v,1))}</text>`);
+    parts.push(`<text x="${cx}" y="${H-mb+16}" text-anchor="middle" font-size="10.5"
+      fill="${sel ? "var(--ink)" : "var(--ink-3)"}" font-weight="${sel?600:400}">Q${q.fq}</text>
+      <text x="${cx}" y="${H-mb+33}" text-anchor="middle" font-size="9.5" class="tnum"
+      fill="var(--ink-3)">'${String(q.fy).slice(2)}</text>`);
+  });
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+    aria-label="Revenue by quarter">${parts.join("")}</svg>`;
+  host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
+    [["Revenue", money(+el.dataset.v)],
+     ...growthRows(qs[+el.dataset.q], "revenue"),
+     ["Source", el.dataset.b === "derived" ? "derived from annual report" : "as filed"]]));
+}
+
+/* ---- Margins ------------------------------------------------------------- */
+function renderMargins(){
+  const host = document.getElementById("margins");
+  const qs = recentQuarters(12);
+  const defs = [
+    ["Gross margin",     "grossProfit",     "--profit"],
+    ["Operating margin", "operatingIncome", "--revenue"],
+    ["Net margin",       "netIncome",       "--s7"],
+  ].filter(([,k]) => qs.some(q => q.lines[k] !== null && q.lines.revenue));
+
+  if (!defs.length || qs.length < 2){
+    host.innerHTML = `<div class="note">Not enough history to plot margins.</div>`;
+    document.getElementById("margins-legend").innerHTML = "";
+    return;
+  }
+
+  const series = defs.map(([label,key,col]) => ({
+    label, col, key,
+    pts: qs.map((q,i) => {
+      const r = q.lines.revenue, v = q.lines[key];
+      return (r && v !== null) ? {i, v: v/r*100, q} : null;
+    }).filter(Boolean)
+  }));
+
+  const all = series.flatMap(s => s.pts.map(p => p.v));
+  const lo = Math.min(0, Math.floor(Math.min(...all)/10)*10);
+  const hi = Math.ceil(Math.max(...all)/10)*10 || 10;
+
+  const W = 560, H = 300, ml = 46, mr = 92, mt = 16, mb = 46;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const x = i => ml + pw*(i+0.5)/qs.length;
+  const y = v => mt + ph - ((v - lo)/(hi - lo))*ph;
+
+  const parts = [];
+  for (let t = lo; t <= hi; t += Math.max(5,(hi-lo)/5)) {
+    parts.push(`<line x1="${ml}" y1="${y(t)}" x2="${W-mr}" y2="${y(t)}" stroke="var(--rule-2)"></line>
+      <text x="${ml-8}" y="${y(t)+4}" text-anchor="end" font-size="10.5" class="tnum"
+        fill="var(--ink-3)">${t.toFixed(0)}%</text>`);
+  }
+  qs.forEach((q,i) => parts.push(`<text x="${x(i)}" y="${H-mb+16}" text-anchor="middle" font-size="10.5"
+      fill="${q===S.quarter?"var(--ink)":"var(--ink-3)"}" font-weight="${q===S.quarter?600:400}">Q${q.fq}</text>
+      <text x="${x(i)}" y="${H-mb+33}" text-anchor="middle" font-size="9.5" class="tnum"
+      fill="var(--ink-3)">'${String(q.fy).slice(2)}</text>`));
+
+  series.forEach(s => {
+    const d = s.pts.map((p,j) => `${j?"L":"M"}${x(p.i)},${y(p.v)}`).join(" ");
+    parts.push(`<path d="${d}" fill="none" stroke="var(${s.col})" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"></path>`);
+    s.pts.forEach(p => parts.push(`<circle cx="${x(p.i)}" cy="${y(p.v)}" r="${p.q===S.quarter?4.5:3}"
+      fill="var(${s.col})" stroke="var(--card)" stroke-width="2"
+      data-n="${esc(s.label)} · Q${p.q.fq} FY${p.q.fy}" data-v="${p.v}"
+      data-q="${p.i}" data-k="${s.key}"></circle>`));
+  });
+
+  // Direct labels at the line ends, so the legend is a backup and not a
+  // crutch. Lines that finish close together get nudged apart rather than
+  // printed on top of each other.
+  const ends = series.map(s => {
+    const last = s.pts[s.pts.length-1];
+    return {col: s.col, v: last.v, ty: y(last.v), i: last.i};
+  }).sort((a,b) => a.ty - b.ty);
+  for (let j = 1; j < ends.length; j++)
+    if (ends[j].ty - ends[j-1].ty < 15) ends[j].ty = ends[j-1].ty + 15;
+  ends.forEach(e => parts.push(`<text x="${x(e.i)+9}" y="${e.ty+4}" font-size="11"
+    font-weight="600" fill="var(${e.col})">${esc(pct(e.v,0))}</text>`));
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+    aria-label="Margin trend">${parts.join("")}</svg>`;
+  document.getElementById("margins-legend").innerHTML = series.map(s =>
+    `<div><i style="background:var(${s.col})"></i>${esc(s.label)}</div>`).join("");
+  host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
+    [["Margin", pct(+el.dataset.v)], ...growthRows(qs[+el.dataset.q], el.dataset.k)]));
+}
+
+/* ---- Cost & expense structure -------------------------------------------- */
+function renderCostStack(){
+  const host = document.getElementById("coststack");
+  const qs = recentQuarters(12).filter(q => q.lines.revenue);
+  const defs = [
+    ["Cost of revenue","cogs","--s2"], ["R&D","rd","--s1"],
+    ["Sales & marketing","sm","--s3"], ["General & admin","ga","--s4"],
+    ["Selling, general & admin","sga","--s5"], ["Other operating","opexOther","--s7"],
+    ["Credit provisions","provisions","--s8"],
+  ].filter(([,k]) => qs.some(q => q.lines[k] !== null && q.lines[k] > 0));
+
+  if (!defs.length || !qs.length){
+    host.innerHTML = `<div class="note">This company does not disclose a cost breakdown.</div>`;
+    document.getElementById("coststack-legend").innerHTML = "";
+    return;
+  }
+
+  const W = 560, H = 300, ml = 46, mr = 12, mt = 16, mb = 46;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const y = v => mt + ph - (v/100)*ph;
+  const bw = Math.min(34, pw/qs.length - 7);
+  const parts = [];
+
+  for (let t = 0; t <= 100; t += 25)
+    parts.push(`<line x1="${ml}" y1="${y(t)}" x2="${W-mr}" y2="${y(t)}" stroke="var(--rule-2)"></line>
+      <text x="${ml-8}" y="${y(t)+4}" text-anchor="end" font-size="10.5" class="tnum"
+        fill="var(--ink-3)">${t}%</text>`);
+
+  qs.forEach((q,i) => {
+    const cx = ml + pw*(i+0.5)/qs.length;
+    let acc = 0;
+    defs.forEach(([label,key,col]) => {
+      const v = q.lines[key];
+      if (v === null || v === undefined || v <= 0) return;
+      const share = v / q.lines.revenue * 100;
+      const y0 = y(acc + share), y1 = y(acc);
+      // A 2px gap between segments keeps adjacent fills readable without
+      // relying on the colour difference alone.
+      parts.push(`<rect x="${cx-bw/2}" y="${y0}" width="${bw}" height="${Math.max(1,y1-y0-2)}" rx="2"
+        fill="var(${col})" opacity="${q===S.quarter?1:.72}"
+        data-n="${esc(label)} · Q${q.fq} FY${q.fy}" data-v="${v}" data-s="${share}"
+        data-q="${i}" data-k="${key}"></rect>`);
+      acc += share;
+    });
+    parts.push(`<text x="${cx}" y="${H-mb+16}" text-anchor="middle" font-size="10.5"
+      fill="${q===S.quarter?"var(--ink)":"var(--ink-3)"}" font-weight="${q===S.quarter?600:400}">Q${q.fq}</text>
+      <text x="${cx}" y="${H-mb+33}" text-anchor="middle" font-size="9.5" class="tnum"
+      fill="var(--ink-3)">'${String(q.fy).slice(2)}</text>`);
+  });
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+    aria-label="Cost and expense structure">${parts.join("")}</svg>`;
+  document.getElementById("coststack-legend").innerHTML = defs.map(([label,,col]) =>
+    `<div><i style="background:var(${col})"></i>${esc(label)}</div>`).join("");
+  host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
+    [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.s)],
+     ...growthRows(qs[+el.dataset.q], el.dataset.k)]));
+}
+
+/* ---------------------------------------------------------------------------
+   Chart builder
+
+   Only fields this company actually reports can be selected, so a chart can
+   never show data that is not in the filings.
+--------------------------------------------------------------------------- */
+const BUILD = {series:["revenue"], type:"bar", mode:"absolute", n:12};
+
+function renderBuilder(){
+  const wrap = document.getElementById("builder");
+  if (!wrap) return;
+  const avail = availableFields();
+  BUILD.series = BUILD.series.filter(k => avail.some(f => f.k === k));
+  if (!BUILD.series.length) BUILD.series = [avail[0] ? avail[0].k : "revenue"];
+
+  const cols = ["--s1","--s3","--s2","--s7"];
+  const series = BUILD.series.map((k,i) => ({k, label: FIELD[k].label, col: cols[i % cols.length]}));
+
+  document.getElementById("b-fields").innerHTML = avail.map(f =>
+    `<button role="checkbox" aria-checked="${BUILD.series.includes(f.k)}"
+       data-k="${f.k}">${esc(f.label)}</button>`).join("");
+  document.getElementById("b-type").value = BUILD.type;
+  document.getElementById("b-mode").value = BUILD.mode;
+  document.getElementById("b-n").value = String(BUILD.n);
+
+  const yLabel = BUILD.mode === "pctRevenue" ? "% of revenue"
+    : BUILD.mode === "yoy" ? "Year-over-year change"
+    : BUILD.mode === "qoq" ? "Quarter-over-quarter change"
+    : series.map(s => s.label).join(" · ");
+  document.getElementById("b-axes").innerHTML =
+    `<span><b>y</b> ${esc(yLabel)}</span><span><b>x</b> Fiscal quarter</span>`;
+  renderQuarterChart(document.getElementById("b-chart"),
+    document.getElementById("b-legend"),
+    {series, type: BUILD.type, mode: BUILD.mode,
+     quarters: recentQuarters(BUILD.n), width: 1180, height: 340});
+
+  // Clicking a field toggles it into or out of the y axis.
+  document.getElementById("b-fields").querySelectorAll("button").forEach(b => {
+    b.onclick = () => {
+      const k = b.dataset.k;
+      if (BUILD.series.includes(k)) {
+        if (BUILD.series.length > 1) BUILD.series = BUILD.series.filter(x => x !== k);
+      } else if (BUILD.series.length < 4) {
+        BUILD.series = [...BUILD.series, k];
+      }
+      renderBuilder();
+    };
+  });
+}
+
+function wireBuilder(){
+  ["b-type","b-mode","b-n"].forEach(id =>
+    document.getElementById(id).addEventListener("change", e => {
+      BUILD[id === "b-n" ? "n" : id === "b-type" ? "type" : "mode"] =
+        id === "b-n" ? +e.target.value : e.target.value;
+      renderBuilder();
+    }));
+  renderBuilder();
+}
+
+/* ---- Income statement ---------------------------------------------------- */
+function renderStatement(){
+  const qs = S.company.quarters, q = S.quarter;
+  const i = qs.indexOf(q);
+  const prevQ = qs[i+1] || null;
+  const yearAgo = qs.find(x => x.fy === q.fy-1 && x.fq === q.fq) || null;
+
+  const ROWS = [
+    ["Revenue","revenue","rule"],
+    ["Cost of revenue","cogs","sub"],
+    ["Gross profit","grossProfit","rule"],
+    ["Research & development","rd","sub"],
+    ["Sales & marketing","sm","sub"],
+    ["General & administrative","ga","sub"],
+    ["Selling, general & administrative","sga","sub"],
+    ["Other operating expenses","opexOther","sub"],
+    ["Total operating expenses","opex","rule"],
+    ["Operating income","operatingIncome","rule"],
+    ["Other income (expense), net","otherIncome","sub"],
+    ["Pre-tax income","pretaxIncome",""],
+    ["Income tax","tax","sub"],
+    ["Net income","netIncome","rule"],
+    ["Diluted EPS","epsDiluted","eps"],
+  ];
+
+  const fmt = (k,v) => v===null||v===undefined ? "—"
+    : (k==="epsDiluted" ? (v<0 ? "−$" : "$") + Math.abs(v).toFixed(2) : money(v));
+  const delta = (a,b) => {
+    if (a===null||b===null||a===undefined||b===undefined||!b) return "—";
+    const d = (a-b)/Math.abs(b)*100;
+    return `<span class="${d>=0?"up":"down"}">${sign(d)}${d.toFixed(1)}%</span>`;
+  };
+
+  const body = ROWS.filter(([,k]) => q.lines[k] !== null && q.lines[k] !== undefined)
+    .map(([label,k,cls]) => {
+      const v = q.lines[k];
+      const src = q.provenance && q.provenance[k];
+      return `<tr class="${cls==="eps"?"":cls}">
+        <td>${esc(label)}${src === "computed" ? `<span class="tag" title="Not tagged in the filing; derived from the lines around it">derived</span>` : ""}</td>
+        <td>${fmt(k,v)}</td>
+        <td>${k==="epsDiluted"||!q.lines.revenue ? "—" : pct(v/q.lines.revenue*100)}</td>
+        <td>${yearAgo ? fmt(k,yearAgo.lines[k]) : "—"}</td>
+        <td>${yearAgo ? delta(v, yearAgo.lines[k]) : "—"}</td>
+        <td>${prevQ ? delta(v, prevQ.lines[k]) : "—"}</td>
+      </tr>`;
+    }).join("");
+
+  document.getElementById("istmt").innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Line item</th>
+        <th>Q${q.fq} FY${q.fy}</th>
+        <th>% of revenue</th>
+        <th>${yearAgo ? `Q${yearAgo.fq} FY${yearAgo.fy}` : "Year ago"}</th>
+        <th>YoY</th><th>QoQ</th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
+/* ---- Footer -------------------------------------------------------------- */
+function renderFoot(){
+  const c = S.company, q = S.quarter;
+  const cut = S.breakdowns && S.breakdowns.length ? S.breakdowns[S.cut] : null;
+  const fyeName = MONTHS[(c.fiscalYearEndMonth||12)-1];
+  document.getElementById("foot").innerHTML = `
+    <strong>Source.</strong> Every figure is from the company's own filings with the
+    U.S. Securities and Exchange Commission — the
+    <a href="${esc(c.source.facts)}" target="_blank" rel="noopener">XBRL company-facts API</a>
+    for the income statement, and the filed report itself for the revenue breakdown.
+    Nothing here is estimated, and no third-party data is used.<br>
+
+    <strong>Fiscal calendar.</strong> ${esc(c.name)}'s fiscal year ends in ${fyeName},
+    so Q${q.fq} FY${q.fy} covers ${longDate(q.start)} – ${longDate(q.end)}.<br>
+
+    <strong>How quarterly figures are obtained.</strong> Quarterly columns are used as
+    filed where a company reports them. Fourth quarters are not reported on their own,
+    so they are calculated as the annual figure minus the first nine months
+    ${q.basis === "derived" ? "— as this quarter is" : ""}. Lines marked
+    <span class="tag">derived</span> were not tagged in the filing and are computed from
+    the lines around them.<br>
+
+    ${cut ? `<strong>Revenue breakdown.</strong> Taken from
+      “${esc(cut.source)}”. Its parts sum to within 2% of
+      consolidated revenue; breakdowns that do not reconcile are not shown.<br>` : ""}
+
+    <strong>Caching.</strong> Responses are cached on disk. Delete <code>.cache</code>
+    to force a refresh after a new filing.
+  `;
+}
+
+/* ===========================================================================
+   Theme
+=========================================================================== */
+const themeBtn = document.getElementById("theme");
+function setTheme(t){
+  document.documentElement.setAttribute("data-theme", t);
+  themeBtn.textContent = t === "dark" ? "Light" : "Dark";
+  try { localStorage.setItem("alphaticker-theme", t); } catch {}
+  if (S.company) { renderSankey(); renderMix(); renderRevTrend(); renderMargins(); renderCostStack(); }
+}
+themeBtn.onclick = () =>
+  setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+
+(function boot(){
+  let t = null;
+  // Fall back to the old key so an existing visitor keeps their theme.
+  try { t = localStorage.getItem("alphaticker-theme")
+            || localStorage.getItem("ledger-theme"); } catch {}
+  if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  setTheme(t);
+
+  const start = new URLSearchParams(location.search).get("t") || "GOOGL";
+  qEl.value = start;
+  load(start);
+})();
+</script>
+</body>
+</html>

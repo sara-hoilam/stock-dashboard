@@ -135,3 +135,25 @@ def record_failure(accession: str, cik: int, form: str,
 
 def stats() -> dict:
     return rpc("ledger_stats") or {}
+
+
+# ---------------------------------------------------------------------------
+# Market data (FMP)
+# ---------------------------------------------------------------------------
+
+def upsert_quotes(rows: list[dict]) -> int:
+    return rpc("upsert_quotes", {"p_rows": rows}) or 0
+
+
+def replace_movers(kind: str, rows: list[dict], as_of: str | None) -> int:
+    return rpc("replace_movers",
+               {"p_kind": kind, "p_rows": rows, "p_as_of": as_of}) or 0
+
+
+def replace_sectors(rows: list[dict], as_of: str | None) -> int:
+    return rpc("replace_sectors", {"p_rows": rows, "p_as_of": as_of}) or 0
+
+
+def upsert_intraday(symbol: str, points: list[dict], as_of: str | None) -> None:
+    rpc("upsert_intraday",
+        {"p_symbol": symbol, "p_points": points, "p_as_of": as_of})
