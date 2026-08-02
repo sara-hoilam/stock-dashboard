@@ -831,13 +831,16 @@ function wireRotationHover(g){
 function renderSectorPerf(rows){
   const host = document.getElementById("sectorperf");
   if (!rows || !rows.length){ host.innerHTML = `<div class="note">No sector data yet.</div>`; return; }
-  const W = 460, H = 320, ml = 132, mr = 16, mt = 10, mb = 26;
+  // The left margin has to clear the longest sector name -- "Communication
+  // Services" is the one that sets it -- and the height is chosen so the bars
+  // fill the panel rather than sitting in its top third.
+  const W = 520, H = 500, ml = 152, mr = 18, mt = 12, mb = 20;
   const pw = W - ml - mr, ph = H - mt - mb;
   const max = Math.max(...rows.map(r => Math.abs(r.changePct)), 0.5);
   const zero = ml + pw / 2;
   // The longest bar stops short of the edge so its value label has room.
   const scale = v => (v / max) * (pw / 2) * 0.68;
-  const bh = Math.min(17, ph / rows.length - 5);
+  const bh = Math.min(30, ph / rows.length - 10);
 
   const parts = [`<line x1="${zero}" y1="${mt}" x2="${zero}" y2="${mt+ph}" stroke="var(--rule)"></line>`];
   rows.forEach((r, i) => {
