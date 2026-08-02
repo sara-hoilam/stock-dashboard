@@ -745,7 +745,7 @@ function renderRotation(history){
   const lo = Math.min(...all, 0), hi = Math.max(...all, 0);
   const pad = (hi - lo) * 0.08 || 1;
 
-  const W = 900, H = 380, ml = 62, mr = 14, mt = 14, mb = 58;
+  const W = 900, H = 310, ml = 62, mr = 14, mt = 14, mb = 54;
   const pw = W - ml - mr, ph = H - mt - mb;
   const x = i => ml + pw * i / Math.max(1, days.length - 1);
   const y = v => mt + ph - ((v - (lo - pad)) / (((hi + pad) - (lo - pad)) || 1)) * ph;
@@ -834,13 +834,13 @@ function renderSectorPerf(rows){
   // The left margin has to clear the longest sector name -- "Communication
   // Services" is the one that sets it -- and the height is chosen so the bars
   // fill the panel rather than sitting in its top third.
-  const W = 520, H = 500, ml = 152, mr = 18, mt = 12, mb = 20;
+  const W = 570, H = 380, ml = 178, mr = 18, mt = 10, mb = 16;
   const pw = W - ml - mr, ph = H - mt - mb;
   const max = Math.max(...rows.map(r => Math.abs(r.changePct)), 0.5);
   const zero = ml + pw / 2;
   // The longest bar stops short of the edge so its value label has room.
   const scale = v => (v / max) * (pw / 2) * 0.68;
-  const bh = Math.min(30, ph / rows.length - 10);
+  const bh = Math.min(24, ph / rows.length - 8);
 
   const parts = [`<line x1="${zero}" y1="${mt}" x2="${zero}" y2="${mt+ph}" stroke="var(--rule)"></line>`];
   rows.forEach((r, i) => {
@@ -850,10 +850,10 @@ function renderSectorPerf(rows){
     parts.push(`<rect x="${up ? zero : zero + w}" y="${cy - bh/2}" width="${Math.abs(w)}"
         height="${bh}" rx="3" fill="var(${up ? "--up" : "--down"})"
         data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:default"></rect>
-      <text x="${ml-10}" y="${cy+4}" text-anchor="end" font-size="11.5"
+      <text x="${ml-10}" y="${cy+4.5}" text-anchor="end" font-size="13.5"
         fill="var(--ink-2)">${esc(r.sector)}</text>
-      <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+4}"
-        text-anchor="${up ? "start" : "end"}" font-size="11" class="tnum"
+      <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+4.5}"
+        text-anchor="${up ? "start" : "end"}" font-size="12" class="tnum"
         fill="var(${up ? "--up" : "--down"})" font-weight="600">${esc(pct(r.changePct))}</text>`);
   });
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
