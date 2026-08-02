@@ -1,0 +1,39 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Nightly, after US filers have finished submitting for the day.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  accuracy:
+    # The guardrail that matters: rebuild real companies from SEC filings and
+    # assert the income-statement identities still hold. This is what caught
+    # the derivation and node-balance bugs during development, and it matters
+    # more as coverage grows.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Syntax check
+        run: python -m compileall -q edgar.py store.py worker.py server.py validate.py
+
+      - name: Validate against live filings
+        env:
+          SEC_CONTACT: ${{ secrets.SEC_CONTACT }}
+        run: |
+          if [ -z "$SEC_CONTACT" ]; then
+            echo "::warning::SEC_CONTACT secret not set; the SEC may throttle this run"
+          fi
+          python validate.py GOOGL AAPL MSFT JPM UNH KO MU COIN
+
+      - name: Build the static site
+        run: bash build.sh
