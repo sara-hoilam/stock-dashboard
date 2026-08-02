@@ -23,6 +23,9 @@
   --up:#0b7a4b; --down:#c0392e;
   --up-soft:#e3f4ec; --down-soft:#fbe9e7;
   --revenue:#2a78d6;
+  /* The same validated categorical palette the company page uses. */
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
   --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
   --r:10px;
 }
@@ -35,6 +38,8 @@
   --up:#38b37d; --down:#f0736a;
   --up-soft:#12291f; --down-soft:#2b1614;
   --revenue:#3987e5;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
 }
 
@@ -144,6 +149,7 @@ svg{display:block;max-width:100%}
 .hmhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
   padding:15px 18px 4px;flex-wrap:wrap}
 .hmhead p{font-size:12px;color:var(--ink-3);max-width:64ch;margin:0}
+.hmhead h3{font-size:14.5px;font-weight:600;letter-spacing:-.005em;margin:0 0 3px}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
 .legend{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;
   font-size:11.5px;color:var(--ink-3);padding:0 18px 14px}
@@ -240,11 +246,11 @@ svg{display:block;max-width:100%}
     </div>
   </section>
 
-  <h2 style="margin-top:26px">Market Heatmap</h2>
-  <section class="panel">
+  <section class="panel" style="margin-top:26px">
     <div class="hmhead">
+      <div><h3>Market Heatmap</h3>
       <p>Every tile is a company, sized by market capitalisation and coloured by
-         today's move. Click one to open its filed financials.</p>
+         today's move. Click one to open its filed financials.</p></div>
       <div class="legend" id="hm-legend"></div>
     </div>
     <div class="scroll" id="heatmap"><div class="note"><span class="load"></span></div></div>
@@ -253,12 +259,14 @@ svg{display:block;max-width:100%}
   <h2 style="margin-top:26px">Sectors Movement</h2>
   <div class="grid2">
     <section class="panel">
-      <div class="hmhead"><p>Each sector's daily average move over the last six weeks.</p></div>
+      <div class="hmhead"><div><h3>Sector Rotations</h3>
+        <p>Cumulative performance per sector over the last six weeks.</p></div></div>
       <div class="scroll" id="rotation"><div class="note"><span class="load"></span></div></div>
       <div class="legend" id="rot-legend"></div>
     </section>
     <section class="panel">
-      <div class="hmhead"><p>Where each sector finished on the last trading day.</p></div>
+      <div class="hmhead"><div><h3>Sector Performance</h3>
+        <p>Where each sector finished on the last trading day.</p></div></div>
       <div class="scroll" id="sectorperf"><div class="note"><span class="load"></span></div></div>
     </section>
   </div>
@@ -266,13 +274,15 @@ svg{display:block;max-width:100%}
   <h2 style="margin-top:26px">Congress &amp; Insiders</h2>
   <div class="grid2">
     <section class="panel">
-      <div class="hmhead"><p>Officers and directors buying or selling their own
-        company's stock, as disclosed on Form 4.</p></div>
+      <div class="hmhead"><div><h3>Insider Transactions</h3>
+        <p>Officers and directors buying or selling their own company's stock,
+           as disclosed on Form 4. Largest transaction per company.</p></div></div>
       <div class="scroll" id="insiders"><div class="note"><span class="load"></span></div></div>
     </section>
     <section class="panel">
-      <div class="hmhead"><p>Trades disclosed by members of the House and Senate.
-        Amounts are the ranges they are required to report, not exact figures.</p></div>
+      <div class="hmhead"><div><h3>Congress Trades</h3>
+        <p>Trades disclosed by members of the House and Senate. Amounts are the
+           ranges they are required to report, not exact figures.</p></div></div>
       <div class="scroll" id="congress"><div class="note"><span class="load"></span></div></div>
     </section>
   </div>
@@ -692,11 +702,14 @@ function renderRotation(history){
 function renderSectorPerf(rows){
   const host = document.getElementById("sectorperf");
   if (!rows || !rows.length){ host.innerHTML = `<div class="note">No sector data yet.</div>`; return; }
-  const W = 560, H = 300, ml = 150, mr = 46, mt = 10, mb = 30;
+  const W = 560, H = 300, ml = 152, mr = 20, mt = 10, mb = 30;
   const pw = W - ml - mr, ph = H - mt - mb;
   const max = Math.max(...rows.map(r => Math.abs(r.changePct)), 0.5);
   const zero = ml + pw / 2;
-  const scale = v => (v / max) * (pw / 2);
+  // The longest bar stops well short of the axis edge: the value sits just
+  // beyond the bar's tip, and without this reserve the biggest negative would
+  // run its label into the sector name on the left.
+  const scale = v => (v / max) * (pw / 2) * 0.68;
   const bh = Math.min(18, ph / rows.length - 4);
 
   const parts = [`<line x1="${zero}" y1="${mt}" x2="${zero}" y2="${mt+ph}" stroke="var(--rule)"></line>`];
