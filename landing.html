@@ -139,6 +139,47 @@ tbody tr[aria-selected=true] td{background:var(--accent-soft)}
 svg{display:block;max-width:100%}
 .tnum{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 
+/* ---- the sections below Market Summary ---------------------------------- */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.hmhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+  padding:15px 18px 4px;flex-wrap:wrap}
+.hmhead p{font-size:12px;color:var(--ink-3);max-width:64ch;margin:0}
+.scroll{overflow-x:auto;padding:10px 18px 18px}
+.legend{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;
+  font-size:11.5px;color:var(--ink-3);padding:0 18px 14px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;
+  vertical-align:-1px}
+
+/* Treemap tiles are anchors so a heatmap click behaves like any other link. */
+.tile{position:absolute;border-radius:3px;overflow:hidden;text-decoration:none;
+  display:block;border:1px solid var(--ground)}
+.tile:hover{outline:2px solid var(--ink);outline-offset:-2px;z-index:3}
+.tile b{position:absolute;left:5px;top:3px;font-family:"IBM Plex Sans",sans-serif;
+  font-weight:600;color:#fff;letter-spacing:-.01em;line-height:1}
+.tile span{position:absolute;left:5px;top:20px;font-family:"IBM Plex Mono",monospace;
+  color:rgba(255,255,255,.86);line-height:1}
+.sectorbox{position:absolute}
+.sectorbox>h4{font-size:11.5px;font-weight:600;color:var(--ink-2);margin:0 0 3px 1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Compact tables for the trade panels. */
+.mini{width:100%;border-collapse:collapse;font-size:12.5px}
+.mini thead th{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;text-align:right;padding:0 0 7px 0;border-bottom:1px solid var(--rule)}
+.mini thead th:first-child{text-align:left}
+.mini tbody td{padding:7px 0;border-bottom:1px solid var(--rule-2);text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mini tbody td:first-child{text-align:left;color:var(--ink-3)}
+.mini tbody tr:last-child td{border-bottom:0}
+.mini a{color:var(--accent);text-decoration:none;font-weight:500}
+.mini a:hover{text-decoration:underline}
+.side{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;font-weight:600;
+  font-family:"IBM Plex Sans",sans-serif}
+.side.buy{background:var(--up-soft);color:var(--up)}
+.side.sell{background:var(--down-soft);color:var(--down)}
+.who{font-family:"IBM Plex Sans",sans-serif;color:var(--ink-2);max-width:150px;
+  overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
+
 .note{padding:30px 18px;color:var(--ink-3);font-size:13px;text-align:center}
 .foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--rule);
   font-size:12px;color:var(--ink-3);line-height:1.7}
@@ -149,6 +190,7 @@ svg{display:block;max-width:100%}
 @keyframes sp{to{transform:rotate(360deg)}}
 
 @media (max-width:1180px){ .cards{grid-template-columns:repeat(3,minmax(0,1fr))} .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
+@media (max-width:900px){ .grid2{grid-template-columns:1fr} }
 @media (max-width:640px){ .cards{grid-template-columns:repeat(2,minmax(0,1fr))} .top h1{font-size:26px} main{padding:18px 14px 60px} .search input{width:160px} }
 </style>
 </head>
@@ -197,6 +239,43 @@ svg{display:block;max-width:100%}
       </div>
     </div>
   </section>
+
+  <h2 style="margin-top:26px">Market Heatmap</h2>
+  <section class="panel">
+    <div class="hmhead">
+      <p>Every tile is a company, sized by market capitalisation and coloured by
+         today's move. Click one to open its filed financials.</p>
+      <div class="legend" id="hm-legend"></div>
+    </div>
+    <div class="scroll" id="heatmap"><div class="note"><span class="load"></span></div></div>
+  </section>
+
+  <h2 style="margin-top:26px">Sectors Movement</h2>
+  <div class="grid2">
+    <section class="panel">
+      <div class="hmhead"><p>Each sector's daily average move over the last six weeks.</p></div>
+      <div class="scroll" id="rotation"><div class="note"><span class="load"></span></div></div>
+      <div class="legend" id="rot-legend"></div>
+    </section>
+    <section class="panel">
+      <div class="hmhead"><p>Where each sector finished on the last trading day.</p></div>
+      <div class="scroll" id="sectorperf"><div class="note"><span class="load"></span></div></div>
+    </section>
+  </div>
+
+  <h2 style="margin-top:26px">Congress &amp; Insiders</h2>
+  <div class="grid2">
+    <section class="panel">
+      <div class="hmhead"><p>Officers and directors buying or selling their own
+        company's stock, as disclosed on Form 4.</p></div>
+      <div class="scroll" id="insiders"><div class="note"><span class="load"></span></div></div>
+    </section>
+    <section class="panel">
+      <div class="hmhead"><p>Trades disclosed by members of the House and Senate.
+        Amounts are the ranges they are required to report, not exact figures.</p></div>
+      <div class="scroll" id="congress"><div class="note"><span class="load"></span></div></div>
+    </section>
+  </div>
 
   <div class="foot" id="foot"></div>
 </main>
@@ -473,6 +552,226 @@ function wireCrosshair(g){
   hit.addEventListener("mouseleave", () => { cross.style.display = "none"; });
 }
 
+/* ===========================================================================
+   Heatmap
+
+   A squarified treemap: sector blocks sized by combined market cap, each
+   subdivided by company. Colour is the day's move on a diverging red-green
+   scale with a neutral middle, so "flat" reads as flat rather than as a weak
+   version of either direction.
+=========================================================================== */
+const HEAT_STOPS = [-3, -1.5, -0.4, 0.4, 1.5, 3];
+function heatColour(p){
+  if (p === null || p === undefined) return "var(--rule)";
+  // Muted at the centre, saturated at the extremes; the same two hues the
+  // company page uses for cost and profit.
+  const s = [
+    [-99,  "#7f1d17"], [-3, "#9c2b23"], [-1.5, "#7c3b36"], [-0.4, "#4a4f52"],
+    [0.4,  "#2f6f4a"], [1.5, "#22874f"], [3,   "#12a355"],
+  ];
+  let c = s[0][1];
+  for (const [t, col] of s) if (p >= t) c = col;
+  return c;
+}
+
+/** Slice-and-dice layout: good enough aspect ratios without a full squarify. */
+function treemap(items, x, y, w, h, valueOf){
+  const total = items.reduce((a, it) => a + valueOf(it), 0) || 1;
+  const out = [];
+  let cx = x, cy = y, remW = w, remH = h, rem = total;
+  items.forEach((it, i) => {
+    const v = valueOf(it);
+    const frac = v / rem;
+    if (i === items.length - 1) { out.push({it, x: cx, y: cy, w: remW, h: remH}); return; }
+    if (remW >= remH) {
+      const tw = remW * frac;
+      out.push({it, x: cx, y: cy, w: tw, h: remH});
+      cx += tw; remW -= tw;
+    } else {
+      const th = remH * frac;
+      out.push({it, x: cx, y: cy, w: remW, h: th});
+      cy += th; remH -= th;
+    }
+    rem -= v;
+  });
+  return out;
+}
+
+function renderHeatmap(sectors){
+  const host = document.getElementById("heatmap");
+  if (!sectors || !sectors.length){
+    host.innerHTML = `<div class="note">No heatmap data yet.</div>`;
+    document.getElementById("hm-legend").innerHTML = "";
+    return;
+  }
+  const W = 1180, H = 560, GAP = 8, HEAD = 16;
+  const blocks = treemap(sectors, 0, 0, W, H, s => s.marketCap);
+
+  const html = blocks.map(({it: sec, x, y, w, h}) => {
+    const iw = Math.max(0, w - GAP), ih = Math.max(0, h - GAP - HEAD);
+    const tiles = treemap(sec.items, 0, 0, iw, ih, c => c.marketCap).map(({it: c, x: tx, y: ty, w: tw, h: th}) => {
+      // Only label a tile that can actually hold the text.
+      const big = tw > 46 && th > 30;
+      const huge = tw > 92 && th > 54;
+      return `<a class="tile" href="company.html?t=${encodeURIComponent(c.symbol)}"
+                 style="left:${tx}px;top:${ty}px;width:${Math.max(0,tw-2)}px;height:${Math.max(0,th-2)}px;
+                        background:${heatColour(c.changePct)}"
+                 title="${esc(c.name || c.symbol)} · ${esc(pct(c.changePct))} · ${esc(cap(c.marketCap))}">
+                ${big ? `<b style="font-size:${huge ? 15 : 10.5}px">${esc(c.symbol)}</b>` : ""}
+                ${huge ? `<span style="font-size:11px">${esc(pct(c.changePct))}</span>` : ""}
+              </a>`;
+    }).join("");
+    return `<div class="sectorbox" style="left:${x}px;top:${y}px;width:${iw}px;height:${h-GAP}px">
+              <h4>${esc(sec.sector)}</h4>
+              <div style="position:relative;width:${iw}px;height:${ih}px">${tiles}</div>
+            </div>`;
+  }).join("");
+
+  host.innerHTML = `<div style="position:relative;width:${W}px;height:${H}px">${html}</div>`;
+  document.getElementById("hm-legend").innerHTML =
+    `<span>Day change</span>` +
+    [-3,-1.5,-0.4,0.4,1.5,3].map(v =>
+      `<span><i style="background:${heatColour(v)}"></i>${v > 0 ? "+" : ""}${v}%</span>`).join("");
+}
+
+/* ===========================================================================
+   Sector movement
+=========================================================================== */
+const SECTOR_COLOURS = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8",
+                        "#2f6f4a","#9c2b23","#7c5cbf"];
+const sectorColour = i => {
+  const c = SECTOR_COLOURS[i % SECTOR_COLOURS.length];
+  return c.startsWith("--") ? `var(${c})` : c;
+};
+
+function renderRotation(history){
+  const host = document.getElementById("rotation");
+  if (!history || !history.length){
+    host.innerHTML = `<div class="note">No sector history yet.</div>`; return;
+  }
+  // Cumulative from the start of the window: the question is which sectors
+  // have led over six weeks, not what each did on one day.
+  const series = history.map((s, i) => {
+    let acc = 0;
+    return {sector: s.sector, colour: sectorColour(i),
+            pts: s.series.map(p => ({d: p.d, v: (acc += p.v)}))};
+  });
+  const days = series[0].pts.map(p => p.d);
+  const all = series.flatMap(s => s.pts.map(p => p.v));
+  const lo = Math.min(...all, 0), hi = Math.max(...all, 0);
+
+  const W = 560, H = 300, ml = 40, mr = 12, mt = 14, mb = 42;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const x = i => ml + pw * i / Math.max(1, days.length - 1);
+  const y = v => mt + ph - ((v - lo) / ((hi - lo) || 1)) * ph;
+
+  const parts = [];
+  const step = Math.max(1, Math.round((hi - lo) / 4));
+  for (let v = Math.floor(lo); v <= hi; v += step)
+    parts.push(`<line x1="${ml}" y1="${y(v)}" x2="${W-mr}" y2="${y(v)}"
+        stroke="${Math.abs(v) < 0.01 ? "var(--rule)" : "var(--rule-2)"}"></line>
+      <text x="${ml-7}" y="${y(v)+4}" text-anchor="end" font-size="10" class="tnum"
+        fill="var(--ink-3)">${v}%</text>`);
+
+  series.forEach(s => {
+    const d = s.pts.map((p,i) => `${i?"L":"M"}${x(i)},${y(p.v)}`).join(" ");
+    parts.push(`<path d="${d}" fill="none" stroke="${s.colour}" stroke-width="1.6"
+      stroke-linejoin="round"><title>${esc(s.sector)}</title></path>`);
+  });
+
+  [0, Math.floor(days.length/2), days.length-1].forEach(i =>
+    parts.push(`<text x="${Math.min(Math.max(x(i),ml+22), W-mr-22)}" y="${H-mb+16}"
+      text-anchor="middle" font-size="10" class="tnum" fill="var(--ink-3)">${days[i].slice(5)}</text>`));
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+    aria-label="Cumulative sector performance">${parts.join("")}</svg>`;
+  document.getElementById("rot-legend").innerHTML = series.map(s =>
+    `<span><i style="background:${s.colour}"></i>${esc(s.sector)}</span>`).join("");
+}
+
+function renderSectorPerf(rows){
+  const host = document.getElementById("sectorperf");
+  if (!rows || !rows.length){ host.innerHTML = `<div class="note">No sector data yet.</div>`; return; }
+  const W = 560, H = 300, ml = 150, mr = 46, mt = 10, mb = 30;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const max = Math.max(...rows.map(r => Math.abs(r.changePct)), 0.5);
+  const zero = ml + pw / 2;
+  const scale = v => (v / max) * (pw / 2);
+  const bh = Math.min(18, ph / rows.length - 4);
+
+  const parts = [`<line x1="${zero}" y1="${mt}" x2="${zero}" y2="${mt+ph}" stroke="var(--rule)"></line>`];
+  rows.forEach((r, i) => {
+    const cy = mt + (ph * (i + 0.5)) / rows.length;
+    const w = scale(r.changePct);
+    const up = r.changePct >= 0;
+    parts.push(`<rect x="${up ? zero : zero + w}" y="${cy - bh/2}" width="${Math.abs(w)}"
+        height="${bh}" rx="3" fill="var(${up ? "--up" : "--down"})"></rect>
+      <text x="${ml-10}" y="${cy+4}" text-anchor="end" font-size="11.5"
+        fill="var(--ink-2)">${esc(r.sector)}</text>
+      <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+4}"
+        text-anchor="${up ? "start" : "end"}" font-size="11" class="tnum"
+        fill="var(${up ? "--up" : "--down"})" font-weight="600">${esc(pct(r.changePct))}</text>`);
+  });
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+    aria-label="Sector performance">${parts.join("")}</svg>`;
+}
+
+/* ===========================================================================
+   Congress and insiders
+=========================================================================== */
+const shares = v => !v ? "—"
+  : v >= 1e6 ? (v/1e6).toFixed(2) + "M" : v >= 1e3 ? (v/1e3).toFixed(1) + "K" : String(Math.round(v));
+const amount = v => {
+  if (v === null || v === undefined || !v) return "—";
+  const a = Math.abs(v), sign = v < 0 ? "−" : "";
+  return sign + (a >= 1e9 ? `$${(a/1e9).toFixed(2)}B`
+       : a >= 1e6 ? `$${(a/1e6).toFixed(2)}M`
+       : a >= 1e3 ? `$${(a/1e3).toFixed(0)}K` : `$${a.toFixed(0)}`);
+};
+const symLink = s => `<a href="company.html?t=${encodeURIComponent(s)}">${esc(s)}</a>`;
+
+/** Congressional disclosures are reported as a band, never an exact figure,
+    so the band is what gets shown -- compacted, not rounded to a single
+    number that would imply a precision the filing does not have. */
+const range = raw => {
+  if (!raw) return "—";
+  const nums = String(raw).match(/[\d,]+/g);
+  if (!nums || !nums.length) return String(raw);
+  const short = n => {
+    const v = +n.replace(/,/g, "");
+    return v >= 1e6 ? `${(v/1e6).toFixed(v % 1e6 ? 1 : 0)}M`
+         : v >= 1e3 ? `${Math.round(v/1e3)}K` : String(v);
+  };
+  return nums.length > 1 ? `${short(nums[0])}–${short(nums[1])}` : short(nums[0]);
+};
+
+function renderTrades(t){
+  const ins = document.getElementById("insiders");
+  const con = document.getElementById("congress");
+
+  ins.innerHTML = !t || !t.insiders || !t.insiders.length
+    ? `<div class="note">No insider filings loaded yet.</div>`
+    : `<table class="mini"><thead><tr>
+         <th>Filed</th><th>Ticker</th><th>Side</th><th>Shares</th><th>Amount</th>
+       </tr></thead><tbody>${t.insiders.map(r => `
+         <tr><td>${esc(r.filed || "")}</td>
+             <td>${symLink(r.symbol)}</td>
+             <td><span class="side ${r.side === "Buy" ? "buy" : "sell"}">${esc(r.side)}</span></td>
+             <td>${esc(shares(r.shares))}</td>
+             <td>${esc(amount(r.amount))}</td></tr>`).join("")}</tbody></table>`;
+
+  con.innerHTML = !t || !t.congress || !t.congress.length
+    ? `<div class="note">No congressional disclosures loaded yet.</div>`
+    : `<table class="mini"><thead><tr>
+         <th>Disclosed</th><th>Ticker</th><th>Amount</th><th>Representative</th>
+       </tr></thead><tbody>${t.congress.map(r => `
+         <tr><td>${esc(r.disclosed || "")}</td>
+             <td>${symLink(r.symbol)}</td>
+             <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td>
+             <td><span class="who" title="${esc(r.person)} · ${esc(r.chamber)}">${esc(r.person)}</span></td>
+         </tr>`).join("")}</tbody></table>`;
+}
+
 /* ---- ticker search ------------------------------------------------------- */
 const qEl = document.getElementById("q"), acEl = document.getElementById("ac");
 let acItems = [], acIdx = -1, acTimer = null;
@@ -555,6 +854,21 @@ themeBtn.onclick = () =>
     document.getElementById("asof").textContent = "Market data unavailable: " + e.message;
   }
   await setView("market_cap");
+
+  // The sections below load independently, so one failing does not take the
+  // rest of the page with it.
+  rpc("get_heatmap").then(renderHeatmap).catch(() =>
+    document.getElementById("heatmap").innerHTML = `<div class="note">Heatmap unavailable.</div>`);
+
+  rpc("get_sector_movement").then(d => {
+    renderRotation(d && d.history);
+    renderSectorPerf(d && d.performance);
+  }).catch(() => {
+    document.getElementById("rotation").innerHTML = `<div class="note">Unavailable.</div>`;
+    document.getElementById("sectorperf").innerHTML = `<div class="note">Unavailable.</div>`;
+  });
+
+  rpc("get_trades", { p_limit: 12 }).then(renderTrades).catch(() => renderTrades(null));
 })();
 </script>
 </body>

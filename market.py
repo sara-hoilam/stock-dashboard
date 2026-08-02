@@ -313,7 +313,14 @@ def sector_history(days: int = 45) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def insider_trades(limit: int = 40) -> list[dict]:
-    rows = _get("insider-trading/latest", page=0, limit=limit) or []
+    """The most recent Form 4 filings, one line per company.
+
+    A single company often files a dozen Form 4s on the same day -- each
+    officer separately, or one sale split across several lots. Left as-is the
+    panel fills with one ticker repeated, so only the largest transaction per
+    company is kept and a wider window is fetched to compensate.
+    """
+    rows = _get("insider-trading/latest", page=0, limit=max(limit * 5, 100)) or []
     out = []
     for r in rows:
         shares = r.get("securitiesTransacted") or 0
@@ -328,7 +335,16 @@ def insider_trades(limit: int = 40) -> list[dict]:
             "amount": (shares * price) * (1 if buy else -1),
             "person": r.get("reportingName"),
         })
-    return [r for r in out if r["symbol"]]
+
+    best: dict[str, dict] = {}
+    for r in out:
+        if not r["symbol"]:
+            continue
+        prev = best.get(r["symbol"])
+        if prev is None or abs(r["amount"]) > abs(prev["amount"]):
+            best[r["symbol"]] = r
+    return sorted(best.values(),
+                  key=lambda r: (r["filed"], abs(r["amount"])), reverse=True)[:limit]
 
 
 def congress_trades(limit: int = 40) -> list[dict]:
