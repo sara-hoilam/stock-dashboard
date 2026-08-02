@@ -1,0 +1,137 @@
+"""
+store.py -- the worker's connection to Supabase.
+
+Everything goes through the write functions defined in
+supabase/migrations/0002_ledger_write_api.sql. The `ledger` schema itself is
+not exposed to the API, so there is no way to reach the tables directly even
+with the service-role key -- which keeps the read surface honest.
+
+Standard library only, same as the rest of the project.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import time
+import urllib.error
+import urllib.request
+
+SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or ""
+
+
+class StoreError(RuntimeError):
+    pass
+
+
+def configured() -> bool:
+    return bool(SUPABASE_URL and SERVICE_KEY)
+
+
+def require_config():
+    if not SUPABASE_URL:
+        raise StoreError("SUPABASE_URL is not set. Copy .env.example to .env.")
+    if not SERVICE_KEY:
+        raise StoreError(
+            "SUPABASE_SERVICE_ROLE_KEY is not set.\n"
+            "  Supabase dashboard -> Project Settings -> API -> service_role.\n"
+            "  Put it in .env (gitignored) or Render's environment tab.\n"
+            "  Never commit it and never paste it into a chat.")
+
+
+def rpc(fn: str, payload: dict | None = None, *, retries: int = 3):
+    """Call one of the write functions. Retries transient failures."""
+    require_config()
+    url = f"{SUPABASE_URL}/rest/v1/rpc/{fn}"
+    body = json.dumps(payload or {}).encode("utf-8")
+    req = urllib.request.Request(url, data=body, method="POST", headers={
+        "apikey": SERVICE_KEY,
+        "Authorization": f"Bearer {SERVICE_KEY}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    })
+
+    last = None
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                raw = resp.read().decode("utf-8", "replace")
+                return json.loads(raw) if raw.strip() else None
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:400]
+            # 4xx is our bug -- a bad payload or a missing grant. Do not retry.
+            if 400 <= exc.code < 500:
+                raise StoreError(f"{fn} -> HTTP {exc.code}: {detail}") from exc
+            last = StoreError(f"{fn} -> HTTP {exc.code}: {detail}")
+        except Exception as exc:
+            last = StoreError(f"{fn} -> {exc}")
+        time.sleep(1.5 * (attempt + 1))
+    raise last if last else StoreError(f"{fn} failed")
+
+
+# ---------------------------------------------------------------------------
+# Operations the worker needs
+# ---------------------------------------------------------------------------
+
+def upsert_directory(rows: list[dict], chunk: int = 2000) -> int:
+    """Refresh the ticker directory. Chunked to keep request bodies sane."""
+    total = 0
+    for i in range(0, len(rows), chunk):
+        part = [{"cik": r["cik"], "ticker": r["ticker"], "name": r["name"]}
+                for r in rows[i:i + chunk]]
+        total += rpc("upsert_directory", {"p_rows": part}) or 0
+    return total
+
+
+def ingest_company(company: dict, breakdowns: list[dict]) -> dict:
+    """Write one company's quarters and revenue breakdowns in one transaction."""
+    payload = {
+        "cik": company["cik"],
+        "ticker": company["ticker"],
+        "name": company["name"],
+        "exchange": company.get("exchange"),
+        "sic": company.get("sic"),
+        "fye_month": company.get("fiscalYearEndMonth"),
+        "quarters": [{
+            "end": q["end"], "start": q.get("start"),
+            "fy": q["fy"], "fq": q["fq"], "basis": q["basis"],
+            "form": q.get("form"), "accession": q.get("accession"),
+            "filed": q.get("filed"),
+            "lines": q["lines"], "provenance": q.get("provenance"),
+        } for q in company["quarters"]],
+        "breakdowns": breakdowns,
+        "filings": [{
+            "accession": f["accession"], "form": f["form"],
+            "filed": f["filed"], "periodEnd": f.get("periodEnd") or None,
+            "status": "ok",
+        } for f in company.get("filings", [])[:12]],
+    }
+    return rpc("ingest_company", {"p": payload})
+
+
+def claim_backfill() -> dict | None:
+    return rpc("claim_backfill")
+
+
+def finish_backfill(request_id: int, error: str | None = None) -> None:
+    rpc("finish_backfill", {"p_id": request_id, "p_error": error})
+
+
+def companies_due(hours: int = 6, limit: int = 50) -> list[dict]:
+    return rpc("companies_due", {"p_hours": hours, "p_limit": limit}) or []
+
+
+def filing_seen(accession: str) -> bool:
+    return bool(rpc("filing_seen", {"p_accession": accession}))
+
+
+def record_failure(accession: str, cik: int, form: str,
+                   filed: str, period_end: str | None, error: str) -> None:
+    rpc("record_filing_failure", {
+        "p_accession": accession, "p_cik": cik, "p_form": form,
+        "p_filed": filed, "p_period_end": period_end, "p_error": error})
+
+
+def stats() -> dict:
+    return rpc("ledger_stats") or {}

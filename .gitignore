@@ -1,0 +1,8 @@
+.env
+.cache/
+__pycache__/
+*.pyc
+.DS_Store
+
+# session-local tool settings, not project config
+.claude/

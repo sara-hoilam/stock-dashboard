@@ -1,0 +1,39 @@
+# Render blueprint — the ingest worker.
+#
+# Dashboard → Blueprints → New Blueprint Instance → pick this repo.
+# Then set the two secret values in the service's Environment tab.
+#
+# IMPORTANT: numInstances stays at 1. The SEC rate limit is per IP and the
+# limiter lives inside this process, so a second instance would double the
+# request rate against them. Scaling belongs on the read path (Supabase),
+# which this worker never touches.
+
+services:
+  - type: worker
+    name: ledger-ingest
+    runtime: python
+    plan: starter          # free instances sleep, and a sleeping ingester
+                           # misses filings
+    numInstances: 1
+    region: oregon         # match the Supabase project's region
+    buildCommand: "true"   # standard library only — nothing to install
+    startCommand: python worker.py run
+    autoDeploy: true
+    envVars:
+      # A real address. The SEC asks clients to identify themselves and
+      # throttles traffic that does not.
+      - key: SEC_CONTACT
+        sync: false
+      - key: SUPABASE_URL
+        value: https://etembhwwbqswzcepfhxp.supabase.co
+      # Secret. Paste in the dashboard; never commit it.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SEC_MAX_RPS
+        value: "8"
+      - key: BACKFILL_POLL_SECONDS
+        value: "20"
+      - key: COMPANY_RECHECK_HOURS
+        value: "6"
+      - key: PYTHON_VERSION
+        value: "3.12"
