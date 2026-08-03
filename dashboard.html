@@ -225,6 +225,41 @@ tbody tr:hover td{background:var(--sunk)}
 
 @media (max-width:1180px){ .kpis{grid-template-columns:repeat(3,1fr)} .grid2{grid-template-columns:1fr} }
 @media (max-width:640px){ .kpis{grid-template-columns:repeat(2,1fr)} .ident h1{font-size:25px} main{padding:16px 14px 60px} .bar-in{padding:10px 14px} }
+/* ---- the empty state: ask for a company ---------------------------------- */
+.hero{display:grid;place-items:center;padding:clamp(48px,12vh,120px) 24px 90px}
+/* display:grid above would otherwise beat [hidden] and leave the empty state
+   sitting on top of the report. */
+.hero[hidden]{display:none}
+.hero-in{width:100%;max-width:660px;text-align:center}
+.hero-badge{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  letter-spacing:.13em;text-transform:uppercase;font-weight:600;color:var(--accent);
+  background:var(--accent-soft);border-radius:20px;padding:5px 12px;margin-bottom:20px}
+.hero h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:clamp(30px,5vw,44px);
+  font-weight:600;letter-spacing:-.026em;line-height:1.12;margin-bottom:14px}
+.hero-sub{font-size:14.5px;line-height:1.6;color:var(--ink-2);
+  max-width:520px;margin:0 auto 30px}
+
+.hero-search{position:relative;text-align:left}
+.hero-search svg{position:absolute;left:18px;top:50%;transform:translateY(-50%);
+  width:19px;height:19px;color:var(--ink-3);pointer-events:none}
+.hero-search input{width:100%;background:var(--card);border:1px solid var(--rule);
+  border-radius:13px;box-shadow:var(--shadow);padding:17px 20px 17px 48px;
+  font:inherit;font-size:16px;color:var(--ink)}
+.hero-search input::placeholder{color:var(--ink-3)}
+.hero-search input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* The bar's dropdown is a fixed 340px beside a narrow field; here it should
+   match the full width of the search it belongs to. */
+.hero-search .ac{top:calc(100% + 8px);right:0;width:auto;border-radius:12px}
+.hero-search .ac div{padding:12px 16px}
+.hero-search .ac b,.hero-search .ac span{font-size:14px}
+
+.hero-eg{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:7px;
+  margin-top:20px;font-size:12.5px;color:var(--ink-3)}
+.hero-eg button{background:var(--sunk);border:1px solid var(--rule);border-radius:7px;
+  padding:5px 11px;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;
+  color:var(--ink-2);cursor:pointer}
+.hero-eg button:hover{border-color:var(--accent);color:var(--accent)}
+
 @media print{ .bar{display:none} .card{box-shadow:none} body{background:#fff} }
 </style>
 </head>
@@ -254,6 +289,38 @@ tbody tr:hover td{background:var(--sunk)}
     <div class="spacer"></div>
   </div>
 </div>
+
+<!-- Shown when no ticker is in the URL: the page has nothing to report on yet,
+     so it asks rather than guessing. -->
+<section class="hero" id="hero" hidden>
+  <div class="hero-in">
+    <span class="hero-badge">SEC EDGAR</span>
+    <h1>Unlock the full report.</h1>
+    <p class="hero-sub">
+      Every quarter a company has filed — revenue traced from its sources through
+      costs to net income, segment by segment, margins and cash flow over time.
+      Read straight from the filing, never estimated.
+    </p>
+
+    <div class="hero-search">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+        stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="text" id="hq" placeholder="Search a ticker or company…" autocomplete="off"
+             role="combobox" aria-expanded="false" aria-controls="hac" aria-label="Search a ticker or company">
+      <div class="ac" id="hac" role="listbox"></div>
+    </div>
+
+    <div class="hero-eg">
+      <span>Try</span>
+      <button data-t="NVDA">NVDA</button>
+      <button data-t="AAPL">AAPL</button>
+      <button data-t="GOOGL">GOOGL</button>
+      <button data-t="MSFT">MSFT</button>
+      <button data-t="JPM">JPM</button>
+    </div>
+  </div>
+</section>
 
 <main id="main">
   <div class="card note" id="boot">Loading the latest filed quarter…</div>
@@ -376,52 +443,68 @@ const API = {
 /* ===========================================================================
    Ticker search
 =========================================================================== */
-const qEl = document.getElementById("q"), acEl = document.getElementById("ac");
-let acItems = [], acIdx = -1, acTimer = null;
+// One implementation, two places it appears: the command bar once a report is
+// open, and the hero when the page is asked for without a company.
+function wireSearch(input, ac){
+  let items = [], idx = -1, timer = null;
+  const close = () => {
+    ac.classList.remove("open");
+    input.setAttribute("aria-expanded","false");
+    idx = -1;
+  };
+  const pick = item => {
+    if (!item) return;
+    input.value = item.ticker;
+    close();
+    load(item.ticker);
+  };
 
-qEl.addEventListener("input", () => {
-  clearTimeout(acTimer);
-  const term = qEl.value.trim();
-  if (term.length < 1) return closeAc();
-  acTimer = setTimeout(async () => {
-    try {
-      acItems = (await API.search(term)) || [];
-      acIdx = -1;
-      if (!acItems.length) return closeAc();
-      acEl.innerHTML = acItems.map((x,i) =>
-        `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`
-      ).join("");
-      acEl.classList.add("open");
-      qEl.setAttribute("aria-expanded","true");
-    } catch { closeAc(); }
-  }, 130);
-});
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    const term = input.value.trim();
+    if (term.length < 1) return close();
+    timer = setTimeout(async () => {
+      try {
+        items = (await API.search(term)) || [];
+        idx = -1;
+        if (!items.length) return close();
+        ac.innerHTML = items.map((x,i) =>
+          `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`
+        ).join("");
+        ac.classList.add("open");
+        input.setAttribute("aria-expanded","true");
+      } catch { close(); }
+    }, 130);
+  });
 
-function closeAc(){
-  acEl.classList.remove("open");
-  qEl.setAttribute("aria-expanded","false");
-  acIdx = -1;
+  ac.addEventListener("mousedown", e => {
+    const d = e.target.closest("[data-i]");
+    if (d) { e.preventDefault(); pick(items[+d.dataset.i]); }
+  });
+  input.addEventListener("keydown", e => {
+    if (!ac.classList.contains("open")) {
+      if (e.key === "Enter" && input.value.trim()) load(input.value.trim().toUpperCase());
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      idx = (idx + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length;
+      [...ac.children].forEach((c,i) => c.setAttribute("aria-selected", i === idx));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      pick(idx >= 0 ? items[idx] : items[0]);
+    } else if (e.key === "Escape") close();
+  });
+  input.addEventListener("blur", () => setTimeout(close, 120));
 }
-acEl.addEventListener("mousedown", e => {
-  const d = e.target.closest("[data-i]");
-  if (d) { e.preventDefault(); choose(acItems[+d.dataset.i]); }
-});
-qEl.addEventListener("keydown", e => {
-  if (!acEl.classList.contains("open")) {
-    if (e.key === "Enter" && qEl.value.trim()) load(qEl.value.trim().toUpperCase());
-    return;
-  }
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-    e.preventDefault();
-    acIdx = (acIdx + (e.key === "ArrowDown" ? 1 : acItems.length - 1)) % acItems.length;
-    [...acEl.children].forEach((c,i) => c.setAttribute("aria-selected", i === acIdx));
-  } else if (e.key === "Enter") {
-    e.preventDefault();
-    choose(acIdx >= 0 ? acItems[acIdx] : acItems[0]);
-  } else if (e.key === "Escape") closeAc();
-});
-qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
-function choose(item){ if(!item) return; qEl.value = item.ticker; closeAc(); load(item.ticker); }
+
+const qEl  = document.getElementById("q");
+const hqEl = document.getElementById("hq");
+wireSearch(qEl,  document.getElementById("ac"));
+wireSearch(hqEl, document.getElementById("hac"));
+
+document.querySelectorAll(".hero-eg button").forEach(b =>
+  b.onclick = () => load(b.dataset.t));
 
 /* ===========================================================================
    Load
@@ -450,8 +533,21 @@ async function waitForBackfill(ticker){
   return { timedOut: true };
 }
 
+/** Leave the empty state for the report, and put the ticker in the URL so the
+    page can be linked to, reloaded and gone back from. */
+function openReport(ticker){
+  document.getElementById("hero").hidden = true;
+  document.querySelector(".bar").hidden = false;
+  main.hidden = false;
+  qEl.value = ticker;
+  const url = `${location.pathname}?t=${encodeURIComponent(ticker)}`;
+  if (location.search !== `?t=${encodeURIComponent(ticker)}`)
+    history.pushState({ t: ticker }, "", url);
+}
+
 async function load(ticker){
   S.ticker = ticker;
+  openReport(ticker);
   busy(`Loading ${ticker}…`);
   fyEl.disabled = fqEl.disabled = true;
   try {
@@ -1720,10 +1816,24 @@ addEventListener("themechange", () => {
   if (S.company) { renderSankey(); renderMix(); renderRevTrend(); renderMargins(); renderCostStack(); }
 });
 
+/** No ticker in the URL means the visitor arrived from the nav rather than
+    from a link, so ask which company instead of picking one for them. */
+function showHero(){
+  document.getElementById("hero").hidden = false;
+  document.querySelector(".bar").hidden = true;
+  main.hidden = true;
+  hqEl.value = "";
+  hqEl.focus({ preventScroll: true });
+}
+
+addEventListener("popstate", () => {
+  const t = new URLSearchParams(location.search).get("t");
+  if (t) load(t); else showHero();
+});
+
 (function boot(){
-  const start = new URLSearchParams(location.search).get("t") || "GOOGL";
-  qEl.value = start;
-  load(start);
+  const start = new URLSearchParams(location.search).get("t");
+  if (start) load(start); else showHero();
 })();
 </script>
 <script src="nav.js"></script>

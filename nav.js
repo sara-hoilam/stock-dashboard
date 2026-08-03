@@ -42,7 +42,7 @@
       <div class="nav-links">
         <a href="index.html"   class="${here("index.html") ? "on" : ""}">Markets</a>
         <a href="news.html"    class="${here("news.html") ? "on" : ""}">News</a>
-        <a href="company.html" class="${here("company.html") ? "on" : ""}">Financials</a>
+        <a href="company.html" class="${here("company.html") ? "on" : ""}">Company Report</a>
       </div>
 
       <div class="nav-search">
