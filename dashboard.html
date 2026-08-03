@@ -480,6 +480,10 @@ const API = {
     ? rpc("request_backfill", { p_ticker: ticker })
     : Promise.resolve(null),
 
+  backfillStatus: ticker => HOSTED
+    ? rpc("get_backfill_status", { p_ticker: ticker })
+    : Promise.resolve(null),
+
   prices: symbol => HOSTED ? rpc("get_prices", { p_symbol: symbol })
                            : Promise.resolve(null),
   requestPrices: symbol => HOSTED ? rpc("request_prices", { p_symbol: symbol })
@@ -573,6 +577,14 @@ async function waitForBackfill(ticker){
     busy(`Reading ${ticker} from SEC EDGAR — ${Math.round(i * 3)}s…`);
     const j = await API.company(ticker);
     if (j && j.quarters && j.quarters.length) return { company: j };
+
+    // The worker may have finished and failed. Some companies have nothing
+    // here to find -- a foreign private issuer files 20-F under IFRS, not
+    // 10-Q under US GAAP -- and waiting longer will not change that.
+    let st = null;
+    try { st = await API.backfillStatus(ticker); } catch {}
+    if (st && st.status === "failed") return { failed: st.error };
+    if (st && st.status === "done") return { empty: true };
   }
   return { timedOut: true };
 }
@@ -603,6 +615,10 @@ async function load(ticker){
       busy(`${ticker} has not been read yet — fetching it from SEC EDGAR…`);
       const got = await waitForBackfill(ticker);
       if (got.refused)  return fail(`${ticker}: ${got.refused}.`);
+      if (got.failed)   return fail(got.failed);
+      if (got.empty)    return fail(
+        `${ticker} was read from SEC EDGAR, but no quarterly income-statement ` +
+        `data was found in its XBRL filings.`);
       if (got.timedOut) return fail(
         `${ticker} is still being read from SEC EDGAR. Give it a minute and reload.`);
       j = got.company;

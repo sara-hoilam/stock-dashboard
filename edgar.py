@@ -1007,6 +1007,19 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
         f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json",
         ttl=TTL_FACTS))
     facts = facts_raw.get("facts", {})
+
+    # Foreign private issuers tag their filings in the IFRS taxonomy and file
+    # 20-F and 6-K rather than 10-K and 10-Q. Every concept this module knows
+    # about is a us-gaap tag, so there is nothing here to read -- and no
+    # quarters either, since a 20-F is annual. Say that, rather than letting
+    # the caller conclude the fetch was merely slow.
+    if "us-gaap" not in facts:
+        taxes = ", ".join(sorted(facts)) or "none"
+        raise FetchError(
+            f"{meta.get('name') or ticker} reports under IFRS ({taxes}), not "
+            f"US GAAP. Foreign private issuers file 20-F and 6-K rather than "
+            f"10-Q and 10-K, so there are no quarterly US filings to read.")
+
     fye_month = detect_fye_month(facts)
 
     filings, submissions = _filing_index(cik)
