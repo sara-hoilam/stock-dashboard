@@ -134,6 +134,17 @@
   padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .nav-login:hover { filter: brightness(1.08); }
+.nav-note {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 9px 20px; font-size: 12.5px;
+  background: var(--down-soft); color: var(--down);
+  border-bottom: 1px solid var(--rule);
+}
+.nav-note button {
+  background: none; border: 0; cursor: pointer; color: inherit;
+  font: inherit; font-size: 16px; line-height: 1; padding: 0 4px;
+}
+
 .nav-acct { position: relative; }
 .nav-user {
   display: flex; align-items: center; gap: 8px; cursor: pointer;
