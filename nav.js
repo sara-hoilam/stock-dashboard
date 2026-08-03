@@ -204,16 +204,55 @@
       const name = s.user.name || s.user.email || "Account";
       const pic = s.user.picture;
       auth.innerHTML =
-        `<button class="nav-user" id="nav-user" title="${esc(s.user.email || "")}">
-           ${pic ? `<img src="${esc(pic)}" alt="">` : `<span class="nav-avatar">${esc(name[0].toUpperCase())}</span>`}
-           <span class="nav-uname">${esc(name.split(" ")[0])}</span>
-         </button>
-         <button class="nav-signout" id="nav-signout">Sign out</button>`;
-      document.getElementById("nav-signout").onclick = () => { saveSession(null); renderAuth(); };
+        `<div class="nav-acct">
+           <button class="nav-user" id="nav-user" aria-haspopup="menu" aria-expanded="false">
+             ${pic ? `<img src="${esc(pic)}" alt="">`
+                   : `<span class="nav-avatar">${esc(name[0].toUpperCase())}</span>`}
+             <span class="nav-uname">${esc(name.split(" ")[0])}</span>
+             <svg class="nav-caret" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"
+               fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+           </button>
+           <div class="nav-menu" id="nav-menu" role="menu" hidden>
+             <div class="nav-who">
+               <b>${esc(name)}</b>
+               ${s.user.email ? `<span>${esc(s.user.email)}</span>` : ""}
+             </div>
+             <button role="menuitem" id="nav-signout">Sign out</button>
+           </div>
+         </div>`;
+
+      const btn = document.getElementById("nav-user");
+      const menu = document.getElementById("nav-menu");
+      const shut = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+      btn.onclick = e => {
+        e.stopPropagation();
+        menu.hidden = !menu.hidden;
+        btn.setAttribute("aria-expanded", String(!menu.hidden));
+      };
+      document.addEventListener("click", shut);
+      addEventListener("keydown", e => { if (e.key === "Escape") shut(); });
+      document.getElementById("nav-signout").onclick = signOut;
     } else {
       auth.innerHTML = `<button class="nav-login" id="nav-login">Log in</button>`;
       document.getElementById("nav-login").onclick = signIn;
     }
+  }
+
+  function signOut() {
+    const s = session();
+    // Tell Supabase too, so the refresh token is actually revoked rather than
+    // just forgotten by this browser.
+    if (s && s.access_token) {
+      fetch(`${CFG.supabaseUrl}/auth/v1/logout`, {
+        method: "POST",
+        headers: { apikey: CFG.supabaseAnonKey, Authorization: `Bearer ${s.access_token}` },
+      }).catch(() => {});
+    }
+    if (window.google && google.accounts && google.accounts.id) {
+      try { google.accounts.id.disableAutoSelect(); } catch {}
+    }
+    saveSession(null);
+    renderAuth();
   }
 
   function signIn() {
@@ -250,6 +289,24 @@
   /* ---- Google One Tap --------------------------------------------------- */
   // The prompt in the top-right corner. Requires a client id; silently absent
   // without one rather than showing a control that cannot work.
+  //
+  // The credential Google hands back is exchanged for a Supabase session. That
+  // exchange only succeeds if this same client id is listed under "Authorized
+  // Client IDs" on Supabase's Google provider -- without it GoTrue has no
+  // reason to trust the token and answers 400. A failure there used to be
+  // swallowed, which looked exactly like nothing happening, so it is reported
+  // now and the redirect flow is offered as the way through.
+  function adoptSession(d) {
+    const u = d.user || {};
+    const m = u.user_metadata || {};
+    saveSession({
+      access_token: d.access_token,
+      refresh_token: d.refresh_token,
+      user: { email: u.email, name: m.full_name || m.name, picture: m.avatar_url || m.picture },
+    });
+    renderAuth();
+  }
+
   if (CFG.googleClientId && !session()) {
     const s = document.createElement("script");
     s.src = "https://accounts.google.com/gsi/client";
@@ -259,8 +316,7 @@
       google.accounts.id.initialize({
         client_id: CFG.googleClientId,
         callback: async res => {
-          // Hand Google's credential to Supabase, which verifies it and
-          // returns a session of its own.
+          let d = null, status = 0;
           try {
             const r = await fetch(
               `${CFG.supabaseUrl}/auth/v1/token?grant_type=id_token`, {
@@ -268,18 +324,22 @@
                 headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
                 body: JSON.stringify({ provider: "google", id_token: res.credential }),
               });
-            const d = await r.json();
-            if (d.access_token) {
-              saveSession({ access_token: d.access_token, user: {
-                email: (d.user || {}).email,
-                name: ((d.user || {}).user_metadata || {}).full_name,
-                picture: ((d.user || {}).user_metadata || {}).avatar_url } });
-              renderAuth();
-            }
-          } catch {}
+            status = r.status;
+            d = await r.json();
+          } catch (e) {
+            console.error("[auth] one-tap exchange failed", e);
+          }
+          if (d && d.access_token) return adoptSession(d);
+
+          console.error("[auth] one-tap rejected", status,
+            (d && (d.error_description || d.msg || d.error)) || d);
+          // Fall through to the redirect, which does not need the client id to
+          // be registered on the Supabase side.
+          signIn();
         },
         auto_select: false,
         cancel_on_tap_outside: true,
+        use_fedcm_for_prompt: true,
       });
       google.accounts.id.prompt();
     };
