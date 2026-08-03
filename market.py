@@ -454,33 +454,21 @@ def _trim_company(name: str) -> str:
     return name
 
 
-def _topics(rows: list[dict], companies: list[tuple[str, str]]) -> list[dict]:
-    """Which subjects this batch of news is actually about.
+def _topics(companies: list[tuple[str, str]]) -> list[dict]:
+    """The catalogue of chips: what each one says, and what it searches for.
 
-    Every chip is counted with exactly the query the filter will run, so the
-    number on a chip is the number of stories behind it -- a chip that would
-    open on an empty page is not shown at all.
+    Deliberately uncounted. Counting here would mean counting the batch just
+    fetched, while the filter searches a seven-day window -- the two disagreed
+    badly enough that "Nasdaq" read 2 and opened on 21 stories. The count is
+    computed in get_news against the same rows the filter reads.
+
+    `ord` is the position: for companies that is market-cap rank, which is the
+    order they are shown in and the reason they are on the list at all.
     """
-    haystacks = [((r.get("title") or "") + " " + (r.get("summary") or "")).lower()
-                 for r in rows]
-    syms = [(r.get("symbol") or "").upper() for r in rows]
-
-    def hits(query: str, symbol: str | None = None) -> int:
-        q = query.lower()
-        return sum(1 for i, h in enumerate(haystacks)
-                   if q in h or (symbol and syms[i] == symbol))
-
-    out = [{"word": label, "query": query, "count": n, "kind": "topic"}
-           for label, query in _TOPICS
-           if (n := hits(query))]
-    out.sort(key=lambda k: -k["count"])
-
-    # Companies keep their market-cap order rather than being re-sorted by
-    # story count: the point of the row is "the biggest names", not "the
-    # loudest ones this hour".
-    out += [{"word": name, "query": ticker, "count": n, "kind": "company"}
-            for ticker, name in companies
-            if (n := hits(name, ticker))]
+    out = [{"word": label, "query": query, "kind": "topic", "ord": i}
+           for i, (label, query) in enumerate(_TOPICS)]
+    out += [{"word": name, "query": ticker, "kind": "company", "ord": i}
+            for i, (ticker, name) in enumerate(companies)]
     return out
 
 
@@ -524,4 +512,4 @@ def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
         companies = top_by_cap(8)
     except MarketError:
         companies = []
-    return uniq[:limit * 2], _topics(uniq, companies)
+    return uniq[:limit * 2], _topics(companies)

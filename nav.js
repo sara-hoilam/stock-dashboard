@@ -42,7 +42,7 @@
       <div class="nav-links">
         <a href="index.html"   class="${here("index.html") ? "on" : ""}">Markets</a>
         <a href="news.html"    class="${here("news.html") ? "on" : ""}">News</a>
-        <a href="company.html" class="${here("company.html") ? "on" : ""}">Financials</a>
+        <a href="company.html" class="${here("company.html") ? "on" : ""}">Company Report</a>
       </div>
 
       <div class="nav-search">
@@ -268,10 +268,34 @@
       `?provider=google&redirect_to=${encodeURIComponent(redirect)}`;
   }
 
+  // A one-line explanation under the bar. Sign-in failures used to leave no
+  // trace at all in the page, only in the console.
+  function authNote(msg) {
+    let el = document.getElementById("nav-note");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "nav-note";
+      el.className = "nav-note";
+      document.querySelector("nav.nav").after(el);
+    }
+    el.innerHTML = `<span>${esc(msg)}</span><button aria-label="Dismiss">&times;</button>`;
+    el.querySelector("button").onclick = () => el.remove();
+  }
+
   // Supabase returns the session in the URL fragment after the round trip.
   (function captureRedirect() {
-    if (!location.hash.includes("access_token")) return;
-    const p = new URLSearchParams(location.hash.slice(1));
+    const h = location.hash.slice(1);
+    if (!h) return;
+    const p = new URLSearchParams(h);
+
+    // Google or GoTrue can also come back with a reason it did not work.
+    const err = p.get("error_description") || p.get("error");
+    if (err) {
+      authNote(`Sign-in failed: ${decodeURIComponent(err.replace(/\+/g, " "))}`);
+      history.replaceState(null, "", location.pathname + location.search);
+      return;
+    }
+
     const tok = p.get("access_token");
     if (!tok) return;
     let user = {};
@@ -280,7 +304,7 @@
       user = { email: body.email, name: (body.user_metadata || {}).full_name,
                picture: (body.user_metadata || {}).avatar_url };
     } catch {}
-    saveSession({ access_token: tok, user });
+    saveSession({ access_token: tok, refresh_token: p.get("refresh_token"), user });
     history.replaceState(null, "", location.pathname + location.search);
   })();
 
@@ -331,11 +355,12 @@
           }
           if (d && d.access_token) return adoptSession(d);
 
-          console.error("[auth] one-tap rejected", status,
-            (d && (d.error_description || d.msg || d.error)) || d);
-          // Fall through to the redirect, which does not need the client id to
-          // be registered on the Supabase side.
-          signIn();
+          // Deliberately not falling through to the redirect. Chaining one
+          // broken sign-in into another only moves the failure somewhere the
+          // reason is harder to see.
+          const why = (d && (d.error_description || d.msg || d.error)) || `HTTP ${status}`;
+          console.error("[auth] one-tap rejected:", why);
+          authNote(`Google sign-in was refused: ${why}`);
         },
         auto_select: false,
         cancel_on_tap_outside: true,
