@@ -258,7 +258,24 @@ tbody tr:hover td{background:var(--sunk)}
 .pricechart{padding-bottom:10px}
 .pricechart .phead p{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
   color:var(--ink-3);letter-spacing:-.01em}
-#price-chart{padding:0 14px}
+#price-chart{padding:0 14px;position:relative}
+
+/* The readout sits at the crossing point rather than in the caption, so the
+   eye does not have to travel to read the day it is pointing at. */
+.ptip{
+  position:absolute;z-index:5;pointer-events:none;
+  background:var(--card);border:1px solid var(--rule);border-radius:9px;
+  box-shadow:var(--shadow);padding:9px 11px;min-width:152px;
+}
+.ptip[hidden]{display:none}
+.ptip-h{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;
+  color:var(--ink);padding-bottom:6px;margin-bottom:5px;border-bottom:1px solid var(--rule-2)}
+.ptip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ptip-dot.up{background:var(--up)} .ptip-dot.down{background:var(--down)}
+.ptip-r{display:flex;justify-content:space-between;gap:14px;padding:2px 0}
+.ptip-r span{font-size:11.5px;color:var(--ink-3)}
+.ptip-r b{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;
+  font-variant-numeric:tabular-nums;color:var(--ink)}
 .pchart{width:100%;height:auto;display:block;touch-action:none}
 .pchart .ax{font-family:"IBM Plex Mono",monospace;font-size:9.5px;fill:var(--ink-3)}
 .pchart .ax.mid{text-anchor:middle}
@@ -276,7 +293,10 @@ tbody tr:hover td{background:var(--sunk)}
   padding-bottom:13px;border-bottom:1px solid var(--rule)}
 .pq-price{font-family:"IBM Plex Mono",monospace;font-size:29px;font-weight:600;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.pq-chg{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:500}
+.pq-pill{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;
+  border-radius:6px;padding:2px 7px;line-height:1.5}
+.pq-pill.up{background:var(--up-soft);color:var(--up)}
+.pq-pill.down{background:var(--down-soft);color:var(--down)}
 .pstats{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:4px}
 .pstats>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
   padding:7px 0;border-bottom:1px solid var(--rule-2)}
@@ -766,7 +786,7 @@ function render(){
           <h2>Price</h2>
           <p id="price-sub"></p>
         </div><div class="ranges" id="price-ranges"></div></div>
-        <div id="price-chart"></div>
+        <div id="price-chart"><div class="ptip" id="ptip" hidden></div></div>
       </section>
       <aside class="card pricestats" id="price-stats"></aside>
     </div>
@@ -2014,6 +2034,7 @@ function drawCandles(){
     ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" class="ax mid">${shortDate(b.d)}</text>` : "")
     .join("");
 
+  const keptTip = document.getElementById("ptip");
   host.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
          aria-label="Daily prices for ${esc(PRICE.symbol)}">
@@ -2029,14 +2050,16 @@ function drawCandles(){
       </g>
       <rect x="${ml}" y="0" width="${pw}" height="${H}" fill="transparent" id="phit"/>
     </svg>`;
+  keptTip.hidden = true;
+  host.appendChild(keptTip);
 
-  // Crosshair. It reads out the bar under the pointer in the caption rather
-  // than in a floating box, so it never covers the candles it describes.
+  // Crosshair, with the day's numbers in a box at the crossing point. The box
+  // is placed on whichever side of the pointer has room, so it never runs off
+  // the panel or covers the candle it is describing.
   const svg = host.querySelector("svg");
   const cross = host.querySelector("#pcross");
   const cx = host.querySelector("#pcx"), cy = host.querySelector("#pcy");
-  const sub = document.getElementById("price-sub");
-  const base = sub.textContent;
+  const tip = document.getElementById("ptip");
   const hit = host.querySelector("#phit");
 
   hit.addEventListener("pointermove", e => {
@@ -2044,16 +2067,34 @@ function drawCandles(){
     const px = (e.clientX - r.left) / r.width * W;
     const i = Math.max(0, Math.min(bars.length - 1, Math.round((px - ml) / step - 0.5)));
     const b = bars[i];
+
     cross.style.display = "";
     cx.setAttribute("x1", x(i)); cx.setAttribute("x2", x(i));
     cy.setAttribute("y1", y(b.c)); cy.setAttribute("y2", y(b.c));
+
     const f = v => v === null || v === undefined ? "—" : v.toFixed(2);
-    sub.textContent = `${longDate(b.d)}  ·  O ${f(b.o)}  H ${f(b.h)}  ` +
-                      `L ${f(b.l)}  C ${f(b.c)}  ·  Vol ${compact(b.v || 0)}`;
+    const rising = (b.c ?? 0) >= (b.o ?? b.c ?? 0);
+    tip.innerHTML =
+      `<div class="ptip-h"><span class="ptip-dot ${rising ? "up" : "down"}"></span>` +
+      `${esc(longDate(b.d))}</div>` +
+      [["Open", f(b.o)], ["High", f(b.h)], ["Low", f(b.l)], ["Close", f(b.c)],
+       ["Volume", compact(b.v || 0)]]
+        .map(([k, v]) => `<div class="ptip-r"><span>${k}</span><b>${v}</b></div>`).join("");
+    tip.hidden = false;
+
+    // Viewbox units to on-screen pixels, so the box tracks the crossing point
+    // however the chart has been scaled.
+    const sx = r.width / W, sy = r.height / H;
+    const hostBox = host.getBoundingClientRect();
+    const left = r.left - hostBox.left + x(i) * sx;
+    const top = r.top - hostBox.top + y(b.c) * sy;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = (left + 14 + tw > hostBox.width ? left - tw - 14 : left + 14) + "px";
+    tip.style.top = Math.max(0, Math.min(hostBox.height - th, top - th / 2)) + "px";
   });
   hit.addEventListener("pointerleave", () => {
     cross.style.display = "none";
-    sub.textContent = base;
+    tip.hidden = true;
   });
 }
 
@@ -2093,8 +2134,9 @@ function drawPriceStats(){
   host.innerHTML = `
     <div class="pq">
       <div class="pq-price ${dirClass}">${n(price)}</div>
-      ${chg === null || chg === undefined ? "" : `<div class="pq-chg ${dirClass}">
-        ${chg >= 0 ? "+" : ""}${n(chg)} &nbsp; ${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</div>`}
+      ${chg === null || chg === undefined ? "" : `
+        <span class="pq-pill ${dirClass}">${chg >= 0 ? "+" : ""}${n(chg)}</span>
+        <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
     </div>
     <dl class="pstats">
       ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
