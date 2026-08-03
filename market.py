@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -367,3 +368,99 @@ def congress_trades(limit: int = 40) -> list[dict]:
     rows = [r for r in rows if r["symbol"]]
     rows.sort(key=lambda r: r["disclosed"], reverse=True)
     return rows[:limit]
+
+
+# ---------------------------------------------------------------------------
+# News
+# ---------------------------------------------------------------------------
+
+# Words that carry no topical signal in a headline. Filtering these is what
+# turns a word count into something worth clicking.
+_STOP = set("""
+a an and are as at be been but by for from has have how in into is it its of on
+or that the this to was were will with what when where which who why you your
+after before over under more most new news says say said report reports amid
+say could would should can may might than then them they their there these
+those about against between during without within up down out off just now
+inc corp co ltd plc group holdings company stock stocks share shares market
+markets price prices year years quarter week day today week's per vs
+""".split())
+
+
+# Financial news wires carry a constant stream of law-firm solicitations --
+# "investors who lost money", "class action deadline". They are numerous
+# enough to dominate a word count while telling a reader nothing about the
+# market, so they do not become topics.
+_LEGAL_SPAM = set("""
+fraud investigation investigating class action lawsuit deadline securities
+alert reminder counsel litigation plaintiff shareholder attorney law firm
+rosen levi pomerantz bronstein glancy encourages notifies remind lead
+""".split())
+
+
+def _keywords(rows: list[dict], limit: int = 22) -> list[dict]:
+    """The topics a reader can usefully filter by.
+
+    Two kinds. Tickers, which are unambiguous and are what a stock reader
+    reaches for first; and frequent headline words for the themes that cut
+    across companies. Anything cleverer would need a model, and the point of
+    these chips is that they visibly correspond to the list beneath them.
+    """
+    sym_counts: dict[str, int] = {}
+    for r in rows:
+        if r.get("symbol"):
+            sym_counts[r["symbol"]] = sym_counts.get(r["symbol"], 0) + 1
+
+    word_counts: dict[str, int] = {}
+    for r in rows:
+        seen = set()
+        for raw in re.findall(r"[A-Za-z][A-Za-z'&-]{2,}", r.get("title") or ""):
+            w = raw.strip("'-&").lower()
+            if len(w) < 4 or w in _STOP or w in _LEGAL_SPAM or w in seen:
+                continue
+            seen.add(w)
+            word_counts[w] = word_counts.get(w, 0) + 1
+
+    tickers = sorted(sym_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    words = sorted(word_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    out = [{"word": w, "count": n, "kind": "ticker"} for w, n in tickers if n > 1][:10]
+    out += [{"word": w, "count": n, "kind": "topic"} for w, n in words if n > 1][:limit - len(out)]
+    return out
+
+
+def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
+    """Latest market news, plus the keywords that describe it.
+
+    Company news and general market news are merged: the first names a ticker
+    and the second sets the backdrop, and a reader wants both in one stream.
+    """
+    rows: list[dict] = []
+    for path, kind in (("news/stock-latest", "stock"),
+                       ("news/general-latest", "general")):
+        try:
+            for r in _get(path, page=0, limit=limit) or []:
+                title = (r.get("title") or "").strip()
+                if not title:
+                    continue
+                rows.append({
+                    "url": r.get("url"),
+                    "title": title,
+                    "summary": (r.get("text") or "").strip(),
+                    "image": r.get("image"),
+                    "publisher": r.get("publisher") or r.get("site"),
+                    "symbol": (r.get("symbol") or "").upper() or None,
+                    "published": r.get("publishedDate"),
+                    "kind": kind,
+                })
+        except MarketError:
+            continue
+
+    seen, uniq = set(), []
+    for r in rows:
+        key = r["url"] or r["title"]
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(r)
+    uniq.sort(key=lambda r: r["published"] or "", reverse=True)
+    return uniq[:limit * 2], _keywords(uniq)

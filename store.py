@@ -170,3 +170,7 @@ def replace_sector_history(rows: list[dict]) -> int:
 def replace_trades(insiders: list[dict], congress: list[dict]) -> int:
     return rpc("replace_trades",
                {"p_insiders": insiders, "p_congress": congress}) or 0
+
+
+def upsert_news(rows: list[dict], keywords: list[dict]) -> int:
+    return rpc("upsert_news", {"p_rows": rows, "p_keywords": keywords}) or 0

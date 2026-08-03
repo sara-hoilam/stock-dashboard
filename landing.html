@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Alpha Ticker — markets today</title>
+<title>Ticker Alpha — markets today</title>
 <script src="config.js"></script>
+<link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
@@ -233,10 +234,7 @@ svg{display:block;max-width:100%}
       <h1>Markets Today</h1>
       <div class="sub" id="asof">Loading…</div>
     </div>
-    <div class="topright">
-      <a class="ghost" href="company.html" style="text-decoration:none">Company financials →</a>
-      <button class="ghost" id="theme" aria-label="Switch colour theme">Dark</button>
-    </div>
+
   </div>
 
   <section class="cards" id="cards"></section>
@@ -965,21 +963,9 @@ qEl.addEventListener("keydown", e => {
 qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
 
 /* ---- theme --------------------------------------------------------------- */
-const themeBtn = document.getElementById("theme");
-function setTheme(t){
-  document.documentElement.setAttribute("data-theme", t);
-  themeBtn.textContent = t === "dark" ? "Light" : "Dark";
-  try { localStorage.setItem("alphaticker-theme", t); } catch {}
-}
-themeBtn.onclick = () =>
-  setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
 
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot(){
-  let t = null;
-  try { t = localStorage.getItem("alphaticker-theme") || localStorage.getItem("ledger-theme"); } catch {}
-  setTheme(t || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
-
   document.querySelectorAll("#views button").forEach(b => b.onclick = () => setView(b.dataset.v));
 
   document.getElementById("foot").innerHTML =
@@ -1029,5 +1015,6 @@ themeBtn.onclick = () =>
   rpc("get_trades", { p_limit: 12 }).then(renderTrades).catch(() => renderTrades(null));
 })();
 </script>
+<script src="nav.js"></script>
 </body>
 </html>

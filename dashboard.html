@@ -3,16 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Alpha Ticker — quarterly financials from SEC filings</title>
+<title>Ticker Alpha — quarterly financials from SEC filings</title>
 <!-- Deployed builds ship this pointing at Supabase. Absent locally, where the
      page falls back to server.py. -->
 <script src="config.js"></script>
+<link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* ---------------------------------------------------------------------------
-   Alpha Ticker — a reading surface for filed financial statements.
+   Ticker Alpha — a reading surface for filed financial statements.
 
    Neutrals are biased blue so the accent belongs to the same family; the
    categorical data colours are the validated palette (see README) and are the
@@ -61,8 +62,9 @@ body{
 .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 
 /* ---- command bar --------------------------------------------------------- */
+/* Sticks below the shared nav, which publishes its own height as --nav-h. */
 .bar{
-  position:sticky; top:0; z-index:50;
+  position:sticky; top:var(--nav-h,0px); z-index:50;
   background:color-mix(in srgb, var(--ground) 88%, transparent);
   backdrop-filter:blur(12px);
   border-bottom:1px solid var(--rule);
@@ -230,7 +232,7 @@ tbody tr:hover td{background:var(--sunk)}
 
 <div class="bar">
   <div class="bar-in">
-    <div class="brand"><b>Alpha Ticker</b><span>SEC EDGAR</span></div>
+    <div class="brand"><b>Filed financials</b><span>SEC EDGAR</span></div>
 
     <div class="field">
       <label for="q">Company, ticker or CIK</label>
@@ -250,7 +252,6 @@ tbody tr:hover td{background:var(--sunk)}
     </div>
 
     <div class="spacer"></div>
-    <button class="ghost" id="theme" aria-label="Switch colour theme">Dark</button>
   </div>
 </div>
 
@@ -1710,29 +1711,21 @@ function renderFoot(){
 
 /* ===========================================================================
    Theme
+
+   The nav owns the toggle and the stored preference; this page only has to
+   redraw, because the charts resolve their colours once at build time rather
+   than through live CSS variables.
 =========================================================================== */
-const themeBtn = document.getElementById("theme");
-function setTheme(t){
-  document.documentElement.setAttribute("data-theme", t);
-  themeBtn.textContent = t === "dark" ? "Light" : "Dark";
-  try { localStorage.setItem("alphaticker-theme", t); } catch {}
+addEventListener("themechange", () => {
   if (S.company) { renderSankey(); renderMix(); renderRevTrend(); renderMargins(); renderCostStack(); }
-}
-themeBtn.onclick = () =>
-  setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+});
 
 (function boot(){
-  let t = null;
-  // Fall back to the old key so an existing visitor keeps their theme.
-  try { t = localStorage.getItem("alphaticker-theme")
-            || localStorage.getItem("ledger-theme"); } catch {}
-  if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  setTheme(t);
-
   const start = new URLSearchParams(location.search).get("t") || "GOOGL";
   qEl.value = start;
   load(start);
 })();
 </script>
+<script src="nav.js"></script>
 </body>
 </html>

@@ -8,6 +8,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py sweep [YYYY-MM-DD] ingest that day's new 10-Q/10-K
     python worker.py market             refresh prices, movers and sectors
     python worker.py sections           refresh heatmap, rotation and trades
+    python worker.py news               refresh market news
     python worker.py intraday TICKER    refresh one chart series
     python worker.py stats              coverage summary
     python worker.py run                the long-running loop (this is what
@@ -275,6 +276,21 @@ def refresh_market() -> bool:
     return True
 
 
+def refresh_news() -> bool:
+    """Latest market news, on the same cadence as prices.
+
+    Two requests for the whole page, so it can run often without costing much.
+    """
+    if not market.configured():
+        return False
+    rows, keywords = market.news(120)
+    if not rows:
+        return False
+    n = store.upsert_news(rows, keywords)
+    log(f"news: {len(rows)} articles ({n} written), {len(keywords)} keywords")
+    return True
+
+
 def refresh_sections() -> bool:
     """Heatmap, sector rotation, insider and congressional trades.
 
@@ -368,6 +384,10 @@ def run() -> None:
                     refresh_market()
                 except market.MarketError as exc:
                     log(f"market refresh failed (continuing): {exc}")
+                try:
+                    refresh_news()
+                except market.MarketError as exc:
+                    log(f"news refresh failed (continuing): {exc}")
                 last_market = now
 
             if now - last_sections > sections_every:
@@ -426,6 +446,9 @@ def main(argv: list[str]) -> int:
         sweep(dt.date.fromisoformat(argv[1]) if len(argv) > 1 else None)
     elif cmd == "market":
         log("market refreshed" if refresh_market()
+            else "FMP_API_KEY not set; nothing to do")
+    elif cmd == "news":
+        log("news refreshed" if refresh_news()
             else "FMP_API_KEY not set; nothing to do")
     elif cmd == "sections":
         log("sections refreshed" if refresh_sections()
