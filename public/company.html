@@ -728,12 +728,26 @@ function recentQuarters(n){
   return qs.slice(i, i + n).reverse();
 }
 
+/** The fiscal period immediately before this one -- Q1 for a Q2, Q4 of the
+    prior year for a Q1 -- and null when the company did not report it.
+
+    Taking "the next row in the list" instead looks right for a company that
+    files every quarter and is wrong for one that does not: AstraZeneca tags
+    only Q2, so the next row is Q2 a year earlier and QoQ came out identical
+    to YoY. An absent comparison should read as absent. */
+function priorQuarter(q){
+  const fy = q.fq > 1 ? q.fy : q.fy - 1;
+  const fq = q.fq > 1 ? q.fq - 1 : 4;
+  return S.company.quarters.find(x => x.fy === fy && x.fq === fq) || null;
+}
+
+const sameQuarterLastYear = q =>
+  S.company.quarters.find(x => x.fy === q.fy - 1 && x.fq === q.fq) || null;
+
 /** Change against the previous quarter and the same quarter a year earlier. */
 function growth(q, key){
-  const qs = S.company.quarters;
-  const i = qs.indexOf(q);
-  const prev = i >= 0 ? qs[i + 1] : null;                       // newest-first
-  const back = qs.find(x => x.fy === q.fy - 1 && x.fq === q.fq) || null;
+  const prev = priorQuarter(q);
+  const back = sameQuarterLastYear(q);
   const rel = (a, b) =>
     (a === null || a === undefined || b === null || b === undefined || !b)
       ? null : (a - b) / Math.abs(b) * 100;
@@ -1833,10 +1847,9 @@ function wireBuilder(){
 
 /* ---- Income statement ---------------------------------------------------- */
 function renderStatement(){
-  const qs = S.company.quarters, q = S.quarter;
-  const i = qs.indexOf(q);
-  const prevQ = qs[i+1] || null;
-  const yearAgo = qs.find(x => x.fy === q.fy-1 && x.fq === q.fq) || null;
+  const q = S.quarter;
+  const prevQ = priorQuarter(q);
+  const yearAgo = sameQuarterLastYear(q);
 
   const ROWS = [
     ["Revenue","revenue","rule"],
@@ -1885,7 +1898,8 @@ function renderStatement(){
         <th>Q${q.fq} FY${q.fy}</th>
         <th>% of revenue</th>
         <th>${yearAgo ? `Q${yearAgo.fq} FY${yearAgo.fy}` : "Year ago"}</th>
-        <th>YoY</th><th>QoQ</th>
+        <th>YoY</th>
+        <th>${prevQ ? `vs Q${prevQ.fq} FY${prevQ.fy}` : "QoQ"}</th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table>`;
