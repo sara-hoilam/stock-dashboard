@@ -589,6 +589,40 @@ async function waitForBackfill(ticker){
   return { timedOut: true };
 }
 
+/** A company with no US quarterly filings -- a foreign private issuer, or one
+    that has simply not filed yet. There is no income statement to draw, but
+    there is a price, so show that rather than an error and nothing else. */
+function marketOnly(ticker, company, why){
+  const c = company && company.ticker ? company : { ticker };
+  S.company = c;
+  S.quarter = null;
+  fyEl.disabled = fqEl.disabled = true;
+
+  main.innerHTML = `
+    <div class="ident">
+      <div>
+        <h1>${esc(c.name || ticker)}</h1>
+        <div class="sub">
+          <span class="chip key">${esc(c.ticker || ticker)}</span>
+          ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
+          ${c.cik ? `<span class="chip">CIK ${c.cik}</span>` : ""}
+          ${c.sic ? `<span>${esc(c.sic)}</span>` : ""}
+        </div>
+      </div>
+    </div>
+
+    <div class="pricerow" id="pricerow" hidden></div>
+
+    <div class="card note" id="nofilings">
+      <b>No filed financials for ${esc(ticker)}.</b><br>${esc(why)}
+    </div>`;
+
+  // The row is built empty; restorePriceRow fills in the chart and panel.
+  document.getElementById("pricerow").classList.add("waiting");
+  PRICE.symbol = null; PRICE.bars = [];
+  loadPrices();
+}
+
 /** Leave the empty state for the report, and put the ticker in the URL so the
     page can be linked to, reloaded and gone back from. */
 function openReport(ticker){
@@ -614,13 +648,17 @@ async function load(ticker){
         return fail(`No quarterly income-statement data found for ${ticker} in SEC XBRL filings.`);
       busy(`${ticker} has not been read yet — fetching it from SEC EDGAR…`);
       const got = await waitForBackfill(ticker);
-      if (got.refused)  return fail(`${ticker}: ${got.refused}.`);
-      if (got.failed)   return fail(got.failed);
-      if (got.empty)    return fail(
-        `${ticker} was read from SEC EDGAR, but no quarterly income-statement ` +
-        `data was found in its XBRL filings.`);
-      if (got.timedOut) return fail(
-        `${ticker} is still being read from SEC EDGAR. Give it a minute and reload.`);
+      if (got.refused) return fail(`${ticker}: ${got.refused}.`);
+      // No filings to read is not the same as nothing to show. The market
+      // still prices these companies, so fall back to what FMP knows and say
+      // plainly which half is missing.
+      if (got.failed)   return marketOnly(ticker, j, got.failed);
+      if (got.empty)    return marketOnly(ticker, j,
+        `No quarterly income-statement data was found for ${ticker} in SEC ` +
+        `XBRL filings.`);
+      if (got.timedOut) return marketOnly(ticker, j,
+        `${ticker} is still being read from SEC EDGAR. Reload in a minute for ` +
+        `the filed financials.`);
       j = got.company;
     }
     S.company = j;
@@ -2015,6 +2053,9 @@ function paintPrices(){
   const row = document.getElementById("pricerow");
   if (!row || !PRICE.bars.length) return;
   row.hidden = false;
+  // The row may be empty (the market-only view) or showing a waiting note.
+  // Either way it needs its chart and panel back before anything is drawn.
+  restorePriceRow();
 
   const ranges = document.getElementById("price-ranges");
   ranges.innerHTML = RANGES.map(([lab, n]) =>
@@ -2163,6 +2204,11 @@ function drawPriceStats(){
 
   document.getElementById("price-sub").textContent =
     `Daily closes through ${longDate(last.d)} · market data, not from the filing`;
+
+  // In the market-only view the heading may be the bare ticker, because the
+  // company was never ingested and so has no stored name. The quote has one.
+  const h1 = document.querySelector(".ident h1");
+  if (h1 && q && q.name && h1.textContent.trim() === PRICE.symbol) h1.textContent = q.name;
 
   const n = (v, d = 2) => v === null || v === undefined ? "—" : v.toFixed(d);
   const rows = [
