@@ -61,22 +61,7 @@ body{
 .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 
-/* ---- command bar --------------------------------------------------------- */
-/* Sticks below the shared nav, which publishes its own height as --nav-h. */
-.bar{
-  position:sticky; top:var(--nav-h,0px); z-index:50;
-  background:color-mix(in srgb, var(--ground) 88%, transparent);
-  backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--rule);
-}
-.bar-in{
-  max-width:1360px; margin:0 auto; padding:12px 24px;
-  display:flex; gap:14px; align-items:center; flex-wrap:wrap;
-}
-.brand{display:flex;align-items:baseline;gap:9px;margin-right:4px}
-.brand b{font-family:"IBM Plex Serif",Georgia,serif;font-weight:600;font-size:16px;letter-spacing:-.01em}
-.brand span{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
-
+/* ---- form controls ------------------------------------------------------- */
 .field{position:relative;display:flex;flex-direction:column;gap:3px}
 .field>label{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
 input,select,button{font:inherit;color:inherit}
@@ -129,8 +114,12 @@ main{max-width:1360px;margin:0 auto;padding:24px 24px 72px}
 }
 .chip.key{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .period{text-align:right}
-.period .big{font-family:"IBM Plex Serif",Georgia,serif;font-size:25px;font-weight:600;letter-spacing:-.01em}
-.period .small{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+/* The period pickers sit where the period used to be printed, so choosing a
+   quarter happens at the place the reader is already looking. */
+.qpick{display:flex;gap:10px;justify-content:flex-end}
+.qpick .field>label{text-align:left}
+.qpick select{font-size:14px;min-height:38px}
+.period .small{font-size:11.5px;color:var(--ink-3);margin-top:7px}
 .period a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
 .period a:hover{border-bottom-color:var(--accent)}
 
@@ -260,33 +249,23 @@ tbody tr:hover td{background:var(--sunk)}
   color:var(--ink-2);cursor:pointer}
 .hero-eg button:hover{border-color:var(--accent);color:var(--accent)}
 
-@media print{ .bar{display:none} .card{box-shadow:none} body{background:#fff} }
+@media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} }
 </style>
 </head>
 <body>
 
-<div class="bar">
-  <div class="bar-in">
-    <div class="brand"><b>Filed financials</b><span>SEC EDGAR</span></div>
-
-    <div class="field">
-      <label for="q">Company, ticker or CIK</label>
-      <input type="text" id="q" placeholder="GOOGL, Apple, or a CIK…" autocomplete="off"
-             role="combobox" aria-expanded="false" aria-controls="ac">
-      <div class="ac" id="ac" role="listbox"></div>
-    </div>
-
-    <div class="field">
-      <label for="fy">Fiscal year</label>
-      <select id="fy" disabled></select>
-    </div>
-
-    <div class="field">
-      <label for="fq">Quarter</label>
-      <select id="fq" disabled></select>
-    </div>
-
-    <div class="spacer"></div>
+<!-- The period pickers live here between renders and are moved into the report
+     header once it exists. Moving the nodes rather than re-creating them keeps
+     their options and listeners, which render() would otherwise destroy every
+     time it rewrites main. Company search is in the top nav. -->
+<div id="controls" hidden>
+  <div class="field">
+    <label for="fy">Fiscal year</label>
+    <select id="fy" disabled></select>
+  </div>
+  <div class="field">
+    <label for="fq">Quarter</label>
+    <select id="fq" disabled></select>
   </div>
 </div>
 
@@ -297,9 +276,7 @@ tbody tr:hover td{background:var(--sunk)}
     <span class="hero-badge">SEC EDGAR</span>
     <h1>Unlock the full report.</h1>
     <p class="hero-sub">
-      Every quarter a company has filed — revenue traced from its sources through
-      costs to net income, segment by segment, margins and cash flow over time.
-      Read straight from the filing, never estimated.
+      Every quarter a company has filed, read straight from the filing.
     </p>
 
     <div class="hero-search">
@@ -498,9 +475,7 @@ function wireSearch(input, ac){
   input.addEventListener("blur", () => setTimeout(close, 120));
 }
 
-const qEl  = document.getElementById("q");
 const hqEl = document.getElementById("hq");
-wireSearch(qEl,  document.getElementById("ac"));
 wireSearch(hqEl, document.getElementById("hac"));
 
 document.querySelectorAll(".hero-eg button").forEach(b =>
@@ -537,9 +512,7 @@ async function waitForBackfill(ticker){
     page can be linked to, reloaded and gone back from. */
 function openReport(ticker){
   document.getElementById("hero").hidden = true;
-  document.querySelector(".bar").hidden = false;
   main.hidden = false;
-  qEl.value = ticker;
   const url = `${location.pathname}?t=${encodeURIComponent(ticker)}`;
   if (location.search !== `?t=${encodeURIComponent(ticker)}`)
     history.pushState({ t: ticker }, "", url);
@@ -705,6 +678,12 @@ function fmtBy(unit, v, dp){
 =========================================================================== */
 function render(){
   const c = S.company, q = S.quarter;
+
+  // Park the pickers outside main before the rewrite below destroys it. They
+  // carry this company's quarters and their listeners, so they are moved back
+  // and forth rather than rebuilt.
+  document.getElementById("controls").append(
+    ...document.querySelectorAll("#qpick > *"));
   const filingUrl = q.accession
     ? `https://www.sec.gov/Archives/edgar/data/${c.cik}/${q.accession.replace(/-/g,"")}/`
     : `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${c.cik}&type=10-`;
@@ -721,7 +700,7 @@ function render(){
         </div>
       </div>
       <div class="period">
-        <div class="big">Q${q.fq} FY${q.fy}</div>
+        <div class="qpick" id="qpick"></div>
         <div class="small">
           ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)}<br>
           ${q.basis === "derived"
@@ -839,6 +818,9 @@ function render(){
 
     <div class="foot" id="foot"></div>
   `;
+
+  document.getElementById("qpick").append(
+    ...document.getElementById("controls").children);
 
   renderKPIs();
   renderSankey();
@@ -1820,7 +1802,6 @@ addEventListener("themechange", () => {
     from a link, so ask which company instead of picking one for them. */
 function showHero(){
   document.getElementById("hero").hidden = false;
-  document.querySelector(".bar").hidden = true;
   main.hidden = true;
   hqEl.value = "";
   hqEl.focus({ preventScroll: true });

@@ -86,13 +86,17 @@
   position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
   width: 15px; height: 15px; color: var(--ink-3); pointer-events: none;
 }
-.nav-search input {
-  width: 100%; background: var(--sunk); border: 1px solid var(--rule);
-  border-radius: 9px; padding: 9px 34px 9px 34px;
-  font: inherit; font-size: 13px; color: var(--ink);
+/* Qualified with .nav on purpose. A page that styles `input[type=text]`
+   matches this field at equal specificity and, being later in the head, wins
+   -- which is how the field ended up 230px wide with the icon sitting on top
+   of its own placeholder. */
+.nav .nav-search input {
+  width: 100%; min-width: 0; background: var(--sunk); border: 1px solid var(--rule);
+  border-radius: 9px; padding: 9px 34px 9px 34px; min-height: 0;
+  font: inherit; font-family: inherit; font-size: 13px; color: var(--ink);
 }
-.nav-search input::placeholder { color: var(--ink-3); }
-.nav-search input:focus-visible {
+.nav .nav-search input::placeholder { color: var(--ink-3); }
+.nav .nav-search input:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 1px; background: var(--card);
 }
 .nav-search kbd {
@@ -123,17 +127,17 @@
 }
 
 .nav-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.nav-theme {
+.nav .nav-theme {
   background: transparent; border: 1px solid var(--rule); border-radius: 8px;
   width: 34px; height: 34px; cursor: pointer; color: var(--ink-2);
   font-size: 14px; line-height: 1;
 }
-.nav-theme:hover { border-color: var(--accent); color: var(--accent); }
-.nav-login {
+.nav .nav-theme:hover { border-color: var(--accent); color: var(--accent); }
+.nav .nav-login {
   background: var(--accent); color: #fff; border: 0; border-radius: 8px;
   padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
-.nav-login:hover { filter: brightness(1.08); }
+.nav .nav-login:hover { filter: brightness(1.08); }
 .nav-note {
   display: flex; align-items: center; justify-content: center; gap: 12px;
   padding: 9px 20px; font-size: 12.5px;
@@ -146,12 +150,12 @@
 }
 
 .nav-acct { position: relative; }
-.nav-user {
+.nav .nav-user {
   display: flex; align-items: center; gap: 8px; cursor: pointer;
   background: transparent; border: 1px solid var(--rule); border-radius: 8px;
   padding: 5px 9px 5px 5px; color: var(--ink-2); font: inherit; font-size: 13px;
 }
-.nav-user:hover { border-color: var(--accent); }
+.nav .nav-user:hover { border-color: var(--accent); }
 .nav-user img, .nav-avatar {
   width: 24px; height: 24px; border-radius: 50%; object-fit: cover;
   background: var(--accent); color: #fff;
@@ -174,12 +178,12 @@
   font-size: 12px; color: var(--ink-3);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.nav-menu button {
+.nav .nav-menu button {
   display: block; width: 100%; text-align: left;
   background: transparent; border: 0; padding: 10px 14px;
   font: inherit; font-size: 13px; color: var(--ink-2); cursor: pointer;
 }
-.nav-menu button:hover { background: var(--sunk); color: var(--down); }
+.nav .nav-menu button:hover { background: var(--sunk); color: var(--down); }
 
 @media (max-width: 1080px) {
   .nav-links { display: none; }
