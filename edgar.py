@@ -308,7 +308,67 @@ CONCEPTS: dict[str, list[str]] = {
 }
 
 
-def _usable_facts(facts: dict, tag: str) -> list[dict]:
+# ---------------------------------------------------------------------------
+# The same line items in the IFRS taxonomy
+# ---------------------------------------------------------------------------
+# Foreign private issuers -- AstraZeneca, Shell, SAP, Unilever -- file 20-F and
+# 6-K tagged in ifrs-full rather than 10-K/10-Q in us-gaap. The statements say
+# the same things under different names, so the whole model downstream works
+# unchanged once the tags are mapped.
+#
+# What differs is the calendar. A 6-K carries a half-year and, for some filers,
+# a single quarter; there is no nine-month figure, so Q3 and Q4 cannot be
+# separated the way `quarterize` separates them for a 10-K filer. These
+# companies are therefore reported in half-years, which is the finest
+# granularity their filings actually support.
+CONCEPTS_IFRS: dict[str, list[str]] = {
+    "revenue": [
+        "Revenue",
+        "RevenueFromContractsWithCustomers",
+        "RevenueFromSaleOfGoods",
+    ],
+    "cogs": ["CostOfSales"],
+    "grossProfit": ["GrossProfit"],
+    "rd": ["ResearchAndDevelopmentExpense"],
+    "sm": ["DistributionCosts", "SellingGeneralAndAdministrativeExpense"],
+    "ga": ["AdministrativeExpense"],
+    "sga": [],
+    "opexTotal": ["OperatingExpense"],
+    "noninterestExpense": [],
+    "provisions": [],
+    "operatingIncome": ["ProfitLossFromOperatingActivities"],
+    "otherIncome": [
+        "OtherIncome",
+        "FinanceIncome",
+    ],
+    "pretaxIncome": ["ProfitLossBeforeTax"],
+    "tax": ["IncomeTaxExpenseContinuingOperations", "TaxExpenseIncome"],
+    "netIncome": ["ProfitLoss", "ProfitLossAttributableToOwnersOfParent"],
+    "nci": ["ProfitLossAttributableToNoncontrollingInterests"],
+    "epsDiluted": ["DilutedEarningsLossPerShare"],
+    "sharesDiluted": [
+        "WeightedAverageNumberOfDilutedSharesOutstanding",
+        "AdjustedWeightedAverageShares",
+    ],
+    "operatingCashFlow": ["CashFlowsFromUsedInOperatingActivities"],
+    "investingCashFlow": ["CashFlowsFromUsedInInvestingActivities"],
+    "financingCashFlow": ["CashFlowsFromUsedInFinancingActivities"],
+    "capex": ["PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"],
+}
+
+
+def taxonomy_for(facts: dict) -> tuple[str, dict[str, list[str]]]:
+    """Which taxonomy this filer uses, and the concept map that reads it."""
+    if "us-gaap" in facts:
+        return "us-gaap", CONCEPTS
+    if "ifrs-full" in facts:
+        return "ifrs-full", CONCEPTS_IFRS
+    raise FetchError(
+        "This company's XBRL carries neither us-gaap nor ifrs-full concepts, "
+        f"only: {', '.join(sorted(facts)) or 'nothing'}.")
+
+
+def _usable_facts(facts: dict, tag: str, taxonomy: str = "us-gaap") -> list[dict]:
     """Duration facts for one tag, deduped so the latest filing wins.
 
     companyfacts carries no dimensional breakdown, so every fact here is a
@@ -316,7 +376,7 @@ def _usable_facts(facts: dict, tag: str) -> list[dict]:
     line needs. Restatements are handled by keeping the most recently filed
     value for any given (start, end) window.
     """
-    node = (facts.get("us-gaap") or {}).get(tag)
+    node = (facts.get(taxonomy) or {}).get(tag)
     if not node:
         return []
     units = node.get("units", {})
@@ -332,7 +392,11 @@ def _usable_facts(facts: dict, tag: str) -> list[dict]:
     for f in units[key]:
         if not f.get("start") or not f.get("end"):
             continue
-        if f.get("form", "").split("/")[0] not in ("10-K", "10-Q", "20-F", "40-F"):
+        # 6-K is where a foreign private issuer files its interim results;
+        # without it only the annual 20-F survives and there is nothing to
+        # compare period to period.
+        if f.get("form", "").split("/")[0] not in (
+                "10-K", "10-Q", "20-F", "40-F", "6-K"):
             continue
         k = (f["start"], f["end"])
         prev = best.get(k)
@@ -392,12 +456,14 @@ def quarterize(items: list[dict]) -> dict[str, dict]:
     return out
 
 
-def detect_fye_month(facts: dict) -> int:
+def detect_fye_month(facts: dict, taxonomy: str = "us-gaap",
+                     concepts: dict | None = None) -> int:
     """Fiscal year-end month, from the annual-duration revenue facts."""
+    concepts = concepts or CONCEPTS
     counts: dict[int, int] = {}
     for group in ("revenue", "netIncome"):
-        for tag in CONCEPTS[group]:
-            for f in _usable_facts(facts, tag):
+        for tag in concepts[group]:
+            for f in _usable_facts(facts, tag, taxonomy):
                 if classify_duration(_days(f["start"], f["end"])) == "FY":
                     m = _d(f["end"]).month
                     counts[m] = counts.get(m, 0) + 1
@@ -1008,30 +1074,21 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
         ttl=TTL_FACTS))
     facts = facts_raw.get("facts", {})
 
-    # Foreign private issuers tag their filings in the IFRS taxonomy and file
-    # 20-F and 6-K rather than 10-K and 10-Q. Every concept this module knows
-    # about is a us-gaap tag, so there is nothing here to read -- and no
-    # quarters either, since a 20-F is annual. Say that, rather than letting
-    # the caller conclude the fetch was merely slow.
-    if "us-gaap" not in facts:
-        taxes = ", ".join(sorted(facts)) or "none"
-        raise FetchError(
-            f"{meta.get('name') or ticker} reports under IFRS ({taxes}), not "
-            f"US GAAP. Foreign private issuers file 20-F and 6-K rather than "
-            f"10-Q and 10-K, so there are no quarterly US filings to read.")
-
-    fye_month = detect_fye_month(facts)
+    # us-gaap for a domestic filer, ifrs-full for a foreign private issuer.
+    # The concept names differ; nothing after this point does.
+    taxonomy, concepts = taxonomy_for(facts)
+    fye_month = detect_fye_month(facts, taxonomy, concepts)
 
     filings, submissions = _filing_index(cik)
 
     # Every candidate tag, quarterized once.
     series: dict[str, dict[str, dict]] = {}
-    for tags in CONCEPTS.values():
+    for tags in concepts.values():
         for tag in tags:
             if tag not in series:
-                series[tag] = quarterize(_usable_facts(facts, tag))
+                series[tag] = quarterize(_usable_facts(facts, tag, taxonomy))
 
-    rev_tags = CONCEPTS["revenue"]
+    rev_tags = concepts["revenue"]
     ends = sorted({e for t in rev_tags for e in series.get(t, {})}, reverse=True)
     ends = ends[:max_quarters]
 
@@ -1039,7 +1096,7 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
     for idx, end in enumerate(ends):
         line: dict[str, float | None] = {}
         prov: dict[str, str] = {}
-        for name, tags in CONCEPTS.items():
+        for name, tags in concepts.items():
             hit = _pick(series, tags, end)
             line[name] = hit["value"] if hit else None
             if hit:
@@ -1157,6 +1214,15 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
             "provenance": prov,
             "segments": None,
         })
+
+    # A period tagged with revenue and nothing else cannot be drawn: the
+    # Sankey has a source and no destinations, and every margin is undefined.
+    # Foreign filers produce these where one figure was tagged in an interim
+    # release and the rest of the statement was not.
+    quarters = [q for q in quarters
+                if q["lines"].get("revenue") is not None
+                and (q["lines"].get("netIncome") is not None
+                     or q["lines"].get("operatingIncome") is not None)]
 
     quarters.sort(key=lambda q: q["end"], reverse=True)
 
