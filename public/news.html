@@ -117,13 +117,24 @@ tbody tr:hover td{background:var(--sunk)}
 /* ---- right: topics, then the live feed ---------------------------------- */
 .side-r{display:flex;flex-direction:column;gap:18px;
   position:sticky;top:calc(var(--nav-h,56px) + 16px)}
+.tsearch{position:relative;margin:0 15px 12px}
+.tsearch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;
+  color:var(--ink-3);pointer-events:none}
+.tsearch input{width:100%;background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
+  padding:8px 11px 8px 31px;font:inherit;font-size:12.5px;color:var(--ink)}
+.tsearch input::placeholder{color:var(--ink-3)}
+.tsearch input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;background:var(--card)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 15px 15px}
 .chips button{background:var(--sunk);border:1px solid var(--rule);border-radius:20px;
   padding:4px 11px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
 .chips button:hover{border-color:var(--accent);color:var(--accent)}
 .chips button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);
   color:#fff;font-weight:500}
-.chips button.tk{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:11.5px}
+/* Companies read as names, so they get the body face rather than the mono one
+   the old ticker chips used. */
+.chips button.co{font-weight:600}
+.chips .grouplabel{width:100%;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;margin:8px 0 1px}
 
 .feedhead{display:flex;align-items:center;gap:10px;padding:14px 15px 10px;
   border-bottom:1px solid var(--ink)}
@@ -196,6 +207,13 @@ tbody tr:hover td{background:var(--sunk)}
     <aside class="side-r">
       <div class="panel">
         <h3 style="padding:13px 15px 9px">Topics</h3>
+        <form class="tsearch" id="tsearch">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+            stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="search" id="tq" placeholder="Search the news" autocomplete="off"
+                 aria-label="Search the news">
+        </form>
         <div class="chips" id="chips"><span class="note" style="padding:0 0 12px">…</span></div>
       </div>
 
@@ -254,7 +272,8 @@ const avatarColour = s => {
   return c.startsWith("--") ? `var(${c})` : c;
 };
 
-const S = { view: "market_cap", q: null, page: 0, total: 0, keywords: [], loading: false };
+const S = { view: "market_cap", q: null, label: null, page: 0, total: 0,
+            keywords: [], loading: false };
 const PAGE = 12;
 
 /* ---- left column --------------------------------------------------------- */
@@ -330,24 +349,44 @@ async function loadNews(reset){
 }
 
 /* ---- right column: topics ------------------------------------------------ */
+// A chip shows a subject and searches for something else -- "The Fed" searches
+// "Fed", "Nvidia" searches NVDA -- so the label and the query travel together
+// and `S.label` is what the active-filter pill displays.
 function renderChips(){
   const host = document.getElementById("chips");
   if (!S.keywords.length){ host.innerHTML = `<span class="note" style="padding:0">No topics yet.</span>`; return; }
-  host.innerHTML = S.keywords.map(k =>
-    `<button data-w="${esc(k.word)}" class="${k.kind === "ticker" ? "tk" : ""}"
-       aria-pressed="${S.q && S.q.toLowerCase() === k.word.toLowerCase()}"
-       title="${k.count} ${k.count === 1 ? "story" : "stories"}">${esc(k.word)}</button>`).join("");
+
+  const group = kind => S.keywords.filter(k => k.kind === kind);
+  const chip = k =>
+    `<button data-q="${esc(k.query || k.word)}" data-l="${esc(k.word)}"
+       class="${k.kind === "company" ? "co" : ""}"
+       aria-pressed="${S.q && S.q.toLowerCase() === (k.query || k.word).toLowerCase()}"
+       title="${k.count} ${k.count === 1 ? "story" : "stories"}">${esc(k.word)}</button>`;
+
+  const companies = group("company");
+  host.innerHTML =
+    group("topic").map(chip).join("") +
+    // Anything the worker did not label stays visible rather than vanishing.
+    S.keywords.filter(k => k.kind !== "topic" && k.kind !== "company").map(chip).join("") +
+    (companies.length
+      ? `<div class="grouplabel">Most valuable companies</div>` + companies.map(chip).join("")
+      : "");
+
   host.querySelectorAll("button").forEach(b => b.onclick = () =>
-    setFilter(S.q && S.q.toLowerCase() === b.dataset.w.toLowerCase() ? null : b.dataset.w));
+    setFilter(S.q && S.q.toLowerCase() === b.dataset.q.toLowerCase() ? null : b.dataset.q,
+              b.dataset.l));
 }
 
-function setFilter(word){
-  S.q = word || null;
+function setFilter(query, label){
+  S.q = query || null;
+  S.label = S.q ? (label || query) : null;
   document.getElementById("active-filter").innerHTML = S.q
-    ? `<span class="chip-active">${esc(S.q)}<button id="clear" aria-label="Clear filter">×</button></span>`
+    ? `<span class="chip-active">${esc(S.label)}<button id="clear" aria-label="Clear filter">×</button></span>`
     : "";
   const c = document.getElementById("clear");
   if (c) c.onclick = () => setFilter(null);
+  const tq = document.getElementById("tq");
+  if (tq && tq.value.trim() !== (S.q || "")) tq.value = "";
   renderChips();
   loadNews(true);
   document.getElementById("newsscroll").scrollTo({ top: 0, behavior: "smooth" });
@@ -385,11 +424,13 @@ function startFeedDrift(){
   let last = 0;
   let pos = 1;                        // kept as a float; scrollTop may round
   const SPEED = 22;                   // px a second — slow enough to read
+  const HOLD = 1200;                  // ms of quiet before the drift resumes
 
-  const hold = () => { held = Date.now() + 2500; pos = wrap.scrollTop; };
-  wrap.addEventListener("pointerenter", hold);
-  wrap.addEventListener("pointermove", hold);
-  ["wheel", "touchstart", "touchmove", "keydown"].forEach(e =>
+  // Only an actual scroll gesture takes hold. Hovering must not: the drift
+  // moves content under a resting cursor, which fires pointermove, which
+  // would renew the hold forever and stop the feed for good.
+  const hold = () => { held = Date.now() + HOLD; pos = wrap.scrollTop; };
+  ["wheel", "touchstart", "touchmove", "pointerdown", "keydown"].forEach(e =>
     wrap.addEventListener(e, hold, { passive: true }));
 
   function frame(now){
@@ -433,6 +474,19 @@ function startFeedDrift(){
   setFilter(S.q);
   setView("market_cap");
   loadFeed();
+
+  // Free-text search, on the same filter as the chips.
+  const tq = document.getElementById("tq");
+  let typing = null;
+  document.getElementById("tsearch").onsubmit = e => {
+    e.preventDefault();
+    clearTimeout(typing);
+    setFilter(tq.value.trim() || null);
+  };
+  tq.addEventListener("input", () => {
+    clearTimeout(typing);
+    typing = setTimeout(() => setFilter(tq.value.trim() || null), 350);
+  });
 
   const more = document.getElementById("more");
   more.onclick = () => { S.page++; loadNews(false); };

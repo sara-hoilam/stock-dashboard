@@ -79,20 +79,26 @@ MIN_MOVER_CAP = float(os.environ.get("MIN_MOVER_CAP", "1e9"))
 # makes the market-cap filter affordable: the alternative is a quote request
 # per candidate. Cached for the length of a refresh so gainers, losers and
 # actives share the one call.
-_caps_cache: dict[str, object] = {"at": 0.0, "symbols": set()}
+_caps_cache: dict[str, object] = {"at": 0.0, "rows": [], "symbols": set()}
+
+
+def _screener(min_cap: float | None = None, ttl: int = 900) -> list[dict]:
+    """The raw screener rows, cached. Carries market cap and company name."""
+    if time.time() - float(_caps_cache["at"]) < ttl and _caps_cache["rows"]:
+        return _caps_cache["rows"]             # type: ignore[return-value]
+    rows = _get("company-screener",
+                marketCapMoreThan=int(min_cap or MIN_MOVER_CAP),
+                isActivelyTrading="true", limit=5000) or []
+    if rows:
+        _caps_cache.update(at=time.time(), rows=rows,
+                           symbols={r["symbol"] for r in rows if r.get("symbol")})
+    return rows
 
 
 def large_caps(min_cap: float | None = None, ttl: int = 900) -> set[str]:
     """Symbols above `min_cap`, as a set for cheap membership tests."""
-    if time.time() - float(_caps_cache["at"]) < ttl and _caps_cache["symbols"]:
-        return _caps_cache["symbols"]          # type: ignore[return-value]
-    rows = _get("company-screener",
-                marketCapMoreThan=int(min_cap or MIN_MOVER_CAP),
-                isActivelyTrading="true", limit=5000) or []
-    syms = {r["symbol"] for r in rows if r.get("symbol")}
-    if syms:
-        _caps_cache.update(at=time.time(), symbols=syms)
-    return syms
+    _screener(min_cap, ttl)
+    return _caps_cache["symbols"]              # type: ignore[return-value]
 
 
 def _movers(path: str, kind: str, limit: int, allowed: set[str] | None) -> list[dict]:
@@ -374,62 +380,112 @@ def congress_trades(limit: int = 40) -> list[dict]:
 # News
 # ---------------------------------------------------------------------------
 
-# Words that carry no topical signal in a headline. Filtering these is what
-# turns a word count into something worth clicking.
-_STOP = set("""
-a an and are as at be been but by for from has have how in into is it its of on
-or that the this to was were will with what when where which who why you your
-after before over under more most new news says say said report reports amid
-say could would should can may might than then them they their there these
-those about against between during without within up down out off just now
-inc corp co ltd plc group holdings company stock stocks share shares market
-markets price prices year years quarter week day today week's per vs
-""".split())
+# Counting words in headlines produced chips like "here's" and "august" --
+# technically frequent, useless to click. These are the subjects a market
+# reader actually navigates by, each paired with the text the filter searches
+# for. Label and query are separate so a chip can read "The Fed" while
+# matching the word that appears in the copy.
+_TOPICS: list[tuple[str, str]] = [
+    ("S&P 500",        "S&P 500"),
+    ("Nasdaq",         "Nasdaq"),
+    ("Dow Jones",      "Dow Jones"),
+    ("The Fed",        "Fed"),
+    ("Inflation",      "inflation"),
+    ("Interest Rates", "interest rate"),
+    ("Earnings",       "earnings"),
+    ("Guidance",       "guidance"),
+    ("Dividends",      "dividend"),
+    ("Buybacks",       "buyback"),
+    ("Tariffs",        "tariff"),
+    ("Jobs",           "jobs report"),
+    ("Recession",      "recession"),
+    ("Oil",            "oil price"),
+    ("Gold",           "gold"),
+    ("Bitcoin",        "bitcoin"),
+    ("AI",             "artificial intelligence"),
+    ("Semiconductors", "semiconductor"),
+    ("IPO",            "IPO"),
+    ("M&A",            "acquisition"),
+    ("Layoffs",        "layoff"),
+    ("Upgrades",       "upgrade"),
+]
 
 
-# Financial news wires carry a constant stream of law-firm solicitations --
-# "investors who lost money", "class action deadline". They are numerous
-# enough to dominate a word count while telling a reader nothing about the
-# market, so they do not become topics.
-_LEGAL_SPAM = set("""
-fraud investigation investigating class action lawsuit deadline securities
-alert reminder counsel litigation plaintiff shareholder attorney law firm
-rosen levi pomerantz bronstein glancy encourages notifies remind lead
-""".split())
+def top_by_cap(n: int = 8) -> list[tuple[str, str]]:
+    """The largest listed companies, as (ticker, company name).
 
+    Comes off the same screener call the mover filter already makes, so this
+    costs nothing extra. Names are trimmed of their suffixes because a chip
+    should read "NVIDIA", not "NVIDIA Corporation".
 
-def _keywords(rows: list[dict], limit: int = 22) -> list[dict]:
-    """The topics a reader can usefully filter by.
-
-    Two kinds. Tickers, which are unambiguous and are what a stock reader
-    reaches for first; and frequent headline words for the themes that cut
-    across companies. Anything cleverer would need a model, and the point of
-    these chips is that they visibly correspond to the list beneath them.
+    Funds are excluded -- the screener ranks Vanguard's total-market fund
+    among the largest listings, which is true and not a company -- and dual
+    listings collapse to one entry, so Alphabet appears once rather than as
+    both GOOG and GOOGL.
     """
-    sym_counts: dict[str, int] = {}
-    for r in rows:
-        if r.get("symbol"):
-            sym_counts[r["symbol"]] = sym_counts.get(r["symbol"], 0) + 1
+    ranked = sorted(
+        (r for r in _screener()
+         if r.get("symbol") and r.get("marketCap")
+         and not r.get("isEtf") and not r.get("isFund")),
+        key=lambda r: -float(r["marketCap"]))
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for r in ranked:
+        name = _trim_company(r.get("companyName") or r["symbol"])
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append((r["symbol"], name))
+        if len(out) >= n:
+            break
+    return out
 
-    word_counts: dict[str, int] = {}
-    for r in rows:
-        seen = set()
-        for raw in re.findall(r"[A-Za-z][A-Za-z'&-]{2,}", r.get("title") or ""):
-            w = raw.strip("'-&").lower()
-            if len(w) < 4 or w in _STOP or w in _LEGAL_SPAM or w in seen:
-                continue
-            seen.add(w)
-            word_counts[w] = word_counts.get(w, 0) + 1
 
-    tickers = sorted(sym_counts.items(), key=lambda kv: (-kv[1], kv[0]))
-    words = sorted(word_counts.items(), key=lambda kv: (-kv[1], kv[0]))
-    out = [{"word": w, "count": n, "kind": "ticker"} for w, n in tickers if n > 1][:10]
-    out += [{"word": w, "count": n, "kind": "topic"} for w, n in words if n > 1][:limit - len(out)]
+_SUFFIXES = re.compile(
+    r",?\s+(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|"
+    r"holdings?|group|sa|nv|ag|lp|llc|class [a-c]|& co)\.?$", re.I)
+
+
+def _trim_company(name: str) -> str:
+    prev = None
+    while prev != name:
+        prev = name
+        name = _SUFFIXES.sub("", name).strip()
+    return name
+
+
+def _topics(rows: list[dict], companies: list[tuple[str, str]]) -> list[dict]:
+    """Which subjects this batch of news is actually about.
+
+    Every chip is counted with exactly the query the filter will run, so the
+    number on a chip is the number of stories behind it -- a chip that would
+    open on an empty page is not shown at all.
+    """
+    haystacks = [((r.get("title") or "") + " " + (r.get("summary") or "")).lower()
+                 for r in rows]
+    syms = [(r.get("symbol") or "").upper() for r in rows]
+
+    def hits(query: str, symbol: str | None = None) -> int:
+        q = query.lower()
+        return sum(1 for i, h in enumerate(haystacks)
+                   if q in h or (symbol and syms[i] == symbol))
+
+    out = [{"word": label, "query": query, "count": n, "kind": "topic"}
+           for label, query in _TOPICS
+           if (n := hits(query))]
+    out.sort(key=lambda k: -k["count"])
+
+    # Companies keep their market-cap order rather than being re-sorted by
+    # story count: the point of the row is "the biggest names", not "the
+    # loudest ones this hour".
+    out += [{"word": name, "query": ticker, "count": n, "kind": "company"}
+            for ticker, name in companies
+            if (n := hits(name, ticker))]
     return out
 
 
 def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
-    """Latest market news, plus the keywords that describe it.
+    """Latest market news, plus the topics that describe it.
 
     Company news and general market news are merged: the first names a ticker
     and the second sets the backdrop, and a reader wants both in one stream.
@@ -463,4 +519,9 @@ def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
         seen.add(key)
         uniq.append(r)
     uniq.sort(key=lambda r: r["published"] or "", reverse=True)
-    return uniq[:limit * 2], _keywords(uniq)
+
+    try:
+        companies = top_by_cap(8)
+    except MarketError:
+        companies = []
+    return uniq[:limit * 2], _topics(uniq, companies)
