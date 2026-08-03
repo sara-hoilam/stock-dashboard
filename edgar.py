@@ -200,6 +200,23 @@ def classify_duration(days: int) -> str | None:
     return None
 
 
+def _snap_month(e: dt.date) -> tuple[int, int]:
+    """The month a period end belongs to, ignoring a few days of drift.
+
+    Retailers and others on a 52/53-week calendar end their year on a fixed
+    weekday near a month end, so the date wanders either side of it: lululemon
+    closed fiscal 2026 on 1 February and fiscal 2024 on 28 January. Reading the
+    calendar month literally puts the February one in the next fiscal year and
+    labels the fourth quarter as the first. Snapping to whichever month
+    boundary is nearer keeps both in the year the company reported them in.
+    """
+    if e.day <= 7:                    # early in the month: likely the prior one
+        prev = e.replace(day=1) - dt.timedelta(days=1)
+        if e.day - 1 <= (prev.day - e.day) % 31:
+            return prev.year, prev.month
+    return e.year, e.month
+
+
 def fiscal_label(end: str, fye_month: int) -> tuple[int, int]:
     """Map a period end date to (fiscal_year, fiscal_quarter).
 
@@ -207,6 +224,8 @@ def fiscal_label(end: str, fye_month: int) -> tuple[int, int]:
     is Q1 of fiscal 2026, because Apple's year ends in September.
     """
     e = _d(end)
+    year, month = _snap_month(e)
+    e = dt.date(year, month, 1)
     offset = (e.month - fye_month) % 12
     fq = 4 if offset == 0 else max(1, min(4, round(offset / 3)))
     if e.month == fye_month:
