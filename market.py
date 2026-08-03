@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -78,20 +79,26 @@ MIN_MOVER_CAP = float(os.environ.get("MIN_MOVER_CAP", "1e9"))
 # makes the market-cap filter affordable: the alternative is a quote request
 # per candidate. Cached for the length of a refresh so gainers, losers and
 # actives share the one call.
-_caps_cache: dict[str, object] = {"at": 0.0, "symbols": set()}
+_caps_cache: dict[str, object] = {"at": 0.0, "rows": [], "symbols": set()}
+
+
+def _screener(min_cap: float | None = None, ttl: int = 900) -> list[dict]:
+    """The raw screener rows, cached. Carries market cap and company name."""
+    if time.time() - float(_caps_cache["at"]) < ttl and _caps_cache["rows"]:
+        return _caps_cache["rows"]             # type: ignore[return-value]
+    rows = _get("company-screener",
+                marketCapMoreThan=int(min_cap or MIN_MOVER_CAP),
+                isActivelyTrading="true", limit=5000) or []
+    if rows:
+        _caps_cache.update(at=time.time(), rows=rows,
+                           symbols={r["symbol"] for r in rows if r.get("symbol")})
+    return rows
 
 
 def large_caps(min_cap: float | None = None, ttl: int = 900) -> set[str]:
     """Symbols above `min_cap`, as a set for cheap membership tests."""
-    if time.time() - float(_caps_cache["at"]) < ttl and _caps_cache["symbols"]:
-        return _caps_cache["symbols"]          # type: ignore[return-value]
-    rows = _get("company-screener",
-                marketCapMoreThan=int(min_cap or MIN_MOVER_CAP),
-                isActivelyTrading="true", limit=5000) or []
-    syms = {r["symbol"] for r in rows if r.get("symbol")}
-    if syms:
-        _caps_cache.update(at=time.time(), symbols=syms)
-    return syms
+    _screener(min_cap, ttl)
+    return _caps_cache["symbols"]              # type: ignore[return-value]
 
 
 def _movers(path: str, kind: str, limit: int, allowed: set[str] | None) -> list[dict]:
@@ -367,3 +374,154 @@ def congress_trades(limit: int = 40) -> list[dict]:
     rows = [r for r in rows if r["symbol"]]
     rows.sort(key=lambda r: r["disclosed"], reverse=True)
     return rows[:limit]
+
+
+# ---------------------------------------------------------------------------
+# News
+# ---------------------------------------------------------------------------
+
+# Counting words in headlines produced chips like "here's" and "august" --
+# technically frequent, useless to click. These are the subjects a market
+# reader actually navigates by, each paired with the text the filter searches
+# for. Label and query are separate so a chip can read "The Fed" while
+# matching the word that appears in the copy.
+_TOPICS: list[tuple[str, str]] = [
+    ("S&P 500",        "S&P 500"),
+    ("Nasdaq",         "Nasdaq"),
+    ("Dow Jones",      "Dow Jones"),
+    ("The Fed",        "Fed"),
+    ("Inflation",      "inflation"),
+    ("Interest Rates", "interest rate"),
+    ("Earnings",       "earnings"),
+    ("Guidance",       "guidance"),
+    ("Dividends",      "dividend"),
+    ("Buybacks",       "buyback"),
+    ("Tariffs",        "tariff"),
+    ("Jobs",           "jobs report"),
+    ("Recession",      "recession"),
+    ("Oil",            "oil price"),
+    ("Gold",           "gold"),
+    ("Bitcoin",        "bitcoin"),
+    ("AI",             "artificial intelligence"),
+    ("Semiconductors", "semiconductor"),
+    ("IPO",            "IPO"),
+    ("M&A",            "acquisition"),
+    ("Layoffs",        "layoff"),
+    ("Upgrades",       "upgrade"),
+]
+
+
+def top_by_cap(n: int = 8) -> list[tuple[str, str]]:
+    """The largest listed companies, as (ticker, company name).
+
+    Comes off the same screener call the mover filter already makes, so this
+    costs nothing extra. Names are trimmed of their suffixes because a chip
+    should read "NVIDIA", not "NVIDIA Corporation".
+
+    Funds are excluded -- the screener ranks Vanguard's total-market fund
+    among the largest listings, which is true and not a company -- and dual
+    listings collapse to one entry, so Alphabet appears once rather than as
+    both GOOG and GOOGL.
+    """
+    ranked = sorted(
+        (r for r in _screener()
+         if r.get("symbol") and r.get("marketCap")
+         and not r.get("isEtf") and not r.get("isFund")),
+        key=lambda r: -float(r["marketCap"]))
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for r in ranked:
+        name = _trim_company(r.get("companyName") or r["symbol"])
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append((r["symbol"], name))
+        if len(out) >= n:
+            break
+    return out
+
+
+_SUFFIXES = re.compile(
+    r",?\s+(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|"
+    r"holdings?|group|sa|nv|ag|lp|llc|class [a-c]|& co)\.?$", re.I)
+
+
+def _trim_company(name: str) -> str:
+    prev = None
+    while prev != name:
+        prev = name
+        name = _SUFFIXES.sub("", name).strip()
+    return name
+
+
+def _topics(rows: list[dict], companies: list[tuple[str, str]]) -> list[dict]:
+    """Which subjects this batch of news is actually about.
+
+    Every chip is counted with exactly the query the filter will run, so the
+    number on a chip is the number of stories behind it -- a chip that would
+    open on an empty page is not shown at all.
+    """
+    haystacks = [((r.get("title") or "") + " " + (r.get("summary") or "")).lower()
+                 for r in rows]
+    syms = [(r.get("symbol") or "").upper() for r in rows]
+
+    def hits(query: str, symbol: str | None = None) -> int:
+        q = query.lower()
+        return sum(1 for i, h in enumerate(haystacks)
+                   if q in h or (symbol and syms[i] == symbol))
+
+    out = [{"word": label, "query": query, "count": n, "kind": "topic"}
+           for label, query in _TOPICS
+           if (n := hits(query))]
+    out.sort(key=lambda k: -k["count"])
+
+    # Companies keep their market-cap order rather than being re-sorted by
+    # story count: the point of the row is "the biggest names", not "the
+    # loudest ones this hour".
+    out += [{"word": name, "query": ticker, "count": n, "kind": "company"}
+            for ticker, name in companies
+            if (n := hits(name, ticker))]
+    return out
+
+
+def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
+    """Latest market news, plus the topics that describe it.
+
+    Company news and general market news are merged: the first names a ticker
+    and the second sets the backdrop, and a reader wants both in one stream.
+    """
+    rows: list[dict] = []
+    for path, kind in (("news/stock-latest", "stock"),
+                       ("news/general-latest", "general")):
+        try:
+            for r in _get(path, page=0, limit=limit) or []:
+                title = (r.get("title") or "").strip()
+                if not title:
+                    continue
+                rows.append({
+                    "url": r.get("url"),
+                    "title": title,
+                    "summary": (r.get("text") or "").strip(),
+                    "image": r.get("image"),
+                    "publisher": r.get("publisher") or r.get("site"),
+                    "symbol": (r.get("symbol") or "").upper() or None,
+                    "published": r.get("publishedDate"),
+                    "kind": kind,
+                })
+        except MarketError:
+            continue
+
+    seen, uniq = set(), []
+    for r in rows:
+        key = r["url"] or r["title"]
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(r)
+    uniq.sort(key=lambda r: r["published"] or "", reverse=True)
+
+    try:
+        companies = top_by_cap(8)
+    except MarketError:
+        companies = []
+    return uniq[:limit * 2], _topics(uniq, companies)

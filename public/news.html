@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticker Alpha — market news</title>
+<script src="config.js"></script>
+<link rel="stylesheet" href="nav.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ---------------------------------------------------------------------------
+   News — the same tokens as the rest of the site, in a three-column reading
+   layout: what the market is doing on the left, what is being written in the
+   middle, and the topics plus a live ticker on the right.
+--------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+  --ground:#eef0f3; --card:#ffffff; --sunk:#f6f7f9;
+  --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
+  --rule:#dde2e8; --rule-2:#eaeef2;
+  --accent:#1e4fbf; --accent-soft:#e6ecfb;
+  --up:#0b7a4b; --down:#c0392e;
+  --up-soft:#e3f4ec; --down-soft:#fbe9e7;
+  --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
+  --r:10px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:#0d1219; --card:#151c25; --sunk:#111821;
+  --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
+  --rule:#232d3a; --rule-2:#1c2531;
+  --accent:#6e9bff; --accent-soft:#1a2740;
+  --up:#38b37d; --down:#f0736a;
+  --up-soft:#12291f; --down-soft:#2b1614;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:var(--ground);
+  color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+main{max-width:1360px;margin:0 auto;padding:20px 24px 72px}
+a{color:inherit}
+.up{color:var(--up)} .down{color:var(--down)}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+  box-shadow:var(--shadow);overflow:hidden}
+h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
+
+.cols{display:grid;grid-template-columns:250px minmax(0,1fr) 300px;gap:18px;align-items:start}
+
+/* ---- left: the market summary list, same component as Markets Today ------ */
+/* The panel is as tall as its rows. A scrollbar inside a column that has room
+   to grow is friction for nothing. */
+.side h3{padding:13px 15px 9px}
+.rows{overflow:visible}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{position:sticky;top:0;background:var(--card);z-index:1;
+  font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;text-align:right;padding:7px 15px 7px 0;border-bottom:1px solid var(--rule)}
+thead th:first-child{text-align:left;padding-left:15px}
+tbody td{padding:8px 0;border-bottom:1px solid var(--rule-2);text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+tbody td:first-child{text-align:left;padding-left:15px;font-family:"IBM Plex Sans",sans-serif}
+tbody td:last-child{padding-right:15px}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--sunk)}
+.sym{display:flex;align-items:center;gap:8px}
+.dot{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  font-family:"IBM Plex Mono",monospace;font-size:8.5px;font-weight:600;color:#fff}
+.pill{display:inline-block;padding:1px 6px;border-radius:5px;font-size:12px;font-weight:500}
+.pill.up{background:var(--up-soft)} .pill.down{background:var(--down-soft)}
+.seg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden;margin:0 15px 11px}
+.seg button{flex:1;background:transparent;border:0;padding:6px 4px;font:inherit;font-size:11.5px;
+  cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
+
+/* ---- centre: the article grid ------------------------------------------- */
+.newshead{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+  margin-bottom:14px;flex-wrap:wrap}
+.newshead h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:26px;font-weight:600;
+  letter-spacing:-.018em}
+.newshead .meta{font-size:12px;color:var(--ink-3)}
+.chip-active{display:inline-flex;align-items:center;gap:7px;background:var(--accent-soft);
+  color:var(--accent);border-radius:20px;padding:3px 6px 3px 12px;font-size:12.5px;font-weight:500}
+.chip-active button{background:none;border:0;cursor:pointer;color:inherit;font:inherit;
+  font-size:15px;line-height:1;padding:0 4px}
+
+/* The stories scroll inside their own column so the market summary and the
+   feed stay put beside them, and so the page does not grow without end. */
+.newsscroll{height:calc(100vh - var(--nav-h,56px) - 190px);min-height:520px;
+  overflow-y:auto;padding-right:10px;scrollbar-gutter:stable}
+.newsscroll::-webkit-scrollbar{width:9px}
+.newsscroll::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+.newsscroll::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
+.newsscroll{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.story{display:flex;flex-direction:column;text-decoration:none}
+.story .thumb{width:100%;aspect-ratio:16/9;border-radius:9px;overflow:hidden;
+  background:var(--sunk);margin-bottom:11px;flex-shrink:0}
+.story .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.story h2{font-size:16.5px;font-weight:600;line-height:1.32;letter-spacing:-.01em;
+  margin-bottom:6px}
+.story:hover h2{color:var(--accent)}
+.story p{font-size:13px;color:var(--ink-2);line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.story .by{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11.5px;
+  color:var(--ink-3);flex-wrap:wrap}
+.story .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+  background:var(--sunk);border:1px solid var(--rule);border-radius:5px;padding:1px 6px;
+  color:var(--ink-2)}
+.more{display:block;width:100%;margin:22px 0 4px;padding:11px;background:var(--card);
+  border:1px solid var(--rule);border-radius:9px;font:inherit;font-size:13px;
+  color:var(--ink-2);cursor:pointer}
+.more:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ---- right: topics, then the live feed ---------------------------------- */
+.side-r{display:flex;flex-direction:column;gap:18px;
+  position:sticky;top:calc(var(--nav-h,56px) + 16px)}
+.tsearch{position:relative;margin:0 15px 12px}
+.tsearch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;
+  color:var(--ink-3);pointer-events:none}
+.tsearch input{width:100%;background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
+  padding:8px 11px 8px 31px;font:inherit;font-size:12.5px;color:var(--ink)}
+.tsearch input::placeholder{color:var(--ink-3)}
+.tsearch input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;background:var(--card)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 15px 15px}
+.chips button{background:var(--sunk);border:1px solid var(--rule);border-radius:20px;
+  padding:4px 11px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
+.chips button:hover{border-color:var(--accent);color:var(--accent)}
+.chips button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);
+  color:#fff;font-weight:500}
+/* Companies read as names, so they get the body face rather than the mono one
+   the old ticker chips used. */
+.chips button.co{font-weight:600}
+.chips .grouplabel{width:100%;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;margin:8px 0 1px}
+
+.feedhead{display:flex;align-items:center;gap:10px;padding:14px 15px 10px;
+  border-bottom:1px solid var(--ink)}
+.feedhead .bolt{width:26px;height:26px;border-radius:50%;background:#e2694a;color:#fff;
+  display:grid;place-items:center;font-size:13px;flex-shrink:0}
+.feedhead h3{letter-spacing:.09em;text-transform:uppercase;font-size:12px}
+/* The feed drifts by moving its own scroll position rather than by a CSS
+   transform, so a reader can grab it and scroll back to a story that has
+   already gone past. It picks the drift back up once they stop. */
+.feedwrap{height:430px;overflow-y:auto;position:relative;
+  scrollbar-width:thin;scrollbar-color:var(--rule) transparent;overscroll-behavior:contain}
+.feedwrap::-webkit-scrollbar{width:8px}
+.feedwrap::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+.feedwrap::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
+.item{display:block;text-decoration:none;padding:15px;border-bottom:1px solid var(--rule-2)}
+.item:hover{background:var(--sunk)}
+.item .when{font-size:11.5px;color:var(--ink-3);margin-bottom:5px}
+.item h4{font-size:14.5px;font-weight:600;line-height:1.3;letter-spacing:-.01em;margin-bottom:5px}
+.item p{font-size:12.5px;color:var(--ink-2);line-height:1.45}
+.item .tag{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--accent);
+  font-weight:600}
+
+.note{padding:28px 16px;color:var(--ink-3);font-size:13px;text-align:center}
+.load{display:inline-block;width:13px;height:13px;border:2px solid var(--rule);
+  border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;
+  vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+@media (max-width:1180px){
+  .cols{grid-template-columns:minmax(0,1fr) 300px}
+  .side{display:none}
+}
+@media (max-width:900px){
+  .cols{grid-template-columns:1fr}
+  .side-r{position:static}
+  .grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="cols">
+    <!-- left ------------------------------------------------------------- -->
+    <aside class="panel side">
+      <h3>Market Summary</h3>
+      <div class="seg" id="views">
+        <button data-v="market_cap" aria-pressed="true">Mkt cap</button>
+        <button data-v="gainers" aria-pressed="false">Gainers</button>
+        <button data-v="losers" aria-pressed="false">Losers</button>
+      </div>
+      <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
+    </aside>
+
+    <!-- centre ----------------------------------------------------------- -->
+    <section>
+      <div class="newshead">
+        <div>
+          <h1>Latest</h1>
+          <div class="meta" id="news-meta">Loading…</div>
+        </div>
+        <div id="active-filter"></div>
+      </div>
+      <div class="newsscroll" id="newsscroll">
+        <div class="grid" id="stories"><div class="note"><span class="load"></span></div></div>
+        <button class="more" id="more" hidden>Show more</button>
+      </div>
+    </section>
+
+    <!-- right ------------------------------------------------------------ -->
+    <aside class="side-r">
+      <div class="panel">
+        <h3 style="padding:13px 15px 9px">Topics</h3>
+        <form class="tsearch" id="tsearch">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+            stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="search" id="tq" placeholder="Search the news" autocomplete="off"
+                 aria-label="Search the news">
+        </form>
+        <div class="chips" id="chips"><span class="note" style="padding:0 0 12px">…</span></div>
+      </div>
+
+      <div class="panel">
+        <div class="feedhead"><span class="bolt">⚡</span><h3>The Feed</h3></div>
+        <div class="feedwrap" id="feedwrap">
+          <div class="feedtrack" id="feed"><div class="note"><span class="load"></span></div></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
+const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+
+async function rpc(fn, args){
+  if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
+  const r = await fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+    body: JSON.stringify(args || {}),
+  });
+  if (!r.ok) throw new Error(`${fn} failed (${r.status})`);
+  return r.json();
+}
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = v => v === null || v === undefined ? "—" : `${v>=0?"+":""}${v.toFixed(2)}%`;
+const dir = v => v >= 0 ? "up" : "down";
+const price = v => v === null || v === undefined ? "—"
+  : v >= 1000 ? v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})
+  : v.toFixed(2);
+
+/** Relative time, because "2 hours ago" is what a reader wants from a feed. */
+function ago(iso){
+  if (!iso) return "";
+  const then = new Date(iso.replace(" ", "T") + (/[Zz+]/.test(iso) ? "" : "Z"));
+  const mins = Math.max(0, Math.round((Date.now() - then.getTime()) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.round(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+}
+
+const AVATAR = ["--accent","#eb6834","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+const avatarColour = s => {
+  let h = 0; for (const ch of s) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  const c = AVATAR[h % AVATAR.length];
+  return c.startsWith("--") ? `var(${c})` : c;
+};
+
+const S = { view: "market_cap", q: null, label: null, page: 0, total: 0,
+            keywords: [], loading: false };
+const PAGE = 12;
+
+/* ---- left column --------------------------------------------------------- */
+async function setView(v){
+  S.view = v;
+  document.querySelectorAll("#views button").forEach(b =>
+    b.setAttribute("aria-pressed", b.dataset.v === v));
+  const host = document.getElementById("rows");
+  host.innerHTML = `<div class="note"><span class="load"></span></div>`;
+  let rows = [];
+  try { rows = await rpc("get_market_summary", { p_view: v, p_limit: 20 }) || []; } catch {}
+  if (!rows.length){ host.innerHTML = `<div class="note">No data.</div>`; return; }
+  host.innerHTML = `<table><thead><tr><th>Token</th><th>Price</th><th>Change</th></tr></thead>
+    <tbody>${rows.map(r => `
+      <tr data-s="${esc(r.symbol)}">
+        <td><span class="sym"><span class="dot" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>${esc(r.symbol)}</span></td>
+        <td>${esc(price(r.price))}</td>
+        <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
+      </tr>`).join("")}</tbody></table>`;
+  // Clicking a row filters the news to that company -- the whole reason the
+  // list sits beside the stories rather than on its own page.
+  host.querySelectorAll("tr[data-s]").forEach(tr =>
+    tr.onclick = () => setFilter(tr.dataset.s));
+}
+
+/* ---- centre column ------------------------------------------------------- */
+function storyCard(a){
+  return `<a class="story" href="${esc(a.url)}" target="_blank" rel="noopener">
+    ${a.image ? `<span class="thumb"><img src="${esc(a.image)}" alt="" loading="lazy"
+        onerror="this.parentNode.style.display='none'"></span>` : ""}
+    <h2>${esc(a.title)}</h2>
+    <p>${esc(a.summary || "")}</p>
+    <span class="by">
+      ${a.symbol ? `<span class="tag">${esc(a.symbol)}</span>` : ""}
+      <span>${esc(a.publisher || "")}</span><span>·</span><span>${esc(ago(a.published))}</span>
+    </span></a>`;
+}
+
+async function loadNews(reset){
+  if (reset) S.page = 0;
+  const host = document.getElementById("stories");
+  if (reset) host.innerHTML = `<div class="note"><span class="load"></span></div>`;
+
+  let d;
+  S.loading = true;
+  try {
+    d = await rpc("get_news", { p_q: S.q, p_limit: PAGE, p_offset: S.page * PAGE });
+  } catch (e) {
+    host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
+    S.loading = false;
+    return;
+  }
+  const arts = (d && d.articles) || [];
+  S.total = (d && d.total) || 0;
+
+  if (reset && !arts.length){
+    host.innerHTML = `<div class="note">Nothing matches ${S.q ? `“${esc(S.q)}”` : "this filter"} yet.</div>`;
+  } else {
+    const html = arts.map(storyCard).join("");
+    if (reset) host.innerHTML = html; else host.insertAdjacentHTML("beforeend", html);
+  }
+
+  document.getElementById("news-meta").textContent =
+    `${S.total.toLocaleString()} stories${d && d.newest ? ` · newest ${ago(d.newest)}` : ""}`;
+  const shown = (S.page + 1) * PAGE;
+  document.getElementById("more").hidden = shown >= S.total;
+
+  if (reset && d && d.keywords && d.keywords.length && !S.keywords.length){
+    S.keywords = d.keywords;
+    renderChips();
+  }
+  S.loading = false;
+}
+
+/* ---- right column: topics ------------------------------------------------ */
+// A chip shows a subject and searches for something else -- "The Fed" searches
+// "Fed", "Nvidia" searches NVDA -- so the label and the query travel together
+// and `S.label` is what the active-filter pill displays.
+function renderChips(){
+  const host = document.getElementById("chips");
+  if (!S.keywords.length){ host.innerHTML = `<span class="note" style="padding:0">No topics yet.</span>`; return; }
+
+  const group = kind => S.keywords.filter(k => k.kind === kind);
+  const chip = k =>
+    `<button data-q="${esc(k.query || k.word)}" data-l="${esc(k.word)}"
+       class="${k.kind === "company" ? "co" : ""}"
+       aria-pressed="${S.q && S.q.toLowerCase() === (k.query || k.word).toLowerCase()}"
+       title="${k.count} ${k.count === 1 ? "story" : "stories"}">${esc(k.word)}</button>`;
+
+  const companies = group("company");
+  host.innerHTML =
+    group("topic").map(chip).join("") +
+    // Anything the worker did not label stays visible rather than vanishing.
+    S.keywords.filter(k => k.kind !== "topic" && k.kind !== "company").map(chip).join("") +
+    (companies.length
+      ? `<div class="grouplabel">Most valuable companies</div>` + companies.map(chip).join("")
+      : "");
+
+  host.querySelectorAll("button").forEach(b => b.onclick = () =>
+    setFilter(S.q && S.q.toLowerCase() === b.dataset.q.toLowerCase() ? null : b.dataset.q,
+              b.dataset.l));
+}
+
+function setFilter(query, label){
+  S.q = query || null;
+  S.label = S.q ? (label || query) : null;
+  document.getElementById("active-filter").innerHTML = S.q
+    ? `<span class="chip-active">${esc(S.label)}<button id="clear" aria-label="Clear filter">×</button></span>`
+    : "";
+  const c = document.getElementById("clear");
+  if (c) c.onclick = () => setFilter(null);
+  const tq = document.getElementById("tq");
+  if (tq && tq.value.trim() !== (S.q || "")) tq.value = "";
+  renderChips();
+  loadNews(true);
+  document.getElementById("newsscroll").scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ---- right column: the scrolling feed ------------------------------------ */
+async function loadFeed(){
+  const host = document.getElementById("feed");
+  let rows = [];
+  try { rows = await rpc("get_news_feed", { p_hours: 24, p_limit: 30 }) || []; } catch {}
+  if (!rows.length){ host.innerHTML = `<div class="note">No stories in the last 24 hours.</div>`; return; }
+
+  const item = a => `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener">
+      <div class="when">${esc(ago(a.published))}${a.symbol ? ` · <span class="tag">${esc(a.symbol)}</span>` : ""}</div>
+      <h4>${esc(a.title)}</h4>
+      <p>${esc(a.summary || "")}</p></a>`;
+
+  // Rendered twice. The drift below wraps by exactly one copy's height in
+  // either direction, so the reader can scroll backwards past the start and
+  // keep finding stories instead of hitting a wall.
+  host.innerHTML = `<div id="feed-a">${rows.map(item).join("")}</div>` +
+                   `<div aria-hidden="true">${rows.map(item).join("")}</div>`;
+
+  requestAnimationFrame(() => startFeedDrift());
+}
+
+/** Auto-scroll the feed, yielding to the reader whenever they take hold. */
+function startFeedDrift(){
+  const wrap = document.getElementById("feedwrap");
+  const copy = document.getElementById("feed-a");
+  if (!wrap || !copy) return;
+
+  const h = () => copy.offsetHeight;
+  let held = 0;                       // timestamp until which the reader has it
+  let last = 0;
+  let pos = 1;                        // kept as a float; scrollTop may round
+  const SPEED = 22;                   // px a second — slow enough to read
+  const HOLD = 1200;                  // ms of quiet before the drift resumes
+
+  // Only an actual scroll gesture takes hold. Hovering must not: the drift
+  // moves content under a resting cursor, which fires pointermove, which
+  // would renew the hold forever and stop the feed for good.
+  const hold = () => { held = Date.now() + HOLD; pos = wrap.scrollTop; };
+  ["wheel", "touchstart", "touchmove", "pointerdown", "keydown"].forEach(e =>
+    wrap.addEventListener(e, hold, { passive: true }));
+
+  function frame(now){
+    requestAnimationFrame(frame);
+    const dt = last ? Math.min(100, now - last) : 0;
+    last = now;
+    const one = h();
+    if (!one) return;
+
+    // While the reader is driving, follow them. Otherwise advance our own
+    // float — a frame's worth of drift is a fraction of a pixel, so keeping
+    // the position outside scrollTop is what makes it move at all.
+    if (Date.now() < held) pos = wrap.scrollTop;
+    else pos += SPEED * dt / 1000;
+
+    // Wrap in both directions, so scrolling up past the top lands on the
+    // second copy rather than stopping.
+    if (pos >= one * 2 - wrap.clientHeight) pos -= one;
+    else if (pos < 1) pos += one;
+
+    if (Math.abs(wrap.scrollTop - pos) > 0.01) wrap.scrollTop = pos;
+  }
+  wrap.scrollTop = pos;
+  requestAnimationFrame(frame);
+}
+
+/* ---- boot ---------------------------------------------------------------- */
+(async function boot(){
+  if (!HOSTED){
+    document.getElementById("stories").innerHTML =
+      `<div class="note">config.js is missing, so this page has no data source.</div>`;
+    return;
+  }
+  document.querySelectorAll("#views button").forEach(b => b.onclick = () => setView(b.dataset.v));
+
+  // A ticker in the URL pre-filters, so a company page can link straight to
+  // "news about this company".
+  const t = new URLSearchParams(location.search).get("t");
+  if (t) S.q = t.toUpperCase();
+
+  setFilter(S.q);
+  setView("market_cap");
+  loadFeed();
+
+  // Free-text search, on the same filter as the chips.
+  const tq = document.getElementById("tq");
+  let typing = null;
+  document.getElementById("tsearch").onsubmit = e => {
+    e.preventDefault();
+    clearTimeout(typing);
+    setFilter(tq.value.trim() || null);
+  };
+  tq.addEventListener("input", () => {
+    clearTimeout(typing);
+    typing = setTimeout(() => setFilter(tq.value.trim() || null), 350);
+  });
+
+  const more = document.getElementById("more");
+  more.onclick = () => { S.page++; loadNews(false); };
+
+  // Reaching the bottom of the column is the same intent as pressing the
+  // button, so don't make them press it.
+  const scroller = document.getElementById("newsscroll");
+  scroller.addEventListener("scroll", () => {
+    if (S.loading || more.hidden) return;
+    if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 240) return;
+    S.page++;
+    loadNews(false);
+  }, { passive: true });
+})();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

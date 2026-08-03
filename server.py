@@ -81,13 +81,22 @@ class Handler(BaseHTTPRequestHandler):
         route = url.path
 
         try:
-            # Same two pages the deployed build serves, under the same names,
+            # The same pages the deployed build serves, under the same names,
             # so links behave identically locally and in production.
             if route in ("/", "/index.html"):
                 return self._file("landing.html", "text/html; charset=utf-8")
 
             if route in ("/company.html", "/company"):
                 return self._file("dashboard.html", "text/html; charset=utf-8")
+
+            if route in ("/news.html", "/news"):
+                return self._file("news.html", "text/html; charset=utf-8")
+
+            if route == "/nav.js":
+                return self._file("nav.js", "application/javascript")
+
+            if route == "/nav.css":
+                return self._file("nav.css", "text/css; charset=utf-8")
 
             if route == "/config.js":
                 # Deployed builds ship a real config.js pointing at Supabase.
