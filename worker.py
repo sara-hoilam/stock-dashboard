@@ -9,6 +9,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py market             refresh prices, movers and sectors
     python worker.py sections           refresh heatmap, rotation and trades
     python worker.py news               refresh market news
+    python worker.py prices [TICKER...] fill price requests, or named symbols
     python worker.py intraday TICKER    refresh one chart series
     python worker.py stats              coverage summary
     python worker.py run                the long-running loop (this is what
@@ -291,6 +292,33 @@ def refresh_news() -> bool:
     return True
 
 
+def drain_prices(max_items: int = 5) -> int:
+    """Fetch prices for the companies whose report pages have been opened.
+
+    Markets Today tracks a fixed sixty-odd names and can be pre-fetched. The
+    company report can be opened for any listed company, so prices are pulled
+    on demand -- the same shape as the filings backfill, and for the same
+    reason. Two requests per company: the daily bars and the quote.
+    """
+    if not market.configured():
+        return 0
+    done = 0
+    for sym in store.pending_prices(max_items):
+        try:
+            bars = market.daily(sym, 300)
+            q = market.quote_detail(sym)
+        except market.MarketError as exc:
+            log(f"  prices {sym}: {exc}")
+            # Mark it finished anyway, or the queue spins on a bad symbol.
+            store.upsert_prices(sym, [], None, None)
+            continue
+        store.upsert_prices(sym, bars, q, bars[-1]["d"] if bars else None)
+        log(f"prices {sym}: {len(bars)} bars"
+            f"{', quote' if q else ', no quote'}")
+        done += 1
+    return done
+
+
 def refresh_sections() -> bool:
     """Heatmap, sector rotation, insider and congressional trades.
 
@@ -400,6 +428,8 @@ def run() -> None:
             # Visitors first: a queued company should appear within a minute.
             if drain_backfill():
                 continue
+            if drain_prices():
+                continue
 
             today = dt.date.today()
             if last_sweep_day != today and dt.datetime.now().hour >= 22:
@@ -444,6 +474,18 @@ def main(argv: list[str]) -> int:
         log(f"drained {drain_backfill()} request(s)")
     elif cmd == "sweep":
         sweep(dt.date.fromisoformat(argv[1]) if len(argv) > 1 else None)
+    elif cmd == "prices":
+        if args:
+            # An explicit symbol skips the queue, for checking one by hand.
+            for sym in args:
+                bars = market.daily(sym.upper(), 300)
+                q = market.quote_detail(sym.upper())
+                store.upsert_prices(sym.upper(), bars, q,
+                                    bars[-1]["d"] if bars else None)
+                log(f"prices {sym.upper()}: {len(bars)} bars")
+        else:
+            log(f"filled {drain_prices(25)} price request(s)")
+
     elif cmd == "market":
         log("market refreshed" if refresh_market()
             else "FMP_API_KEY not set; nothing to do")
