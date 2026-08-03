@@ -49,8 +49,10 @@ h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
 .cols{display:grid;grid-template-columns:250px minmax(0,1fr) 300px;gap:18px;align-items:start}
 
 /* ---- left: the market summary list, same component as Markets Today ------ */
+/* The panel is as tall as its rows. A scrollbar inside a column that has room
+   to grow is friction for nothing. */
 .side h3{padding:13px 15px 9px}
-.rows{overflow-y:auto;max-height:560px}
+.rows{overflow:visible}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{position:sticky;top:0;background:var(--card);z-index:1;
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
@@ -84,6 +86,14 @@ tbody tr:hover td{background:var(--sunk)}
 .chip-active button{background:none;border:0;cursor:pointer;color:inherit;font:inherit;
   font-size:15px;line-height:1;padding:0 4px}
 
+/* The stories scroll inside their own column so the market summary and the
+   feed stay put beside them, and so the page does not grow without end. */
+.newsscroll{height:calc(100vh - var(--nav-h,56px) - 190px);min-height:520px;
+  overflow-y:auto;padding-right:10px;scrollbar-gutter:stable}
+.newsscroll::-webkit-scrollbar{width:9px}
+.newsscroll::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+.newsscroll::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
+.newsscroll{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 .story{display:flex;flex-direction:column;text-decoration:none}
 .story .thumb{width:100%;aspect-ratio:16/9;border-radius:9px;overflow:hidden;
@@ -99,7 +109,7 @@ tbody tr:hover td{background:var(--sunk)}
 .story .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
   background:var(--sunk);border:1px solid var(--rule);border-radius:5px;padding:1px 6px;
   color:var(--ink-2)}
-.more{display:block;width:100%;margin-top:22px;padding:11px;background:var(--card);
+.more{display:block;width:100%;margin:22px 0 4px;padding:11px;background:var(--card);
   border:1px solid var(--rule);border-radius:9px;font:inherit;font-size:13px;
   color:var(--ink-2);cursor:pointer}
 .more:hover{border-color:var(--accent);color:var(--accent)}
@@ -120,9 +130,14 @@ tbody tr:hover td{background:var(--sunk)}
 .feedhead .bolt{width:26px;height:26px;border-radius:50%;background:#e2694a;color:#fff;
   display:grid;place-items:center;font-size:13px;flex-shrink:0}
 .feedhead h3{letter-spacing:.09em;text-transform:uppercase;font-size:12px}
-.feedwrap{height:430px;overflow:hidden;position:relative}
-.feedtrack{will-change:transform}
-.feedwrap:hover .feedtrack{animation-play-state:paused}
+/* The feed drifts by moving its own scroll position rather than by a CSS
+   transform, so a reader can grab it and scroll back to a story that has
+   already gone past. It picks the drift back up once they stop. */
+.feedwrap{height:430px;overflow-y:auto;position:relative;
+  scrollbar-width:thin;scrollbar-color:var(--rule) transparent;overscroll-behavior:contain}
+.feedwrap::-webkit-scrollbar{width:8px}
+.feedwrap::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+.feedwrap::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
 .item{display:block;text-decoration:none;padding:15px;border-bottom:1px solid var(--rule-2)}
 .item:hover{background:var(--sunk)}
 .item .when{font-size:11.5px;color:var(--ink-3);margin-bottom:5px}
@@ -171,8 +186,10 @@ tbody tr:hover td{background:var(--sunk)}
         </div>
         <div id="active-filter"></div>
       </div>
-      <div class="grid" id="stories"><div class="note"><span class="load"></span></div></div>
-      <button class="more" id="more" hidden>Show more</button>
+      <div class="newsscroll" id="newsscroll">
+        <div class="grid" id="stories"><div class="note"><span class="load"></span></div></div>
+        <button class="more" id="more" hidden>Show more</button>
+      </div>
     </section>
 
     <!-- right ------------------------------------------------------------ -->
@@ -237,7 +254,7 @@ const avatarColour = s => {
   return c.startsWith("--") ? `var(${c})` : c;
 };
 
-const S = { view: "market_cap", q: null, page: 0, total: 0, keywords: [] };
+const S = { view: "market_cap", q: null, page: 0, total: 0, keywords: [], loading: false };
 const PAGE = 12;
 
 /* ---- left column --------------------------------------------------------- */
@@ -282,10 +299,12 @@ async function loadNews(reset){
   if (reset) host.innerHTML = `<div class="note"><span class="load"></span></div>`;
 
   let d;
+  S.loading = true;
   try {
     d = await rpc("get_news", { p_q: S.q, p_limit: PAGE, p_offset: S.page * PAGE });
   } catch (e) {
     host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
+    S.loading = false;
     return;
   }
   const arts = (d && d.articles) || [];
@@ -307,6 +326,7 @@ async function loadNews(reset){
     S.keywords = d.keywords;
     renderChips();
   }
+  S.loading = false;
 }
 
 /* ---- right column: topics ------------------------------------------------ */
@@ -330,7 +350,7 @@ function setFilter(word){
   if (c) c.onclick = () => setFilter(null);
   renderChips();
   loadNews(true);
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  document.getElementById("newsscroll").scrollTo({ top: 0, behavior: "smooth" });
 }
 
 /* ---- right column: the scrolling feed ------------------------------------ */
@@ -345,22 +365,55 @@ async function loadFeed(){
       <h4>${esc(a.title)}</h4>
       <p>${esc(a.summary || "")}</p></a>`;
 
-  // The list is rendered twice and translated by exactly one copy's height,
-  // so the loop closes seamlessly instead of snapping back at the end.
+  // Rendered twice. The drift below wraps by exactly one copy's height in
+  // either direction, so the reader can scroll backwards past the start and
+  // keep finding stories instead of hitting a wall.
   host.innerHTML = `<div id="feed-a">${rows.map(item).join("")}</div>` +
                    `<div aria-hidden="true">${rows.map(item).join("")}</div>`;
 
-  requestAnimationFrame(() => {
-    const h = document.getElementById("feed-a").offsetHeight;
-    if (!h) return;
-    const secs = Math.max(40, Math.round(h / 22));   // a readable pace
-    const style = document.getElementById("feed-anim") || document.createElement("style");
-    style.id = "feed-anim";
-    style.textContent =
-      `@keyframes feedscroll{from{transform:translateY(0)}to{transform:translateY(-${h}px)}}`;
-    document.head.appendChild(style);
-    host.style.animation = `feedscroll ${secs}s linear infinite`;
-  });
+  requestAnimationFrame(() => startFeedDrift());
+}
+
+/** Auto-scroll the feed, yielding to the reader whenever they take hold. */
+function startFeedDrift(){
+  const wrap = document.getElementById("feedwrap");
+  const copy = document.getElementById("feed-a");
+  if (!wrap || !copy) return;
+
+  const h = () => copy.offsetHeight;
+  let held = 0;                       // timestamp until which the reader has it
+  let last = 0;
+  let pos = 1;                        // kept as a float; scrollTop may round
+  const SPEED = 22;                   // px a second — slow enough to read
+
+  const hold = () => { held = Date.now() + 2500; pos = wrap.scrollTop; };
+  wrap.addEventListener("pointerenter", hold);
+  wrap.addEventListener("pointermove", hold);
+  ["wheel", "touchstart", "touchmove", "keydown"].forEach(e =>
+    wrap.addEventListener(e, hold, { passive: true }));
+
+  function frame(now){
+    requestAnimationFrame(frame);
+    const dt = last ? Math.min(100, now - last) : 0;
+    last = now;
+    const one = h();
+    if (!one) return;
+
+    // While the reader is driving, follow them. Otherwise advance our own
+    // float — a frame's worth of drift is a fraction of a pixel, so keeping
+    // the position outside scrollTop is what makes it move at all.
+    if (Date.now() < held) pos = wrap.scrollTop;
+    else pos += SPEED * dt / 1000;
+
+    // Wrap in both directions, so scrolling up past the top lands on the
+    // second copy rather than stopping.
+    if (pos >= one * 2 - wrap.clientHeight) pos -= one;
+    else if (pos < 1) pos += one;
+
+    if (Math.abs(wrap.scrollTop - pos) > 0.01) wrap.scrollTop = pos;
+  }
+  wrap.scrollTop = pos;
+  requestAnimationFrame(frame);
 }
 
 /* ---- boot ---------------------------------------------------------------- */
@@ -381,7 +434,18 @@ async function loadFeed(){
   setView("market_cap");
   loadFeed();
 
-  document.getElementById("more").onclick = () => { S.page++; loadNews(false); };
+  const more = document.getElementById("more");
+  more.onclick = () => { S.page++; loadNews(false); };
+
+  // Reaching the bottom of the column is the same intent as pressing the
+  // button, so don't make them press it.
+  const scroller = document.getElementById("newsscroll");
+  scroller.addEventListener("scroll", () => {
+    if (S.loading || more.hidden) return;
+    if (scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 240) return;
+    S.page++;
+    loadNews(false);
+  }, { passive: true });
 })();
 </script>
 <script src="nav.js"></script>

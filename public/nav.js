@@ -31,7 +31,9 @@
   const here = p => page === p || (p === "index.html" && page === "");
 
   document.body.insertAdjacentHTML("afterbegin", `
-    <div class="nav-strip"><div class="nav-in" id="nav-stats"></div></div>
+    <div class="nav-strip" id="nav-strip">
+      <div class="nav-tape" id="nav-tape"></div>
+    </div>
     <nav class="nav"><div class="nav-in">
       <a class="nav-brand" href="index.html" aria-label="Ticker Alpha home">
         <span class="nav-mark">TA</span><b>Ticker&nbsp;Alpha</b>
@@ -86,40 +88,51 @@
   setTheme(t0 || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
   window.setTheme = setTheme;
 
-  /* ---- stats strip ------------------------------------------------------ */
+  /* ---- ticker tape ------------------------------------------------------ */
+  // A marquee of index ETFs and large caps, each one a link to its page.
+  //
+  // The animation moves one copy of the list the width of one copy, with a
+  // second copy behind it, so the seam never shows and the loop needs no
+  // JavaScript per frame. Duration scales with content so a longer tape does
+  // not scroll faster.
   const pct = v => v === null || v === undefined ? "—"
     : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
   const dir = v => (v >= 0 ? "up" : "down");
+  const price = v => v === null || v === undefined ? ""
+    : v >= 1000 ? v.toLocaleString(undefined, { maximumFractionDigits: 0 })
+                : v.toFixed(2);
 
-  async function stats() {
-    const host = document.getElementById("nav-stats");
+  async function tape() {
+    const host = document.getElementById("nav-tape");
     if (!HOSTED) return;
+    let rows;
     try {
-      const [o, idx] = await Promise.all([
-        rpc("get_market_overview"),
-        rpc("get_market_summary", { p_view: "market_cap", p_limit: 40 }),
-      ]);
-      const byId = Object.fromEntries((idx || []).map(r => [r.symbol, r]));
-      const b = o && o.breadth;
-      const bits = [];
+      rows = await rpc("get_ticker_tape", { p_limit: 180 });
+    } catch {
+      // Before 0009 is applied, fall back to the watchlist so the strip is
+      // still a tape rather than an empty bar.
+      try { rows = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 50 }); }
+      catch { return; }
+    }
+    if (!rows || !rows.length) return;
 
-      if (o && o.asOf) bits.push(`<span class="mut">Last close ${esc(o.asOf)}</span>`);
-      ["SPY", "QQQ", "IWM", "DIA"].forEach(s => {
-        const q = byId[s];
-        if (q) bits.push(
-          `<a href="company.html?t=${s}"><span class="mut">${s}</span> ` +
-          `<b class="${dir(q.changePct)}">${pct(q.changePct)}</b></a>`);
-      });
-      if (b && b.total) bits.push(
-        `<span><span class="mut">Advancing</span> <b class="${dir(b.avgChange)}">${b.up}/${b.total}</b></span>`);
-      const best = o && o.sectors && o.sectors[0];
-      if (best) bits.push(
-        `<span><span class="mut">Top sector</span> <b class="${dir(best.changePct)}">${esc(best.sector)} ${pct(best.changePct)}</b></span>`);
+    const one = rows.map(r =>
+      `<a class="tape-i" href="company.html?t=${encodeURIComponent(r.symbol)}"` +
+      ` title="${esc(r.name || r.symbol)}">` +
+      `<span class="tape-s">${esc(r.symbol)}</span>` +
+      `<span class="tape-p">${price(r.price)}</span>` +
+      `<span class="${dir(r.changePct)}">${pct(r.changePct)}</span></a>`).join("");
 
-      host.innerHTML = bits.join("");
-    } catch { host.innerHTML = ""; }
+    host.innerHTML =
+      `<div class="tape-run" aria-label="Live prices">${one}</div>` +
+      `<div class="tape-run" aria-hidden="true">${one}</div>`;
+
+    // ~55px a second reads comfortably without being distracting.
+    const w = host.firstElementChild.scrollWidth;
+    host.style.setProperty("--tape-w", w + "px");
+    host.style.setProperty("--tape-t", Math.max(30, w / 55) + "s");
   }
-  stats();
+  tape();
 
   /* ---- ticker search ---------------------------------------------------- */
   const q = document.getElementById("nav-q"), ac = document.getElementById("nav-ac");

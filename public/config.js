@@ -15,7 +15,5 @@ window.ALPHATICKER_CONFIG = {
   // Google sign-in. The client id is public — it ships in the page the same way
   // the anon key does. The client secret belongs only in Supabase's provider
   // settings and must never appear in this file.
-  // Leave empty until the OAuth client exists; the nav then hides One Tap and
-  // explains the gap instead of opening a Google page that errors.
-  googleClientId: "",
+  googleClientId: "545683469665-p6u8svkptvshr5brkdn3ot99mrjnel4c.apps.googleusercontent.com",
 };

@@ -5,27 +5,46 @@
    is in rather than carrying its own palette.
 =========================================================================== */
 
+/* ---- ticker tape --------------------------------------------------------
+   Two identical runs side by side; the pair slides left by exactly one run's
+   width and snaps back, so the join is invisible. Hovering pauses it, because
+   a price you are trying to read should not walk away from you. */
 .nav-strip {
   background: var(--sunk);
   border-bottom: 1px solid var(--rule-2);
   font-size: 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow: hidden;
 }
-.nav-strip::-webkit-scrollbar { display: none; }
-.nav-strip .nav-in {
-  display: flex; gap: 20px; align-items: center;
-  padding: 7px 24px; white-space: nowrap;
+.nav-tape {
+  display: flex; width: max-content;
+  animation: tape-roll var(--tape-t, 60s) linear infinite;
 }
-.nav-strip a { text-decoration: none; color: inherit; }
-.nav-strip a:hover { color: var(--accent); }
-.nav-strip .mut { color: var(--ink-3); }
-.nav-strip b {
-  font-family: "IBM Plex Mono", monospace; font-weight: 600;
+.nav-tape:hover, .nav-tape:focus-within { animation-play-state: paused; }
+@keyframes tape-roll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-1 * var(--tape-w, 0px))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-tape { animation: none; }
+  .nav-strip { overflow-x: auto; scrollbar-width: none; }
+  .nav-strip::-webkit-scrollbar { display: none; }
+}
+.tape-run { display: flex; }
+.tape-i {
+  display: flex; align-items: baseline; gap: 7px;
+  padding: 7px 14px; white-space: nowrap;
+  text-decoration: none; color: var(--ink-2);
+  border-right: 1px solid var(--rule-2);
+}
+.tape-i:hover { background: var(--card); color: var(--ink); }
+.tape-s { font-weight: 600; letter-spacing: -.01em; }
+.tape-p, .tape-i .up, .tape-i .down {
+  font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
-.nav-strip .up { color: var(--up); }
-.nav-strip .down { color: var(--down); }
+.tape-p { color: var(--ink-3); }
+.tape-i .up { color: var(--up); }
+.tape-i .down { color: var(--down); }
 
 .nav {
   position: sticky; top: 0; z-index: 100;
