@@ -151,6 +151,11 @@ def drain_backfill(max_items: int = 25) -> int:
         store.finish_backfill(job["id"], err)
         if err:
             log(f"backfill {job['ticker']}: {err[:90]}")
+        else:
+            # A company being read for the first time is one whose report is
+            # about to be opened, so fetch its prices in the same pass rather
+            # than making the visitor wait for a second round trip.
+            fetch_prices(job["ticker"])
         done += 1
     return done
 
@@ -292,6 +297,24 @@ def refresh_news() -> bool:
     return True
 
 
+def fetch_prices(symbol: str) -> bool:
+    """Daily bars and a quote for one company. Two FMP requests."""
+    if not market.configured():
+        return False
+    sym = symbol.upper()
+    try:
+        bars = market.daily(sym, 300)
+        q = market.quote_detail(sym)
+    except market.MarketError as exc:
+        log(f"  prices {sym}: {exc}")
+        # Mark it finished anyway, or the queue spins on a bad symbol.
+        store.upsert_prices(sym, [], None, None)
+        return False
+    store.upsert_prices(sym, bars, q, bars[-1]["d"] if bars else None)
+    log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}")
+    return True
+
+
 def drain_prices(max_items: int = 5) -> int:
     """Fetch prices for the companies whose report pages have been opened.
 
@@ -304,18 +327,8 @@ def drain_prices(max_items: int = 5) -> int:
         return 0
     done = 0
     for sym in store.pending_prices(max_items):
-        try:
-            bars = market.daily(sym, 300)
-            q = market.quote_detail(sym)
-        except market.MarketError as exc:
-            log(f"  prices {sym}: {exc}")
-            # Mark it finished anyway, or the queue spins on a bad symbol.
-            store.upsert_prices(sym, [], None, None)
-            continue
-        store.upsert_prices(sym, bars, q, bars[-1]["d"] if bars else None)
-        log(f"prices {sym}: {len(bars)} bars"
-            f"{', quote' if q else ', no quote'}")
-        done += 1
+        if fetch_prices(sym):
+            done += 1
     return done
 
 
@@ -478,11 +491,7 @@ def main(argv: list[str]) -> int:
         if len(argv) > 1:
             # An explicit symbol skips the queue, for checking one by hand.
             for sym in argv[1:]:
-                bars = market.daily(sym.upper(), 300)
-                q = market.quote_detail(sym.upper())
-                store.upsert_prices(sym.upper(), bars, q,
-                                    bars[-1]["d"] if bars else None)
-                log(f"prices {sym.upper()}: {len(bars)} bars")
+                fetch_prices(sym)
         else:
             log(f"filled {drain_prices(25)} price request(s)")
 

@@ -255,6 +255,7 @@ tbody tr:hover td{background:var(--sunk)}
    deliberately lopsided rather than even. */
 .pricerow{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:18px;margin-bottom:20px}
 .pricerow[hidden]{display:none}
+.pricerow.waiting{grid-template-columns:1fr}
 .pricechart{padding-bottom:10px}
 .pricechart .phead p{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
   color:var(--ink-3);letter-spacing:-.01em}
@@ -1923,7 +1924,7 @@ async function loadPrices(){
   if (PRICE.symbol === sym && PRICE.bars.length) return paintPrices();
 
   let d = null;
-  try { d = await API.prices(sym); } catch { return; }
+  try { d = await API.prices(sym); } catch { return priceState("Prices are unavailable."); }
   if (!d) return;
 
   PRICE.symbol = sym;
@@ -1938,22 +1939,60 @@ async function loadPrices(){
   paintPrices();
 }
 
-/** The worker fills a request within a few seconds. Wait for it quietly
-    rather than showing an empty frame that never fills. */
+/** A company nobody has opened has no prices yet. Say that it is being
+    fetched, rather than leaving the space blank and hoping -- a silent gap
+    is indistinguishable from a broken page. */
+function priceState(msg, busy){
+  const row = document.getElementById("pricerow");
+  if (!row) return;
+  row.hidden = false;
+  row.classList.add("waiting");
+  row.innerHTML =
+    `<section class="card pricechart"><div class="note">
+       ${busy ? `<span class="load"></span> &nbsp;` : ""}${esc(msg)}
+     </div></section>`;
+}
+
+/** The worker fills a request in a few seconds when it is keeping up, and in
+    a minute or two when it is behind on filings. Wait the longer of those,
+    then say so plainly instead of leaving a space that never fills. */
 function pollPrices(sym){
   clearTimeout(PRICE.poll);
+  priceState(`Fetching prices for ${sym}…`, true);
   let tries = 0;
   const tick = async () => {
-    if (!S.company || S.company.ticker !== sym || tries++ > 20) return;
+    if (!S.company || S.company.ticker !== sym) return;
+    if (tries++ > 40) {                      // ~2 minutes
+      return priceState(
+        `Prices for ${sym} are still being fetched. Reload in a minute.`);
+    }
     let d = null;
     try { d = await API.prices(sym); } catch {}
     if (d && (d.bars || []).length) {
       PRICE.bars = d.bars; PRICE.quote = d.quote;
+      restorePriceRow();
       return paintPrices();
     }
     PRICE.poll = setTimeout(tick, 3000);
   };
-  PRICE.poll = setTimeout(tick, 2500);
+  PRICE.poll = setTimeout(tick, 2000);
+}
+
+/** priceState replaces the row's contents, so put the chart and panel back
+    before painting into them. */
+function restorePriceRow(){
+  const row = document.getElementById("pricerow");
+  if (!row || !row.classList.contains("waiting")) return;
+  row.classList.remove("waiting");
+  row.innerHTML = `
+    <section class="card pricechart">
+      <div class="phead"><div>
+        <h2>Price</h2>
+        <p id="price-sub"></p>
+      </div><div class="ranges" id="price-ranges"></div></div>
+      <div id="price-chart"><div class="ptip" id="ptip" hidden></div></div>
+    </section>
+    <aside class="card pricestats" id="price-stats"></aside>`;
 }
 
 function paintPrices(){
