@@ -475,9 +475,9 @@ def main(argv: list[str]) -> int:
     elif cmd == "sweep":
         sweep(dt.date.fromisoformat(argv[1]) if len(argv) > 1 else None)
     elif cmd == "prices":
-        if args:
+        if len(argv) > 1:
             # An explicit symbol skips the queue, for checking one by hand.
-            for sym in args:
+            for sym in argv[1:]:
                 bars = market.daily(sym.upper(), 300)
                 q = market.quote_detail(sym.upper())
                 store.upsert_prices(sym.upper(), bars, q,
