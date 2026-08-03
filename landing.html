@@ -165,7 +165,7 @@ svg{display:block;max-width:100%}
 .hmhead h3{font-size:14.5px;font-weight:600;letter-spacing:-.005em;margin:0 0 3px}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
 .legend{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;
-  font-size:11.5px;color:var(--ink-3);padding:0 18px 14px}
+  font-size:13.5px;color:var(--ink-3);padding:0 18px 14px}
 .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;
   vertical-align:-1px}
 
@@ -178,7 +178,7 @@ svg{display:block;max-width:100%}
 .tile span{position:absolute;left:4px;font-family:"IBM Plex Mono",monospace;
   color:rgba(255,255,255,.88);line-height:1;white-space:nowrap}
 .sectorbox{position:absolute}
-.sectorbox>h4{font-size:11.5px;font-weight:600;color:var(--ink-2);margin:0 0 3px 1px;
+.sectorbox>h4{font-size:14.5px;font-weight:600;color:var(--ink-2);margin:0 0 3px 1px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Compact tables for the trade panels. */
@@ -666,7 +666,7 @@ function renderHeatmap(sectors){
     document.getElementById("hm-legend").innerHTML = "";
     return;
   }
-  const W = 1180, H = 620, GAP = 8, HEAD = 16;
+  const W = 1180, H = 380, GAP = 8, HEAD = 22;
   const blocks = treemap(sectors, 0, 0, W, H, s => s.marketCap);
 
   const html = blocks.map(({it: sec, x, y, w, h}) => {
@@ -689,10 +689,15 @@ function renderHeatmap(sectors){
       // still name themselves.
       const fs = Math.max(8, Math.min(26, Math.sqrt(tw * th) / 4.6));
       const showPct = th > 34 && tw > 52;
+      const colour = heatColour(c.changePct);
       return `<a class="tile" href="company.html?t=${encodeURIComponent(c.symbol)}"
                  style="left:${tx}px;top:${ty}px;width:${Math.max(0,tw-2)}px;height:${Math.max(0,th-2)}px;
-                        background:${heatColour(c.changePct)}"
-                 title="${esc(c.name || c.symbol)} · ${esc(pct(c.changePct))} · ${esc(cap(c.marketCap))}">
+                        background:${colour}"
+                 data-name="${esc(c.name || c.symbol)}"
+                 data-symbol="${esc(c.symbol)}"
+                 data-pct="${esc(pct(c.changePct))}"
+                 data-cap="${esc(cap(c.marketCap))}"
+                 data-colour="${esc(colour)}">
                 <b style="font-size:${fs.toFixed(1)}px">${esc(c.symbol)}</b>
                 ${showPct ? `<span style="font-size:${Math.max(9, fs*0.5).toFixed(1)}px;
                    top:${(fs*1.15).toFixed(0)}px">${esc(pct(c.changePct))}</span>` : ""}
@@ -709,6 +714,16 @@ function renderHeatmap(sectors){
     `<span>Day change</span>` +
     [-6,-3,-1.5,-0.5,0.5,1.5,3,6].map(v =>
       `<span><i style="background:${heatColour(v)}"></i>${v > 0 ? "+" : ""}${v}%</span>`).join("");
+
+  // Same tip chrome as the sector charts: coloured swatch + label + value,
+  // plus market cap on a second row.
+  host.querySelectorAll("a.tile").forEach(el => {
+    el.addEventListener("mousemove", ev => showTip(ev, el.dataset.name, [
+      [el.dataset.symbol, el.dataset.pct, el.dataset.colour],
+      ["Market cap", el.dataset.cap],
+    ]));
+    el.addEventListener("mouseleave", hideTip);
+  });
 }
 
 /* ===========================================================================
@@ -832,7 +847,7 @@ function renderSectorPerf(rows){
   // The left margin has to clear the longest sector name -- "Communication
   // Services" is the one that sets it -- and the height is chosen so the bars
   // fill the panel rather than sitting in its top third.
-  const W = 570, H = 380, ml = 178, mr = 18, mt = 10, mb = 16;
+  const W = 570, H = 380, ml = 198, mr = 18, mt = 10, mb = 16;
   const pw = W - ml - mr, ph = H - mt - mb;
   const max = Math.max(...rows.map(r => Math.abs(r.changePct)), 0.5);
   const zero = ml + pw / 2;
@@ -848,10 +863,10 @@ function renderSectorPerf(rows){
     parts.push(`<rect x="${up ? zero : zero + w}" y="${cy - bh/2}" width="${Math.abs(w)}"
         height="${bh}" rx="3" fill="var(${up ? "--up" : "--down"})"
         data-s="${esc(r.sector)}" data-v="${r.changePct}" style="cursor:default"></rect>
-      <text x="${ml-10}" y="${cy+4.5}" text-anchor="end" font-size="13.5"
+      <text x="${ml-10}" y="${cy+5}" text-anchor="end" font-size="15.5"
         fill="var(--ink-2)">${esc(r.sector)}</text>
-      <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+4.5}"
-        text-anchor="${up ? "start" : "end"}" font-size="12" class="tnum"
+      <text x="${up ? zero + w + 6 : zero + w - 6}" y="${cy+5}"
+        text-anchor="${up ? "start" : "end"}" font-size="12.5" class="tnum"
         fill="var(${up ? "--up" : "--down"})" font-weight="600">${esc(pct(r.changePct))}</text>`);
   });
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
