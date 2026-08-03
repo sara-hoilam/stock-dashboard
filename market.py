@@ -192,6 +192,62 @@ def quote(symbol: str) -> dict | None:
     }
 
 
+def quote_detail(symbol: str) -> dict | None:
+    """Everything the company page's price panel shows, in one call.
+
+    `quote` already carries the session's range, the 52-week range and the
+    moving averages, so the panel costs a single request. The ratios are a
+    second, optional one -- a company with no earnings has no P/E, and that is
+    a fact about the company rather than a failure to fetch.
+    """
+    rows = _get("quote", symbol=symbol) or []
+    if not rows:
+        return None
+    r = rows[0]
+    out = {
+        "symbol": r.get("symbol"),
+        "name": r.get("name"),
+        "price": r.get("price"),
+        "change": r.get("change"),
+        "change_pct": r.get("changePercentage"),
+        "open": r.get("open"),
+        "previous_close": r.get("previousClose"),
+        "day_low": r.get("dayLow"),
+        "day_high": r.get("dayHigh"),
+        "year_low": r.get("yearLow"),
+        "year_high": r.get("yearHigh"),
+        "volume": r.get("volume"),
+        "market_cap": r.get("marketCap"),
+        "avg_50": r.get("priceAvg50"),
+        "avg_200": r.get("priceAvg200"),
+        "exchange": r.get("exchange"),
+    }
+    try:
+        rr = (_get("ratios-ttm", symbol=symbol) or [{}])[0]
+        out["pe"] = rr.get("priceToEarningsRatioTTM")
+        out["pb"] = rr.get("priceToBookRatioTTM")
+        out["dividend_yield"] = rr.get("dividendYieldTTM")
+    except MarketError:
+        pass
+    if out["market_cap"] and out["price"]:
+        out["shares"] = out["market_cap"] / out["price"]
+    return out
+
+
+def daily(symbol: str, days: int = 300) -> list[dict]:
+    """Daily bars, oldest first, for the candlestick chart."""
+    end = dt.date.today()
+    start = end - dt.timedelta(days=max(30, days))
+    rows = _get("historical-price-eod/full", symbol=symbol,
+                **{"from": start.isoformat(), "to": end.isoformat()}) or []
+    bars = [{"d": r["date"], "o": r.get("open"), "h": r.get("high"),
+             "l": r.get("low"), "c": r.get("close"), "v": r.get("volume")}
+            for r in rows
+            if r.get("date") and r.get("close") is not None]
+    bars.sort(key=lambda b: b["d"])
+    return bars
+
+
 def quotes(symbols: list[str]) -> list[dict]:
     """Batch quoting is not in every FMP plan, so fetch one at a time.
 

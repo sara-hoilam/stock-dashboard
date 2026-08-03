@@ -61,22 +61,7 @@ body{
 .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 
-/* ---- command bar --------------------------------------------------------- */
-/* Sticks below the shared nav, which publishes its own height as --nav-h. */
-.bar{
-  position:sticky; top:var(--nav-h,0px); z-index:50;
-  background:color-mix(in srgb, var(--ground) 88%, transparent);
-  backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--rule);
-}
-.bar-in{
-  max-width:1360px; margin:0 auto; padding:12px 24px;
-  display:flex; gap:14px; align-items:center; flex-wrap:wrap;
-}
-.brand{display:flex;align-items:baseline;gap:9px;margin-right:4px}
-.brand b{font-family:"IBM Plex Serif",Georgia,serif;font-weight:600;font-size:16px;letter-spacing:-.01em}
-.brand span{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3)}
-
+/* ---- form controls ------------------------------------------------------- */
 .field{position:relative;display:flex;flex-direction:column;gap:3px}
 .field>label{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
 input,select,button{font:inherit;color:inherit}
@@ -129,8 +114,12 @@ main{max-width:1360px;margin:0 auto;padding:24px 24px 72px}
 }
 .chip.key{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .period{text-align:right}
-.period .big{font-family:"IBM Plex Serif",Georgia,serif;font-size:25px;font-weight:600;letter-spacing:-.01em}
-.period .small{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+/* The period pickers sit where the period used to be printed, so choosing a
+   quarter happens at the place the reader is already looking. */
+.qpick{display:flex;gap:10px;justify-content:flex-end}
+.qpick .field>label{text-align:left}
+.qpick select{font-size:14px;min-height:38px}
+.period .small{font-size:11.5px;color:var(--ink-3);margin-top:7px}
 .period a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
 .period a:hover{border-bottom-color:var(--accent)}
 
@@ -260,33 +249,66 @@ tbody tr:hover td{background:var(--sunk)}
   color:var(--ink-2);cursor:pointer}
 .hero-eg button:hover{border-color:var(--accent);color:var(--accent)}
 
-@media print{ .bar{display:none} .card{box-shadow:none} body{background:#fff} }
+
+/* ---- price: the market's view, beside the filing's ----------------------- */
+/* The chart is the point and the numbers are the footnote, so the split is
+   deliberately lopsided rather than even. */
+.pricerow{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:18px;margin-bottom:20px}
+.pricerow[hidden]{display:none}
+.pricechart{padding-bottom:10px}
+.pricechart .phead p{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+  color:var(--ink-3);letter-spacing:-.01em}
+#price-chart{padding:0 14px}
+.pchart{width:100%;height:auto;display:block;touch-action:none}
+.pchart .ax{font-family:"IBM Plex Mono",monospace;font-size:9.5px;fill:var(--ink-3)}
+.pchart .ax.mid{text-anchor:middle}
+
+.ranges{display:flex;gap:4px;flex-shrink:0}
+.ranges button{background:var(--sunk);border:1px solid var(--rule);border-radius:6px;
+  padding:4px 10px;font-size:11.5px;font-weight:500;color:var(--ink-2);cursor:pointer;
+  min-height:0}
+.ranges button:hover{border-color:var(--accent);color:var(--accent)}
+.ranges button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);
+  color:#fff}
+
+.pricestats{padding:16px 18px 14px;display:flex;flex-direction:column}
+.pq{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;
+  padding-bottom:13px;border-bottom:1px solid var(--rule)}
+.pq-price{font-family:"IBM Plex Mono",monospace;font-size:29px;font-weight:600;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.pq-chg{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:500}
+.pstats{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:4px}
+.pstats>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  padding:7px 0;border-bottom:1px solid var(--rule-2)}
+.pstats dt{font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.pstats dd{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500;
+  font-variant-numeric:tabular-nums;text-align:right}
+.pnote{margin-top:11px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3)}
+
+@media (max-width:1080px){
+  .pricerow{grid-template-columns:1fr}
+  .pstats{grid-template-columns:1fr 1fr 1fr}
+}
+@media (max-width:640px){ .pstats{grid-template-columns:1fr 1fr} }
+
+@media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} }
 </style>
 </head>
 <body>
 
-<div class="bar">
-  <div class="bar-in">
-    <div class="brand"><b>Filed financials</b><span>SEC EDGAR</span></div>
-
-    <div class="field">
-      <label for="q">Company, ticker or CIK</label>
-      <input type="text" id="q" placeholder="GOOGL, Apple, or a CIK…" autocomplete="off"
-             role="combobox" aria-expanded="false" aria-controls="ac">
-      <div class="ac" id="ac" role="listbox"></div>
-    </div>
-
-    <div class="field">
-      <label for="fy">Fiscal year</label>
-      <select id="fy" disabled></select>
-    </div>
-
-    <div class="field">
-      <label for="fq">Quarter</label>
-      <select id="fq" disabled></select>
-    </div>
-
-    <div class="spacer"></div>
+<!-- The period pickers live here between renders and are moved into the report
+     header once it exists. Moving the nodes rather than re-creating them keeps
+     their options and listeners, which render() would otherwise destroy every
+     time it rewrites main. Company search is in the top nav. -->
+<div id="controls" hidden>
+  <div class="field">
+    <label for="fy">Fiscal year</label>
+    <select id="fy" disabled></select>
+  </div>
+  <div class="field">
+    <label for="fq">Quarter</label>
+    <select id="fq" disabled></select>
   </div>
 </div>
 
@@ -297,9 +319,7 @@ tbody tr:hover td{background:var(--sunk)}
     <span class="hero-badge">SEC EDGAR</span>
     <h1>Unlock the full report.</h1>
     <p class="hero-sub">
-      Every quarter a company has filed — revenue traced from its sources through
-      costs to net income, segment by segment, margins and cash flow over time.
-      Read straight from the filing, never estimated.
+      Every quarter a company has filed, read straight from the filing.
     </p>
 
     <div class="hero-search">
@@ -438,6 +458,11 @@ const API = {
   requestBackfill: ticker => HOSTED
     ? rpc("request_backfill", { p_ticker: ticker })
     : Promise.resolve(null),
+
+  prices: symbol => HOSTED ? rpc("get_prices", { p_symbol: symbol })
+                           : Promise.resolve(null),
+  requestPrices: symbol => HOSTED ? rpc("request_prices", { p_symbol: symbol })
+                                  : Promise.resolve(null),
 };
 
 /* ===========================================================================
@@ -498,9 +523,7 @@ function wireSearch(input, ac){
   input.addEventListener("blur", () => setTimeout(close, 120));
 }
 
-const qEl  = document.getElementById("q");
 const hqEl = document.getElementById("hq");
-wireSearch(qEl,  document.getElementById("ac"));
 wireSearch(hqEl, document.getElementById("hac"));
 
 document.querySelectorAll(".hero-eg button").forEach(b =>
@@ -537,9 +560,7 @@ async function waitForBackfill(ticker){
     page can be linked to, reloaded and gone back from. */
 function openReport(ticker){
   document.getElementById("hero").hidden = true;
-  document.querySelector(".bar").hidden = false;
   main.hidden = false;
-  qEl.value = ticker;
   const url = `${location.pathname}?t=${encodeURIComponent(ticker)}`;
   if (location.search !== `?t=${encodeURIComponent(ticker)}`)
     history.pushState({ t: ticker }, "", url);
@@ -705,6 +726,12 @@ function fmtBy(unit, v, dp){
 =========================================================================== */
 function render(){
   const c = S.company, q = S.quarter;
+
+  // Park the pickers outside main before the rewrite below destroys it. They
+  // carry this company's quarters and their listeners, so they are moved back
+  // and forth rather than rebuilt.
+  document.getElementById("controls").append(
+    ...document.querySelectorAll("#qpick > *"));
   const filingUrl = q.accession
     ? `https://www.sec.gov/Archives/edgar/data/${c.cik}/${q.accession.replace(/-/g,"")}/`
     : `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${c.cik}&type=10-`;
@@ -721,7 +748,7 @@ function render(){
         </div>
       </div>
       <div class="period">
-        <div class="big">Q${q.fq} FY${q.fy}</div>
+        <div class="qpick" id="qpick"></div>
         <div class="small">
           ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)}<br>
           ${q.basis === "derived"
@@ -731,6 +758,17 @@ function render(){
           <a href="${filingUrl}" target="_blank" rel="noopener">filing ↗</a>
         </div>
       </div>
+    </div>
+
+    <div class="pricerow" id="pricerow" hidden>
+      <section class="card pricechart">
+        <div class="phead"><div>
+          <h2>Price</h2>
+          <p id="price-sub"></p>
+        </div><div class="ranges" id="price-ranges"></div></div>
+        <div id="price-chart"></div>
+      </section>
+      <aside class="card pricestats" id="price-stats"></aside>
     </div>
 
     <div class="kpis" id="kpis"></div>
@@ -840,7 +878,11 @@ function render(){
     <div class="foot" id="foot"></div>
   `;
 
+  document.getElementById("qpick").append(
+    ...document.getElementById("controls").children);
+
   renderKPIs();
+  loadPrices();
   renderSankey();
   renderMix();
   renderRevTrend();
@@ -1816,11 +1858,254 @@ addEventListener("themechange", () => {
   if (S.company) { renderSankey(); renderMix(); renderRevTrend(); renderMargins(); renderCostStack(); }
 });
 
+
+/* ===========================================================================
+   Price
+
+   Daily candles with a volume band beneath, and the last session's numbers
+   beside them. Prices are the market's view of the company; everything else on
+   this page is the company's own account of itself. They are kept visibly
+   apart for that reason.
+=========================================================================== */
+const PRICE = { symbol: null, bars: [], quote: null, range: 126, poll: null };
+const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["Max", 0]];
+
+/** Ticks between two values. niceTicks() starts at zero, which is right for a
+    bar chart and wrong for a price axis: a stock between 160 and 240 would
+    spend most of the panel on empty space below it. */
+function bandTicks(lo, hi, count = 5){
+  const raw = (hi - lo) / count;
+  if (!(raw > 0)) return [lo];
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || mag * 10;
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(v);
+  return out;
+}
+
+/** 1.2K, 4.9M, 2.1B — for volumes and share counts, which are never read to
+    the unit. */
+function compact(v){
+  if (v === null || v === undefined) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e12) return (v / 1e12).toFixed(2) + "T";
+  if (a >= 1e9)  return (v / 1e9).toFixed(2) + "B";
+  if (a >= 1e6)  return (v / 1e6).toFixed(2) + "M";
+  if (a >= 1e3)  return (v / 1e3).toFixed(1) + "K";
+  return String(Math.round(v));
+}
+
+async function loadPrices(){
+  const sym = S.company && S.company.ticker;
+  if (!sym || !HOSTED) return;              // the local server has no prices
+
+  // Re-rendering the report for another quarter must not refetch.
+  if (PRICE.symbol === sym && PRICE.bars.length) return paintPrices();
+
+  let d = null;
+  try { d = await API.prices(sym); } catch { return; }
+  if (!d) return;
+
+  PRICE.symbol = sym;
+  PRICE.bars = d.bars || [];
+  PRICE.quote = d.quote || null;
+
+  if (!PRICE.bars.length || d.stale) {
+    // Nobody has opened this company before, or the bars are yesterday's.
+    try { await API.requestPrices(sym); } catch {}
+    if (!PRICE.bars.length) return pollPrices(sym);
+  }
+  paintPrices();
+}
+
+/** The worker fills a request within a few seconds. Wait for it quietly
+    rather than showing an empty frame that never fills. */
+function pollPrices(sym){
+  clearTimeout(PRICE.poll);
+  let tries = 0;
+  const tick = async () => {
+    if (!S.company || S.company.ticker !== sym || tries++ > 20) return;
+    let d = null;
+    try { d = await API.prices(sym); } catch {}
+    if (d && (d.bars || []).length) {
+      PRICE.bars = d.bars; PRICE.quote = d.quote;
+      return paintPrices();
+    }
+    PRICE.poll = setTimeout(tick, 3000);
+  };
+  PRICE.poll = setTimeout(tick, 2500);
+}
+
+function paintPrices(){
+  const row = document.getElementById("pricerow");
+  if (!row || !PRICE.bars.length) return;
+  row.hidden = false;
+
+  const ranges = document.getElementById("price-ranges");
+  ranges.innerHTML = RANGES.map(([lab, n]) =>
+    `<button data-n="${n}" aria-pressed="${PRICE.range === n}">${lab}</button>`).join("");
+  ranges.querySelectorAll("button").forEach(b =>
+    b.onclick = () => { PRICE.range = +b.dataset.n; paintPrices(); });
+
+  drawPriceStats();          // sets the caption the crosshair restores
+  drawCandles();
+}
+
+function visibleBars(){
+  const n = PRICE.range;
+  return n > 0 ? PRICE.bars.slice(-n) : PRICE.bars;
+}
+
+function drawCandles(){
+  const bars = visibleBars();
+  const host = document.getElementById("price-chart");
+  if (!bars.length) { host.innerHTML = ""; return; }
+
+  const W = 900, H = 330, VH = 58;          // of which VH is the volume band
+  const ml = 8, mr = 56, mt = 10, mb = 22;
+  const pw = W - ml - mr, ph = H - mt - mb - VH - 12;
+
+  const lo = Math.min(...bars.map(b => b.l ?? b.c));
+  const hi = Math.max(...bars.map(b => b.h ?? b.c));
+  const pad = (hi - lo) * 0.06 || 1;
+  const y0 = lo - pad, y1 = hi + pad;
+  const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
+
+  const vmax = Math.max(...bars.map(b => b.v || 0)) || 1;
+  const vy = v => H - mb - (v / vmax) * VH;
+
+  const step = pw / bars.length;
+  const bw = Math.max(1, Math.min(9, step * 0.62));
+  const x = i => ml + step * (i + 0.5);
+  const col = b => (b.c ?? 0) >= (b.o ?? b.c ?? 0) ? "var(--up)" : "var(--down)";
+
+  const candles = bars.map((b, i) => {
+    const top = y(Math.max(b.o ?? b.c, b.c)), bot = y(Math.min(b.o ?? b.c, b.c));
+    return `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}"
+              y1="${y(b.h ?? b.c).toFixed(1)}" y2="${y(b.l ?? b.c).toFixed(1)}"
+              stroke="${col(b)}" stroke-width="1"/>
+            <rect x="${(x(i) - bw / 2).toFixed(1)}" y="${top.toFixed(1)}"
+              width="${bw.toFixed(1)}" height="${Math.max(1, bot - top).toFixed(1)}"
+              fill="${col(b)}"/>`;
+  }).join("");
+
+  const vols = bars.map((b, i) =>
+    `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${vy(b.v || 0).toFixed(1)}"
+       width="${bw.toFixed(1)}" height="${(H - mb - vy(b.v || 0)).toFixed(1)}"
+       fill="${col(b)}" opacity=".26"/>`).join("");
+
+  // A 50-day mean, drawn only where fifty days exist behind it.
+  const closes = bars.map(b => b.c);
+  const maPts = [];
+  for (let i = 49; i < closes.length; i++) {
+    const m = closes.slice(i - 49, i + 1).reduce((a, v) => a + v, 0) / 50;
+    maPts.push(`${x(i).toFixed(1)},${y(m).toFixed(1)}`);
+  }
+
+  const ticks = bandTicks(y0, y1, 5);
+  const grid = ticks.map(t => `
+    <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
+      stroke="var(--rule-2)" stroke-width="1"/>
+    <text x="${W - mr + 7}" y="${(y(t) + 3.5).toFixed(1)}" class="ax">${t < 10 ? t.toFixed(2) : Math.round(t)}</text>`).join("");
+
+  // Dates at a readable density, whatever the range.
+  const every = Math.max(1, Math.round(bars.length / 7));
+  const dates = bars.map((b, i) => i % every === 0 && i < bars.length - every / 2
+    ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" class="ax mid">${shortDate(b.d)}</text>` : "")
+    .join("");
+
+  host.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
+         aria-label="Daily prices for ${esc(PRICE.symbol)}">
+      ${grid}${vols}${candles}
+      ${maPts.length ? `<polyline points="${maPts.join(" ")}" fill="none"
+        stroke="var(--accent)" stroke-width="1.4" opacity=".85"/>` : ""}
+      ${dates}
+      <g id="pcross" style="display:none">
+        <line id="pcx" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
+          stroke-width="1" stroke-dasharray="3 3"/>
+        <line id="pcy" x1="${ml}" x2="${W - mr}" stroke="var(--ink-3)"
+          stroke-width="1" stroke-dasharray="3 3"/>
+      </g>
+      <rect x="${ml}" y="0" width="${pw}" height="${H}" fill="transparent" id="phit"/>
+    </svg>`;
+
+  // Crosshair. It reads out the bar under the pointer in the caption rather
+  // than in a floating box, so it never covers the candles it describes.
+  const svg = host.querySelector("svg");
+  const cross = host.querySelector("#pcross");
+  const cx = host.querySelector("#pcx"), cy = host.querySelector("#pcy");
+  const sub = document.getElementById("price-sub");
+  const base = sub.textContent;
+  const hit = host.querySelector("#phit");
+
+  hit.addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(bars.length - 1, Math.round((px - ml) / step - 0.5)));
+    const b = bars[i];
+    cross.style.display = "";
+    cx.setAttribute("x1", x(i)); cx.setAttribute("x2", x(i));
+    cy.setAttribute("y1", y(b.c)); cy.setAttribute("y2", y(b.c));
+    const f = v => v === null || v === undefined ? "—" : v.toFixed(2);
+    sub.textContent = `${longDate(b.d)}  ·  O ${f(b.o)}  H ${f(b.h)}  ` +
+                      `L ${f(b.l)}  C ${f(b.c)}  ·  Vol ${compact(b.v || 0)}`;
+  });
+  hit.addEventListener("pointerleave", () => {
+    cross.style.display = "none";
+    sub.textContent = base;
+  });
+}
+
+function drawPriceStats(){
+  const q = PRICE.quote, bars = PRICE.bars;
+  const last = bars[bars.length - 1];
+  const host = document.getElementById("price-stats");
+  const price = q && q.price !== null && q.price !== undefined ? q.price : last.c;
+  const chg = q ? q.change : null;
+  const chgPct = q ? q.change_pct : null;
+
+  document.getElementById("price-sub").textContent =
+    `Daily closes through ${longDate(last.d)} · market data, not from the filing`;
+
+  const n = (v, d = 2) => v === null || v === undefined ? "—" : v.toFixed(d);
+  const rows = [
+    ["Open", n(q && q.open)],
+    ["Prev close", n(q && q.previous_close)],
+    ["Day low", n(q && q.day_low)],
+    ["Day high", n(q && q.day_high)],
+    ["52wk low", n(q && q.year_low)],
+    ["52wk high", n(q && q.year_high)],
+    ["50d avg", n(q && q.avg_50)],
+    ["200d avg", n(q && q.avg_200)],
+    ["Volume", q && q.volume ? compact(q.volume) : "—"],
+    ["Market cap", q && q.market_cap ? "$" + compact(q.market_cap) : "—"],
+    ["Shares out", q && q.shares ? compact(q.shares) : "—"],
+    // A company with no earnings has no P/E. That is a fact about the
+    // company, not a gap in the data, so it says so.
+    ["P/E (TTM)", q ? (q.pe ? n(q.pe, 1) : "Loss") : "—"],
+    ["P/B", n(q && q.pb, 2)],
+    ["Div yield", q && q.dividend_yield
+      ? (q.dividend_yield * 100).toFixed(2) + "%" : "—"],
+  ];
+  const dirClass = (chgPct ?? 0) >= 0 ? "up" : "down";
+
+  host.innerHTML = `
+    <div class="pq">
+      <div class="pq-price ${dirClass}">${n(price)}</div>
+      ${chg === null || chg === undefined ? "" : `<div class="pq-chg ${dirClass}">
+        ${chg >= 0 ? "+" : ""}${n(chg)} &nbsp; ${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</div>`}
+    </div>
+    <dl class="pstats">
+      ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
+    </dl>
+    <p class="pnote">Last trading day${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>`;
+}
+
 /** No ticker in the URL means the visitor arrived from the nav rather than
     from a link, so ask which company instead of picking one for them. */
 function showHero(){
   document.getElementById("hero").hidden = false;
-  document.querySelector(".bar").hidden = true;
   main.hidden = true;
   hqEl.value = "";
   hqEl.focus({ preventScroll: true });

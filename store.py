@@ -174,3 +174,13 @@ def replace_trades(insiders: list[dict], congress: list[dict]) -> int:
 
 def upsert_news(rows: list[dict], keywords: list[dict]) -> int:
     return rpc("upsert_news", {"p_rows": rows, "p_keywords": keywords}) or 0
+
+
+def upsert_prices(symbol: str, bars: list[dict], quote: dict | None,
+                  as_of: str | None) -> int:
+    return rpc("upsert_prices", {"p_symbol": symbol, "p_bars": bars,
+                                 "p_quote": quote, "p_as_of": as_of}) or 0
+
+
+def pending_prices(limit: int = 5) -> list[str]:
+    return rpc("pending_prices", {"p_limit": limit}) or []
