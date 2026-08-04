@@ -220,7 +220,7 @@ tbody tr:hover td{background:var(--sunk)}
 .hidden{display:none!important}
 
 @media (max-width:1180px){ .kpis{grid-template-columns:repeat(3,1fr)} .grid2{grid-template-columns:1fr} }
-@media (max-width:640px){ .kpis{grid-template-columns:repeat(2,1fr)} .ident h1{font-size:25px} main{padding:16px 14px 60px} .bar-in{padding:10px 14px} }
+@media (max-width:640px){ .ident h1{font-size:25px} main{padding:16px 14px 60px} .bar-in{padding:10px 14px} }
 /* ---- the empty state: ask for a company ---------------------------------- */
 .hero{display:grid;place-items:center;padding:clamp(48px,12vh,120px) 24px 90px}
 /* display:grid above would otherwise beat [hidden] and leave the empty state
@@ -437,44 +437,114 @@ tbody tr:hover td{background:var(--sunk)}
   .ranges{padding-right:0}
   .ranges button{padding:6px 11px;font-size:12px}
 
-  .kpis{padding:12px 14px;margin-bottom:12px;gap:8px}
-  .kpi{padding:11px 12px}
-  .kpi .v{font-size:18px}
-
-  .panel{margin-bottom:12px;border-radius:0;border-left:0;border-right:0;box-shadow:none}
-  .phead{padding:14px 14px 0}
-  .phead p{max-width:none;font-size:11.5px}
-  .scroll{padding:4px 0 14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .scroll svg,.lwrap svg,.swrap svg{max-width:none}
-  /* Narrow charts stretch to the phone; wide ones keep a readable height and
-     spill horizontally so labels stay legible before pinch-zoom. */
-  .zoom-host svg:not(.schart){width:100%!important;height:auto!important;max-width:none}
-  .zoom-host svg.schart{
-    width:auto!important;height:min(56vh,520px)!important;max-width:none;
+  .kpis{
+    display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:0;
+    padding:0;margin:0 0 8px;background:var(--card);
+    border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
   }
-  .lwrap{padding:2px 0 12px}
-  .lchart{height:min(42vh,380px);max-width:none}
+  .kpi{
+    padding:6px 8px 7px;border:0;border-radius:0;box-shadow:none;
+    background:transparent;border-right:1px solid var(--rule-2);
+    border-bottom:1px solid var(--rule-2);
+  }
+  .kpi:nth-child(3n){border-right:0}
+  .kpi:nth-last-child(-n+3){border-bottom:0}
+  .kpi .k{font-size:8.5px;letter-spacing:.07em;margin:0}
+  .kpi .v{font-size:12px;margin-top:2px;letter-spacing:-.02em;line-height:1.15}
+  .kpi .d{font-size:9.5px;margin-top:1px;flex-wrap:wrap;gap:1px 3px;line-height:1.2}
+  .kpi .h{display:none}
+
+  .panel{margin-bottom:10px;border-radius:0;border-left:0;border-right:0;box-shadow:none}
+  .phead{padding:10px 14px 0;gap:10px}
+  .phead p{max-width:none;font-size:11px;line-height:1.35}
+  #sankey-panel .phead p{display:none} /* keep Filing dense; expand for the diagram */
+  .scroll{padding:4px 0 10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .scroll svg,.lwrap svg,.swrap svg{max-width:none}
+  /* Fit the whole diagram to the phone width — never crop the right edge. */
+  #sankey{overflow-x:auto;overflow-y:visible;min-height:0;touch-action:pan-y;
+    padding:2px 0 6px;-webkit-overflow-scrolling:touch}
+  #sankey svg.schart{
+    width:100%!important;height:auto!important;max-width:none;display:block;
+  }
+  .scroll svg:not(.schart),.lwrap svg{
+    width:100%!important;height:auto!important;max-width:none;
+  }
+  .lwrap{padding:2px 0 10px}
+  .lchart{max-height:min(36vh,300px);max-width:none;touch-action:pan-y}
+  .pchart{touch-action:pan-y pinch-zoom}
   .foot{display:none}
   #mtab-filing .mfoot{display:block;padding:18px 14px 0;margin:18px 14px 0;
     border-top:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.7}
-  .legend{padding:0 14px 14px}
+  .legend{padding:0 14px 12px}
   .bpad{padding:14px}
   .grouphead{padding:0 14px;margin:18px 0 10px;font-size:17px}
   .pairrow{gap:12px;margin:0}
-  .swrap{padding:0 8px 14px}
+  .swrap{padding:0 6px 12px;overflow-x:hidden}
+  .season{
+    font-size:7.5px;border-spacing:1px;table-layout:fixed;width:100%;
+  }
+  .season th{font-size:7px;padding:2px 0;letter-spacing:0}
+  .season tbody th,.season tfoot th{
+    font-size:7px;padding:2px 2px 2px 0;text-align:left;
+    max-width:28px;overflow:hidden;text-overflow:ellipsis;
+  }
+  .season td{padding:2px 0;font-size:7px;border-radius:2px}
   .newswrap{height:min(70vh,640px);padding:0}
 
+  /* Zoom hosts no longer trap the page scroll; pinch still works via JS. */
   .zoom-host{
-    overflow:hidden;touch-action:none;
-    min-height:min(56vh,520px);background:var(--card);
+    overflow-x:auto;overflow-y:visible;touch-action:pan-y;
+    min-height:0;background:transparent;-webkit-overflow-scrolling:touch;
   }
-  .zoom-host .zoom-layer{min-height:100%}
+  .zoom-host .zoom-layer{min-height:0}
   .zoom-hint{
     position:absolute;right:10px;bottom:10px;z-index:4;
     font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;
     color:var(--ink-3);background:color-mix(in srgb,var(--card) 88%,transparent);
     border:1px solid var(--rule);border-radius:6px;padding:3px 7px;
     pointer-events:none;
+  }
+
+  /* Full-screen Sankey — rotate into landscape on a portrait phone so the
+     wide left→right flow fits without cropping. */
+  body.sankey-fs-open{overflow:hidden}
+  body.sankey-fs-open .nav,
+  body.sankey-fs-open .nav-strip,
+  body.sankey-fs-open .mtabs,
+  body.sankey-fs-open .ident,
+  body.sankey-fs-open .kpis,
+  body.sankey-fs-open .grid2,
+  body.sankey-fs-open .grouphead,
+  body.sankey-fs-open .pairrow,
+  body.sankey-fs-open .mfoot,
+  body.sankey-fs-open .foot{display:none!important}
+  body.sankey-fs-open #mtab-filing{display:block!important}
+  body.sankey-fs-open #sankey-panel{
+    position:fixed!important;z-index:260;margin:0!important;border:0!important;
+    border-radius:0!important;box-shadow:none!important;
+    top:50%;left:50%;
+    width:100dvh;height:100dvw;max-width:none;
+    transform:translate(-50%,-50%) rotate(90deg);
+    background:var(--card);display:flex;flex-direction:column;padding:0;
+  }
+  body.sankey-fs-open #sankey-panel .phead{padding:8px 14px 4px;flex-shrink:0}
+  body.sankey-fs-open #sankey-panel .phead p{display:none}
+  body.sankey-fs-open #sankey{
+    flex:1;min-height:0;overflow:hidden;padding:4px 10px 10px;
+    display:flex;align-items:center;justify-content:center;touch-action:none;
+    background:var(--card);
+  }
+  body.sankey-fs-open #sankey svg.schart,
+  body.sankey-fs-open #sankey .zoom-layer,
+  body.sankey-fs-open #sankey .zoom-layer svg.schart{
+    width:100%!important;height:100%!important;
+    max-width:none!important;max-height:100%!important;display:block;
+  }
+  @media (orientation: landscape){
+    body.sankey-fs-open #sankey-panel{
+      inset:0;top:auto;left:auto;width:100vw;height:100dvh;
+      transform:none;padding-top:env(safe-area-inset-top,0);
+    }
   }
 
   /* Full-screen chart overlay — trading-app density on a phone. */
@@ -751,12 +821,12 @@ const main = document.getElementById("main");
 const fyEl = document.getElementById("fy"), fqEl = document.getElementById("fq");
 
 function fail(msg){
-  document.body.classList.remove("mreport", "chart-fs-open");
+  document.body.classList.remove("mreport", "chart-fs-open", "sankey-fs-open");
   main.innerHTML = `<div class="card note err">${esc(msg)}</div>`;
 }
 
 const busy = msg => {
-  document.body.classList.remove("mreport", "chart-fs-open");
+  document.body.classList.remove("mreport", "chart-fs-open", "sankey-fs-open");
   main.innerHTML = `<div class="card note"><span class="load"></span> &nbsp;${esc(msg)}</div>`;
 };
 
@@ -1097,7 +1167,12 @@ function drawSeasonality(){
     (ret[y] = ret[y] || {})[+mo] = (cur / prev - 1) * 100;
   }
   const years = Object.keys(ret).sort((a, b) => b - a).slice(0, 11);
-  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const mobile = matchMedia("(max-width:720px)").matches;
+  const MON = mobile
+    ? ["J","F","M","A","M","J","J","A","S","O","N","D"]
+    : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const avgLab = mobile ? "Avg" : "Average";
+  const hitLab = mobile ? "Hit %" : "Positive return";
 
   const cell = v => v === undefined || v === null
     ? `<td class="sc empty"></td>`
@@ -1113,16 +1188,16 @@ function drawSeasonality(){
   };
 
   host.innerHTML = `<table class="season">
-    <thead><tr><th>Year</th>${MON.map(x => `<th>${x}</th>`).join("")}</tr></thead>
+    <thead><tr><th>${mobile ? "" : "Year"}</th>${MON.map(x => `<th>${x}</th>`).join("")}</tr></thead>
     <tbody>${years.map(y =>
-      `<tr><th>${y}</th>${MON.map((_, i) => cell(ret[y][i + 1])).join("")}</tr>`).join("")}
+      `<tr><th>${mobile ? String(y).slice(2) : y}</th>${MON.map((_, i) => cell(ret[y][i + 1])).join("")}</tr>`).join("")}
     </tbody>
     <tfoot>
-      <tr><th>Average</th>${MON.map((_, i) => {
+      <tr><th>${avgLab}</th>${MON.map((_, i) => {
         const v = avg(i + 1);
         return `<td class="sf">${v === null ? "" : (v >= 0 ? "+" : "") + v.toFixed(1) + "%"}</td>`;
       }).join("")}</tr>
-      <tr><th>Positive return</th>${MON.map((_, i) => {
+      <tr><th>${hitLab}</th>${MON.map((_, i) => {
         const v = green(i + 1);
         return v === null ? `<td class="sf"></td>`
           : `<td class="sf tint" style="${positiveStyle(v)}">${v.toFixed(0)}%</td>`;
@@ -1365,7 +1440,7 @@ function marketOnly(ticker, company, why){
     </div>`;
 
   document.body.classList.add("mreport");
-  document.body.classList.remove("chart-fs-open");
+  document.body.classList.remove("chart-fs-open", "sankey-fs-open");
   // The row is built empty; restorePriceRow fills in the chart and panel.
   document.getElementById("pricerow").classList.add("waiting");
   PRICE.symbol = null; PRICE.bars = []; PRICE.view = null;
@@ -1639,8 +1714,15 @@ function render(){
             <h2>How the quarter's revenue became profit ${helpIcon("sankey")}</h2>
             <p id="sankey-sub"></p>
           </div>
+          <button type="button" class="chart-fs-btn" id="sankey-fs" aria-label="Expand diagram"
+            title="Full screen">
+            <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+              stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+              <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+            </svg>
+          </button>
         </div>
-        <div class="scroll zoom-host" id="sankey"></div>
+        <div class="scroll" id="sankey"></div>
       </section>
 
       <div class="grid2">
@@ -1649,7 +1731,7 @@ function render(){
             <div><h2>Where the revenue came from ${helpIcon("mix")}</h2><p id="mix-sub"></p></div>
             <div class="seg" id="mix-cuts"></div>
           </div>
-          <div class="scroll zoom-host" id="mix"></div>
+          <div class="scroll" id="mix"></div>
         </section>
 
         <section class="card panel">
@@ -1658,7 +1740,7 @@ function render(){
             <p>The twelve quarters ending with the one selected. Bars derived from an
                annual report rather than filed directly are outlined.</p>
           </div></div>
-          <div class="scroll zoom-host" id="revtrend"></div>
+          <div class="scroll" id="revtrend"></div>
         </section>
       </div>
 
@@ -1668,7 +1750,7 @@ function render(){
             <h2>Margins ${helpIcon("margins")}</h2>
             <p>Gross, operating and net profit as a share of revenue — all three on one scale.</p>
           </div></div>
-          <div class="scroll zoom-host" id="margins"></div>
+          <div class="scroll" id="margins"></div>
           <div class="legend" id="margins-legend"></div>
         </section>
 
@@ -1677,7 +1759,7 @@ function render(){
             <h2>Where the revenue went ${helpIcon("costStack")}</h2>
             <p>Cost and expense structure each quarter, as a share of revenue.</p>
           </div></div>
-          <div class="scroll zoom-host" id="coststack"></div>
+          <div class="scroll" id="coststack"></div>
           <div class="legend" id="coststack-legend"></div>
         </section>
       </div>
@@ -1702,14 +1784,14 @@ function render(){
               <h2>Price vs sector ${helpIcon("bench")}</h2>
               <p>Both rebased to 100, so the lines compare performance not price.</p>
             </div></div>
-            <div class="lwrap zoom-host" id="bench-chart"></div>
+            <div class="lwrap" id="bench-chart"></div>
           </section>
           <section class="card panel">
             <div class="phead"><div>
               <h2>P/E vs industry ${helpIcon("pe")}</h2>
               <p>Price over trailing diluted EPS, from the filings.</p>
             </div></div>
-            <div class="lwrap zoom-host" id="pe-chart"></div>
+            <div class="lwrap" id="pe-chart"></div>
           </section>
         </div>
 
@@ -1727,7 +1809,7 @@ function render(){
             <h2>Bollinger bands ${helpIcon("bollinger")}</h2>
             <p>Twenty-day mean, two standard deviations either side.</p>
           </div></div>
-          <div class="lwrap zoom-host" id="boll-chart"></div>
+          <div class="lwrap" id="boll-chart"></div>
         </section>
       </div>
     </div>
@@ -1783,7 +1865,7 @@ function render(){
           </div>
         </div>
 
-        <div class="scroll zoom-host" id="b-chart"></div>
+        <div class="scroll" id="b-chart"></div>
         <div class="legend" id="b-legend"></div>
       </section>
     </div>
@@ -1795,7 +1877,7 @@ function render(){
     ...document.getElementById("controls").children);
 
   document.body.classList.add("mreport");
-  document.body.classList.remove("chart-fs-open");
+  document.body.classList.remove("chart-fs-open", "sankey-fs-open");
   renderKPIs();
   loadPrices();
   loadExtras();
@@ -1808,7 +1890,6 @@ function render(){
   wireBuilder();
   renderFoot();
   wireMobileTabs();
-  wireChartZoomHosts();
 }
 
 /* ---- KPIs ---------------------------------------------------------------- */
@@ -2188,10 +2269,7 @@ function renderSankey(){
     [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
   host.querySelectorAll("[data-k]").forEach(el => hoverable(el, el.dataset.k.replace("→"," → "),
     [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
-  if (MOBILE_MQ.matches) {
-    host.dataset.zoomWired = "";
-    attachTransformZoom(host);
-  }
+  wireSankeyFullscreen();
 }
 
 /* ---- Revenue mix --------------------------------------------------------- */
@@ -2833,10 +2911,9 @@ function wireMobileTabs(){
     if (id === "filing") {
       renderSankey(); renderMix(); renderRevTrend();
       renderMargins(); renderCostStack();
-      wireChartZoomHosts();
     }
     if (id === "market") marketPanels();
-    if (id === "custom") { try { renderBuilder(); } catch {} wireChartZoomHosts(); }
+    if (id === "custom") { try { renderBuilder(); } catch {} }
     scrollTo({ top: 0, behavior: "auto" });
   };
   bar.querySelectorAll("[data-mtab]").forEach(b => {
@@ -2846,7 +2923,7 @@ function wireMobileTabs(){
     !!document.querySelector('#mtab-chart.on, .mtab-panel.on[data-mtab="chart"]'));
 }
 
-/** Pinch / drag zoom for SVG diagrams that are wider than a phone. */
+/** Pinch only — one finger always scrolls the page. */
 function attachTransformZoom(host){
   if (!host || host.dataset.zoomWired === "1") return;
   host.dataset.zoomWired = "1";
@@ -2856,13 +2933,6 @@ function attachTransformZoom(host){
     layer.className = "zoom-layer";
     while (host.firstChild) layer.appendChild(host.firstChild);
     host.appendChild(layer);
-  }
-  if (MOBILE_MQ.matches && !host.querySelector(".zoom-hint")) {
-    const hint = document.createElement("div");
-    hint.className = "zoom-hint";
-    hint.textContent = "Pinch to zoom";
-    host.appendChild(hint);
-    setTimeout(() => hint.remove(), 2800);
   }
 
   const st = { scale: 1, x: 0, y: 0, pts: null, lastTap: 0 };
@@ -2892,6 +2962,7 @@ function attachTransformZoom(host){
         mx: m.x - r.left, my: m.y - r.top,
       };
     } else if (e.touches.length === 1 && st.scale > 1) {
+      // Pan only while zoomed; otherwise the finger scrolls the page.
       st.pts = {
         pan: true, x: st.x, y: st.y,
         tx: e.touches[0].clientX, ty: e.touches[0].clientY,
@@ -2901,8 +2972,8 @@ function attachTransformZoom(host){
 
   host.addEventListener("touchmove", e => {
     if (!st.pts) return;
-    e.preventDefault();
     if (e.touches.length === 2 && st.pts.d) {
+      e.preventDefault();
       const m = mid(e.touches[0], e.touches[1]);
       const r = host.getBoundingClientRect();
       const mx = m.x - r.left, my = m.y - r.top;
@@ -2913,6 +2984,7 @@ function attachTransformZoom(host){
       st.y = my - (st.pts.my - st.pts.y) * ratio;
       clamp(); apply();
     } else if (e.touches.length === 1 && st.pts.pan) {
+      e.preventDefault();
       st.x = st.pts.x + (e.touches[0].clientX - st.pts.tx);
       st.y = st.pts.y + (e.touches[0].clientY - st.pts.ty);
       clamp(); apply();
@@ -2932,12 +3004,54 @@ function attachTransformZoom(host){
 }
 
 function wireChartZoomHosts(){
+  // Kept for callers; most filing charts no longer use transform-zoom hosts
+  // so a one-finger scroll is never trapped by the diagram.
   if (!MOBILE_MQ.matches) return;
   document.querySelectorAll(".zoom-host").forEach(host => {
-    // Re-wrap after innerHTML rewrites; clear the wired flag when empty of layer.
     if (!host.querySelector(":scope > .zoom-layer")) host.dataset.zoomWired = "";
     if (host.children.length) attachTransformZoom(host);
   });
+}
+
+/** Full-screen Sankey — shows the complete left-to-right diagram. */
+function wireSankeyFullscreen(){
+  const btn = document.getElementById("sankey-fs");
+  if (!btn || btn.dataset.wired === "1") return;
+  btn.dataset.wired = "1";
+  const icon = (full) => {
+    btn.setAttribute("aria-label", full ? "Exit full screen" : "Expand diagram");
+    btn.title = full ? "Exit full screen" : "Full screen";
+    btn.innerHTML = full
+      ? `<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+           <path d="M6 2H2v4M10 2h4v4M14 10v4h-4M6 14H2v-4M2 2l4 4M14 2l-4 4M2 14l4-4M14 14l-4-4"/>
+         </svg>`
+      : `<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+           <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+         </svg>`;
+  };
+  const setFs = on => {
+    document.body.classList.toggle("sankey-fs-open", on);
+    document.body.classList.remove("chart-fs-open");
+    icon(on);
+    btn.title = on ? "Exit full screen" : "Full screen (landscape)";
+    renderSankey();
+    if (!on) {
+      const host = document.getElementById("sankey");
+      if (host) { host.dataset.zoomWired = ""; attachTransformZoom(host); }
+    }
+  };
+  btn.onclick = () => setFs(!document.body.classList.contains("sankey-fs-open"));
+  if (!wireSankeyFullscreen._esc) {
+    wireSankeyFullscreen._esc = true;
+    addEventListener("keydown", e => {
+      if (e.key !== "Escape" || !document.body.classList.contains("sankey-fs-open")) return;
+      const b = document.getElementById("sankey-fs");
+      if (b && b.onclick) b.onclick();
+      else setFs(false);
+    });
+  }
 }
 
 /** Ticks between two values. niceTicks() starts at zero, which is right for a
@@ -3078,6 +3192,7 @@ function wirePriceFullscreen(){
   };
   const setFs = on => {
     document.body.classList.toggle("chart-fs-open", on);
+    document.body.classList.remove("sankey-fs-open");
     icon(on);
     drawCandles();
   };
@@ -3125,7 +3240,6 @@ function marketPanels(){
   drawPE();
   drawBollinger();
   wireHelp();
-  wireChartZoomHosts();
 }
 
 /** Index window over PRICE.bars for the active range button. */
@@ -3446,7 +3560,7 @@ function drawPriceStats(){
 function showHero(){
   document.getElementById("hero").hidden = false;
   main.hidden = true;
-  document.body.classList.remove("mreport", "chart-fs-open");
+  document.body.classList.remove("mreport", "chart-fs-open", "sankey-fs-open");
   hqEl.value = "";
   hqEl.focus({ preventScroll: true });
 }
