@@ -389,11 +389,31 @@ tbody tr:hover td{background:var(--sunk)}
 
 @media (max-width:720px){
   main{padding:12px 0 72px}
-  .ident{padding:0 14px;margin-bottom:8px;align-items:flex-start;gap:10px}
-  .ident h1{font-size:20px}
-  .ident .period{text-align:left;width:100%}
-  .qpick{justify-content:flex-start}
-  .period .small{font-size:11px}
+  /* Period pickers sit top-right under the nav Log In control. */
+  .ident{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    flex-wrap:nowrap;gap:8px 10px;padding:0 14px;margin-bottom:8px;
+  }
+  .ident > div:first-child{flex:1;min-width:0}
+  .ident h1{font-size:20px;padding-right:4px}
+  .ident .period{
+    text-align:right;width:auto;flex:0 0 auto;max-width:46%;
+  }
+  .qpick{
+    display:flex;justify-content:flex-end;align-items:flex-end;
+    gap:5px;flex-wrap:nowrap;
+  }
+  .qpick .field{gap:2px;min-width:0}
+  .qpick .field>label{
+    font-size:8px;letter-spacing:.07em;line-height:1.1;white-space:nowrap;
+  }
+  .qpick select{
+    font-size:11px;min-height:28px;padding:3px 18px 3px 6px;
+    max-width:86px;border-radius:6px;
+    background-position:calc(100% - 10px) 52%, calc(100% - 6px) 52%;
+    background-size:4px 4px,4px 4px;
+  }
+  .period .small{font-size:10px;margin-top:4px;line-height:1.35;max-width:11.5rem}
   /* Chart tab: keep the ticker strip short so the plot owns the screen. */
   body.mtab-chart .ident .period .small{display:none}
   body.mtab-chart .ident{margin-bottom:4px}
@@ -460,6 +480,19 @@ tbody tr:hover td{background:var(--sunk)}
   #sankey-panel .phead p{display:none} /* keep Filing dense; expand for the diagram */
   .scroll{padding:4px 0 10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .scroll svg,.lwrap svg,.swrap svg{max-width:none}
+
+  /* Income statement: 4 cols on mobile — hide year-ago absolute and QoQ. */
+  #istmt{overflow-x:hidden;padding:2px 8px 8px}
+  #istmt table{table-layout:fixed;width:100%;font-size:10px}
+  #istmt th,#istmt td{padding:5px 4px;font-size:10px}
+  #istmt thead th{font-size:8px;letter-spacing:.04em;padding:4px 3px}
+  #istmt th:first-child,#istmt td:first-child{
+    width:34%;padding-left:6px;padding-right:4px;
+    overflow:hidden;text-overflow:ellipsis;
+  }
+  #istmt tbody tr.sub td:first-child{padding-left:14px}
+  #istmt .tag{display:none}
+  #istmt .col-yago,#istmt .col-qoq{display:none}
   /* Fit the whole diagram to the phone width — never crop the right edge. */
   #sankey{overflow-x:auto;overflow-y:visible;min-height:0;touch-action:pan-y;
     padding:2px 0 6px;-webkit-overflow-scrolling:touch}
@@ -2798,9 +2831,9 @@ function renderStatement(){
         <td>${esc(label)}${src === "computed" ? `<span class="tag" title="Not tagged in the filing; derived from the lines around it">derived</span>` : ""}</td>
         <td>${fmt(k,v)}</td>
         <td>${k==="epsDiluted"||!q.lines.revenue ? "—" : pct(v/q.lines.revenue*100)}</td>
-        <td>${yearAgo ? fmt(k,yearAgo.lines[k]) : "—"}</td>
+        <td class="col-yago">${yearAgo ? fmt(k,yearAgo.lines[k]) : "—"}</td>
         <td>${yearAgo ? delta(v, yearAgo.lines[k]) : "—"}</td>
-        <td>${prevQ ? delta(v, prevQ.lines[k]) : "—"}</td>
+        <td class="col-qoq">${prevQ ? delta(v, prevQ.lines[k]) : "—"}</td>
       </tr>`;
     }).join("");
 
@@ -2810,9 +2843,9 @@ function renderStatement(){
         <th>Line item</th>
         <th>Q${q.fq} FY${q.fy}</th>
         <th>% of revenue</th>
-        <th>${yearAgo ? `Q${yearAgo.fq} FY${yearAgo.fy}` : "Year ago"}</th>
+        <th class="col-yago">${yearAgo ? `Q${yearAgo.fq} FY${yearAgo.fy}` : "Year ago"}</th>
         <th>YoY</th>
-        <th>${prevQ ? `vs Q${prevQ.fq} FY${prevQ.fy}` : "QoQ"}</th>
+        <th class="col-qoq">${prevQ ? `vs Q${prevQ.fq} FY${prevQ.fy}` : "QoQ"}</th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table>`;
