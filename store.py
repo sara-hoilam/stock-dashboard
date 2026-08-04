@@ -207,3 +207,7 @@ def upsert_sentiment(key: str, score: float, rating: str | None = None,
         "p_key": key, "p_score": score, "p_rating": rating,
         "p_previous": previous, "p_source": source,
     })
+
+
+def upsert_analyst(symbol: str, row: dict) -> int:
+    return rpc("upsert_analyst", {"p_symbol": symbol, "p_row": row}) or 0

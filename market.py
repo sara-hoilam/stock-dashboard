@@ -778,3 +778,93 @@ def _fear_greed_cnn() -> dict:
         "previous": fg.get("previous_close"),
         "source": "cnn",
     }
+
+
+# ---------------------------------------------------------------------------
+# Analyst coverage
+# ---------------------------------------------------------------------------
+# All of this is FMP's own: the consensus targets, the buy/hold/sell tally,
+# the individual house ratings, and the wire stories behind each target change.
+# Nothing here comes from a scraped or undocumented source.
+
+def analyst_view(symbol: str, houses: int = 14, stories: int = 6) -> dict:
+    """Targets, the rating tally, recent house actions and their sources."""
+    out: dict = {"symbol": symbol.upper()}
+
+    try:
+        rows = _get("price-target-consensus", symbol=symbol) or []
+        if rows:
+            r = rows[0]
+            out["target"] = {"high": r.get("targetHigh"), "low": r.get("targetLow"),
+                             "consensus": r.get("targetConsensus"),
+                             "median": r.get("targetMedian")}
+    except MarketError:
+        pass
+
+    try:
+        rows = _get("price-target-summary", symbol=symbol) or []
+        if rows:
+            r = rows[0]
+            out["targetCounts"] = {
+                "month": r.get("lastMonthCount"), "monthAvg": r.get("lastMonthAvgPriceTarget"),
+                "quarter": r.get("lastQuarterCount"), "quarterAvg": r.get("lastQuarterAvgPriceTarget"),
+                "year": r.get("lastYearCount"), "yearAvg": r.get("lastYearAvgPriceTarget"),
+            }
+    except MarketError:
+        pass
+
+    try:
+        rows = _get("grades-consensus", symbol=symbol) or []
+        if rows:
+            r = rows[0]
+            out["consensus"] = {
+                "strongBuy": r.get("strongBuy") or 0, "buy": r.get("buy") or 0,
+                "hold": r.get("hold") or 0, "sell": r.get("sell") or 0,
+                "strongSell": r.get("strongSell") or 0,
+                "rating": r.get("consensus"),
+            }
+    except MarketError:
+        pass
+
+    # One row per house per action, newest first. Keep the most recent action
+    # from each house rather than the same bank five times.
+    try:
+        seen: set[str] = set()
+        grades = []
+        for g in sorted(_get("grades", symbol=symbol, limit=200) or [],
+                        key=lambda g: g.get("date") or "", reverse=True):
+            house = g.get("gradingCompany")
+            if not house or house in seen:
+                continue
+            seen.add(house)
+            grades.append({"date": g.get("date"), "house": house,
+                           "from": g.get("previousGrade"), "to": g.get("newGrade"),
+                           "action": g.get("action")})
+            if len(grades) >= houses:
+                break
+        if grades:
+            out["grades"] = grades
+    except MarketError:
+        pass
+
+    # The wire story behind each target change, so a figure on the page can be
+    # traced back to the note it came from.
+    try:
+        news = []
+        for n in _get("price-target-news", symbol=symbol, limit=stories * 3) or []:
+            if not n.get("newsURL"):
+                continue
+            news.append({
+                "published": n.get("publishedDate"), "title": n.get("newsTitle"),
+                "url": n.get("newsURL"), "publisher": n.get("newsPublisher"),
+                "house": n.get("analystCompany"), "analyst": n.get("analystName"),
+                "target": n.get("priceTarget"), "priceWhenPosted": n.get("priceWhenPosted"),
+            })
+            if len(news) >= stories:
+                break
+        if news:
+            out["news"] = news
+    except MarketError:
+        pass
+
+    return out

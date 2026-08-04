@@ -339,6 +339,15 @@ def fetch_prices(symbol: str) -> bool:
     except market.MarketError as exc:
         log(f"  extras {sym}: {exc}")
 
+    # Analyst coverage rides along with the same visit.
+    try:
+        view = market.analyst_view(sym)
+        if view.get("target") or view.get("consensus"):
+            store.upsert_analyst(sym, view)
+            extras += (f", {len((view.get('grades') or []))} analysts")
+    except market.MarketError as exc:
+        log(f"  extras {sym}: {exc}")
+
     log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
     return True
 
