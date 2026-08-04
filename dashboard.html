@@ -680,6 +680,25 @@ tbody tr:hover td{background:var(--sunk)}
   .tpop{right:auto;left:0}
 }
 
+
+/* ---- watchlist star ------------------------------------------------------ */
+.ident h1{display:inline}
+.wstar{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;
+  margin-left:10px;background:var(--sunk);border:1px solid var(--rule);
+  border-radius:20px;padding:5px 11px;cursor:pointer;color:var(--ink-3);
+  font:inherit;font-size:12.5px;min-height:0}
+.wstar:hover{border-color:#e0a92e;color:#e0a92e}
+.wstar.on{background:#fdf0d5;border-color:#e0a92e;color:#b8860b}
+.wstar-i{font-size:14px;line-height:1}
+.wstar-n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:600}
+.wstar[disabled]{opacity:.6}
+
+.wstar-hint{display:inline-block;margin-left:8px;vertical-align:middle;
+  background:var(--card);border:1px solid var(--rule);border-radius:9px;
+  box-shadow:var(--shadow);padding:7px 11px;font-size:12px;color:var(--ink-2)}
+.wstar-hint button{background:none;border:0;color:var(--accent);font:inherit;
+  font-size:12px;font-weight:600;cursor:pointer;padding:0 0 0 4px}
+
 @media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} .mtabs{display:none!important} }
 </style>
 </head>
@@ -820,9 +839,16 @@ const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 const MOBILE_MQ = matchMedia("(max-width:720px)");
 
 async function rpc(fn, args){
+  // Row-level security identifies the caller by their JWT; the anon key alone
+  // is anonymous, and every user table would come back empty.
+  const tok = window.TA && window.TA.token();
   const r = await fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+    headers: {
+      apikey: CFG.supabaseAnonKey,
+      "Content-Type": "application/json",
+      ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+    },
     body: JSON.stringify(args || {}),
   });
   if (!r.ok) {
@@ -1326,6 +1352,124 @@ function drawSeasonality(){
     </tfoot></table>`;
 }
 
+
+/* ===========================================================================
+   Watchlist
+
+   A visitor can build one before signing in -- asking for an account first is
+   how a feature never gets tried. It lives in the browser until they sign in,
+   and merges into the account then, so nothing they did is lost.
+=========================================================================== */
+const WATCH_KEY = "alphaticker-watchlist";
+
+const localWatch = {
+  read(){ try { return JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch { return []; } },
+  write(list){ try { localStorage.setItem(WATCH_KEY, JSON.stringify([...new Set(list)])); } catch {} },
+  has(sym){ return this.read().includes(sym); },
+  toggle(sym){
+    const l = this.read();
+    const i = l.indexOf(sym);
+    if (i >= 0) l.splice(i, 1); else l.push(sym);
+    this.write(l);
+    return i < 0;                        // true when it was added
+  },
+  clear(){ try { localStorage.removeItem(WATCH_KEY); } catch {} },
+};
+
+const signedIn = () => !!(window.TA && window.TA.signedIn());
+
+/** Add or remove, wherever this visitor's list lives. */
+async function toggleWatch(symbol){
+  const sym = String(symbol || "").toUpperCase();
+  if (!sym) return false;
+  if (!signedIn()) {
+    const added = localWatch.toggle(sym);
+    dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: added } }));
+    return added;
+  }
+  try {
+    const d = await rpc("toggle_watchlist", { p_symbol: sym });
+    const w = !!(d && d.watching);
+    dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: w } }));
+    return w;
+  } catch { return false; }
+}
+
+/** The symbols on this visitor's list, from wherever it lives. */
+async function watchSymbols(){
+  if (!signedIn()) return localWatch.read();
+  try {
+    const d = await rpc("get_watchlist");
+    return ((d && d.items) || []).map(i => i.symbol);
+  } catch { return []; }
+}
+
+/** On sign-in, hand the browser's list to the account and forget the copy. */
+async function mergeLocalWatchlist(){
+  const local = localWatch.read();
+  if (!local.length || !signedIn()) return 0;
+  try {
+    const d = await rpc("merge_watchlist", { p_symbols: local });
+    if (d && !d.error) { localWatch.clear(); return d.added || 0; }
+  } catch {}
+  return 0;
+}
+
+/** The star beside the company name: on for a company already watched, with
+    how many people watch it, and it works before signing in. */
+async function wireStar(){
+  const el = document.getElementById("wstar");
+  if (!el) return;
+  const sym = el.dataset.sym;
+
+  const paint = (watching, n) => {
+    el.setAttribute("aria-pressed", String(!!watching));
+    el.classList.toggle("on", !!watching);
+    el.querySelector(".wstar-i").textContent = watching ? "★" : "☆";
+    el.querySelector(".wstar-n").textContent = n ? compact(n) : "";
+    el.title = watching ? `Remove ${sym} from your watchlist`
+                        : `Add ${sym} to your watchlist`;
+  };
+
+  // `others` is everyone except this visitor, so the number shown is simply
+  // others plus one when they are watching too. Counting from the total and
+  // adjusting by the click is what produced a star reading "-1".
+  let watching = false, others = 0;
+  try {
+    const d = await rpc("is_watched", { p_symbol: sym });
+    const total = (d && d.watchers) || 0;
+    // Only a signed-in visitor is counted in that total; a list held in the
+    // browser has never reached the database, so it cannot be in it.
+    watching = signedIn() ? !!(d && d.watching) : localWatch.has(sym);
+    others = signedIn() && d && d.watching ? Math.max(0, total - 1) : total;
+  } catch {
+    watching = signedIn() ? false : localWatch.has(sym);
+  }
+  paint(watching, others + (watching ? 1 : 0));
+
+  el.onclick = async () => {
+    el.disabled = true;
+    watching = await toggleWatch(sym);
+    // A signed-out visitor changes nothing anyone else can see, so the public
+    // count stays put rather than claiming a watcher the database has not got.
+    paint(watching, others + (watching && signedIn() ? 1 : 0));
+    el.disabled = false;
+    if (watching && !signedIn()) starHint(el);
+  };
+}
+
+/** Said once per session, next to the star that just lit up. */
+function starHint(anchor){
+  if (sessionStorage.getItem("wl-hinted")) return;
+  sessionStorage.setItem("wl-hinted", "1");
+  const tip = document.createElement("div");
+  tip.className = "wstar-hint";
+  tip.innerHTML = `Saved in this browser. <button type="button">Sign in to keep it</button>`;
+  anchor.parentNode.appendChild(tip);
+  tip.querySelector("button").onclick = () => { if (window.TA) window.TA.signIn(); };
+  setTimeout(() => tip.remove(), 8000);
+}
+
 /* ---- 5. news about this company and its industry -------------------------- */
 // Three searches, widening as they go: the ticker, the company's own name, and
 // its industry. A quiet week for one company is not a quiet week for its
@@ -1637,6 +1781,10 @@ function marketOnly(ticker, company, why){
     <div class="ident">
       <div>
         <h1>${esc(c.name || ticker)}</h1>
+        <button type="button" class="wstar" id="wstar" data-sym="${esc(ticker)}"
+                aria-pressed="false" title="Add to watchlist">
+          <span class="wstar-i">☆</span><span class="wstar-n"></span>
+        </button>
         <div class="sub">
           <span class="chip key">${esc(c.ticker || ticker)}</span>
           ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
@@ -1669,6 +1817,7 @@ function marketOnly(ticker, company, why){
   // The row is built empty; restorePriceRow fills in the chart and panel.
   document.getElementById("pricerow").classList.add("waiting");
   PRICE.symbol = null; PRICE.bars = []; PRICE.view = null;
+  wireStar();
   loadPrices();
   loadAnalyst();          // coverage exists even where filings do not
   wireMobileTabs();
@@ -1880,6 +2029,10 @@ function render(){
     <div class="ident">
       <div>
         <h1>${esc(c.name)}</h1>
+        <button type="button" class="wstar" id="wstar" data-sym="${esc(c.ticker)}"
+                aria-pressed="false" title="Add to watchlist">
+          <span class="wstar-i">☆</span><span class="wstar-n"></span>
+        </button>
         <div class="sub">
           <span class="chip key">${esc(c.ticker)}</span>
           ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
@@ -2098,7 +2251,7 @@ function render(){
   document.body.classList.add("mreport");
   document.body.classList.remove("chart-fs-open", "sankey-fs-open");
   renderKPIs();
-  placeAnalyst();          // before it is filled, so nothing is drawn twice
+  wireStar();
   loadPrices();
   loadExtras();
   loadAnalyst();

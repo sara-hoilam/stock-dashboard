@@ -281,6 +281,77 @@ svg{display:block;max-width:100%}
 }
 .nb-tag:hover{background:var(--accent);color:#fff}
 
+
+
+/* Star on the chart header — yellow when followed, grey when not. */
+.cstar{background:none;border:0;cursor:pointer;font-size:21px;line-height:1;
+  color:var(--ink-3);padding:0 2px;align-self:center}
+.cstar:hover{color:#e0a92e}
+.cstar.on{color:#e0a92e}
+.cstar[disabled]{opacity:.5}
+
+/* Symbol over company name in the summary rows. */
+.symtext{display:flex;flex-direction:column;gap:1px;min-width:0}
+.coname{font-size:10.5px;color:var(--ink-3);font-family:"IBM Plex Sans",sans-serif;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:118px}
+
+/* The watchlist search sits above the rows, not inside them. */
+.wl-bar{padding:10px 12px;border-bottom:1px solid var(--rule)}
+.wl-bar .wl-search{max-width:none;margin:0}
+
+/* ---- watchlist ----------------------------------------------------------- */
+.wl-empty{padding:26px 20px 30px;text-align:center}
+.wl-star{width:56px;height:56px;border-radius:50%;margin:0 auto 14px;
+  background:#fdf0d5;color:#e0a92e;display:grid;place-items:center;font-size:26px}
+.wl-empty h3{font-size:17px;font-weight:700;letter-spacing:-.015em;margin-bottom:5px}
+.wl-empty>p{font-size:12.5px;color:var(--ink-3);margin-bottom:18px}
+.wl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:10px;text-align:left;margin-bottom:18px}
+.wl-card{background:var(--card);border:1px solid var(--rule);border-radius:11px;
+  padding:11px 12px;cursor:pointer}
+.wl-card:hover{border-color:var(--accent)}
+.wl-top{display:flex;align-items:center;gap:7px}
+.wl-top b{font-size:13.5px;flex:1}
+.wl-plus{width:22px;height:22px;border-radius:50%;border:0;background:var(--sunk);
+  color:var(--ink-2);font-size:15px;line-height:1;cursor:pointer;flex-shrink:0}
+.wl-card:hover .wl-plus{background:var(--accent);color:#fff}
+.wl-px{font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:600;margin-top:7px;
+  display:flex;gap:7px;align-items:baseline}
+.wl-px span{font-size:11.5px}
+.wl-name{font-size:11px;color:var(--ink-3);margin-top:3px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+
+.wl-search{position:relative;max-width:340px;margin:0 auto}
+.wl-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  width:15px;height:15px;color:var(--ink-3);pointer-events:none}
+.wl-search input{width:100%;background:var(--card);border:1px solid var(--rule);
+  border-radius:9px;padding:10px 12px 10px 33px;font:inherit;font-size:13px;color:var(--ink)}
+.wl-ac{display:none;position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:40;
+  background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  box-shadow:var(--shadow);overflow:hidden;text-align:left}
+.wl-ac.open{display:block}
+.wl-ac div{padding:9px 12px;cursor:pointer;display:flex;gap:10px;align-items:baseline;
+  border-bottom:1px solid var(--rule-2)}
+.wl-ac div:last-child{border-bottom:0}
+.wl-ac div:hover{background:var(--accent-soft)}
+.wl-ac b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--accent);min-width:56px}
+.wl-ac span{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+
+.wl-prompt{position:fixed;right:18px;bottom:18px;z-index:300;max-width:320px}
+.wl-prompt-in{background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  box-shadow:var(--shadow);padding:15px 16px}
+.wl-prompt-in b{font-size:14px}
+.wl-prompt-in p{font-size:12.5px;color:var(--ink-3);margin:5px 0 12px;line-height:1.45}
+.wl-prompt-btns{display:flex;gap:8px;justify-content:flex-end}
+.wl-cta{background:var(--accent);color:#fff;border:0;border-radius:7px;padding:8px 14px;
+  font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.wl-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:300;
+  background:var(--ink);color:var(--ground);border-radius:9px;padding:10px 16px;
+  font-size:12.5px;box-shadow:var(--shadow)}
+
+@media (max-width:640px){ .wl-prompt{left:14px;right:14px;max-width:none} }
+
 @media (max-width:1180px){ .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
 @media (max-width:900px){
   .grid2, .grid2.wide{grid-template-columns:1fr}
@@ -377,6 +448,7 @@ svg{display:block;max-width:100%}
             <button data-v="market_cap" aria-pressed="true">Market cap</button>
             <button data-v="gainers" aria-pressed="false">Top gainers</button>
             <button data-v="losers" aria-pressed="false">Top losers</button>
+            <button data-v="watchlist" aria-pressed="false">Watchlist</button>
           </div>
         </div>
         <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
@@ -385,7 +457,10 @@ svg{display:block;max-width:100%}
       <div class="chartwrap">
         <div class="chead">
           <div>
-            <div class="price"><b id="c-sym">—</b><span id="c-price"></span></div>
+            <div class="price"><b id="c-sym">—</b>
+              <button type="button" class="cstar" id="c-star" aria-pressed="false"
+                      title="Add to watchlist" hidden>☆</button>
+              <span id="c-price"></span></div>
             <div class="meta" id="c-meta"></div>
           </div>
           <div class="search">
@@ -462,9 +537,16 @@ const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 
 async function rpc(fn, args){
   if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
+  // Row-level security identifies the caller by their JWT; the anon key alone
+  // is anonymous, and every user table would come back empty.
+  const tok = window.TA && window.TA.token();
   const r = await fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+    headers: {
+      apikey: CFG.supabaseAnonKey,
+      "Content-Type": "application/json",
+      ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+    },
     body: JSON.stringify(args || {}),
   });
   if (!r.ok) throw new Error(`${fn} failed (${r.status})`);
@@ -619,8 +701,13 @@ function renderAsOf(o){
 }
 
 /* ---- the list ------------------------------------------------------------ */
-function renderRows(){
-  const host = document.getElementById("rows");
+function renderRows(into){
+  // On the watchlist the rows live in their own container beneath the search
+  // bar. Writing to #rows instead would take the search bar with them, which
+  // is exactly what selecting a search result used to do.
+  const host = into
+    || document.getElementById("wl-rows")
+    || document.getElementById("rows");
   if (!S.rows.length){ host.innerHTML = `<div class="note">Nothing to show for this view yet.</div>`; return; }
   const showCap = S.view === "market_cap";
 
@@ -631,7 +718,10 @@ function renderRows(){
           title="Open ${esc(r.symbol)} financials">
         <td><span class="sym">
           <span class="dot" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
-          <span class="tick">${esc(r.symbol)}</span></span></td>
+          <span class="symtext">
+            <span class="tick">${esc(r.symbol)}</span>
+            ${r.name ? `<span class="coname">${esc(r.name)}</span>` : ""}
+          </span></span></td>
         <td>${esc(price(r.price))}</td>
         ${showCap ? `<td>${esc(cap(r.marketCap))}</td>` : ""}
         <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
@@ -647,21 +737,276 @@ function renderRows(){
 
 const openCompany = sym => { location.href = `company.html?t=${encodeURIComponent(sym)}`; };
 
+
+/* ===========================================================================
+   Watchlist
+
+   A visitor can build one before signing in -- asking for an account first is
+   how a feature never gets tried. It lives in the browser until they sign in,
+   and merges into the account then, so nothing they did is lost.
+=========================================================================== */
+const WATCH_KEY = "alphaticker-watchlist";
+
+const localWatch = {
+  read(){ try { return JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch { return []; } },
+  write(list){ try { localStorage.setItem(WATCH_KEY, JSON.stringify([...new Set(list)])); } catch {} },
+  has(sym){ return this.read().includes(sym); },
+  toggle(sym){
+    const l = this.read();
+    const i = l.indexOf(sym);
+    if (i >= 0) l.splice(i, 1); else l.push(sym);
+    this.write(l);
+    return i < 0;                        // true when it was added
+  },
+  clear(){ try { localStorage.removeItem(WATCH_KEY); } catch {} },
+};
+
+const signedIn = () => !!(window.TA && window.TA.signedIn());
+
+/** Add or remove, wherever this visitor's list lives. */
+async function toggleWatch(symbol){
+  const sym = String(symbol || "").toUpperCase();
+  if (!sym) return false;
+  if (!signedIn()) {
+    const added = localWatch.toggle(sym);
+    dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: added } }));
+    return added;
+  }
+  try {
+    const d = await rpc("toggle_watchlist", { p_symbol: sym });
+    const w = !!(d && d.watching);
+    dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: w } }));
+    return w;
+  } catch { return false; }
+}
+
+/** The symbols on this visitor's list, from wherever it lives. */
+async function watchSymbols(){
+  if (!signedIn()) return localWatch.read();
+  try {
+    const d = await rpc("get_watchlist");
+    return ((d && d.items) || []).map(i => i.symbol);
+  } catch { return []; }
+}
+
+/** On sign-in, hand the browser's list to the account and forget the copy. */
+async function mergeLocalWatchlist(){
+  const local = localWatch.read();
+  if (!local.length || !signedIn()) return 0;
+  try {
+    const d = await rpc("merge_watchlist", { p_symbols: local });
+    if (d && !d.error) { localWatch.clear(); return d.added || 0; }
+  } catch {}
+  return 0;
+}
+
 async function setView(v){
   S.view = v;
   document.querySelectorAll("#views button").forEach(b =>
     b.setAttribute("aria-pressed", b.dataset.v === v));
   document.getElementById("rows").innerHTML = `<div class="note"><span class="load"></span></div>`;
+
+  if (v === "watchlist") return renderWatchlist();
+
   S.rows = await rpc("get_market_summary", { p_view: v, p_limit: 20 }) || [];
   if (!S.rows.some(r => r.symbol === S.symbol) && S.rows.length) selectSymbol(S.rows[0].symbol);
   else renderRows();
 }
 
+/** The star beside the ticker on the chart. Present on every tab, so a
+    company can be followed from wherever it was noticed rather than only from
+    its own page. Yellow when watched, grey when not. */
+async function paintChartStar(sym){
+  const el = document.getElementById("c-star");
+  if (!el) return;
+  el.hidden = false;
+
+  let watching;
+  if (signedIn()) {
+    try {
+      const d = await rpc("is_watched", { p_symbol: sym });
+      watching = !!(d && d.watching);
+    } catch { watching = false; }
+  } else {
+    watching = localWatch.has(sym);
+  }
+
+  const paint = w => {
+    el.textContent = w ? "★" : "☆";
+    el.classList.toggle("on", w);
+    el.setAttribute("aria-pressed", String(w));
+    el.title = w ? `Remove ${sym} from your watchlist` : `Add ${sym} to your watchlist`;
+  };
+  paint(watching);
+
+  el.onclick = async e => {
+    e.stopPropagation();
+    el.disabled = true;
+    paint(await toggleWatch(sym));
+    el.disabled = false;
+    // Watching the list you are looking at: reflect the change immediately.
+    if (S.view === "watchlist") renderWatchlist();
+  };
+}
+
+/** A brief line at the foot of the screen; used only for things the reader
+    did not ask to be told twice. */
+function toast(msg){
+  const el = document.createElement("div");
+  el.className = "wl-toast";
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+
+/* ---- the watchlist view -------------------------------------------------- */
+async function renderWatchlist(){
+  const host = document.getElementById("rows");
+  const syms = await watchSymbols();
+
+  if (!syms.length) return renderWatchEmpty(host);
+
+  // Prices live in ledger, which the browser cannot read directly; the market
+  // summary already has them for the names worth showing, and anything else
+  // falls back to the symbol alone.
+  let quotes = [];
+  try { quotes = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 50 }) || []; } catch {}
+  const byId = Object.fromEntries(quotes.map(q => [q.symbol, q]));
+  S.rows = syms.map(sym => byId[sym] || { symbol: sym, price: null, changePct: null });
+
+  // The search stays above the list rather than only appearing when the list
+  // is empty: adding the second company should be no harder than the first.
+  host.innerHTML = `<div class="wl-bar">${watchSearchMarkup("Add a company…")}</div>
+                    <div id="wl-rows"></div>`;
+  renderRows(document.getElementById("wl-rows"));
+  wireWatchSearch();
+
+  if (!signedIn()) promptSaveWatchlist(syms.length);
+}
+
+/** One search field, used above the list and inside the empty state. */
+function watchSearchMarkup(placeholder){
+  return `
+    <form class="wl-search" id="wl-search">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+        stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="text" id="wl-q" placeholder="${esc(placeholder)}" autocomplete="off">
+      <div class="wl-ac" id="wl-ac"></div>
+    </form>`;
+}
+
+/** Nothing on the list yet: offer the obvious names and a search, rather than
+    an empty table that gives no way forward. */
+async function renderWatchEmpty(host){
+  let popular = [];
+  try { popular = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 6 }) || []; } catch {}
+
+  host.innerHTML = `
+    <div class="wl-empty">
+      <div class="wl-star">★</div>
+      <h3>Add companies to your watchlist</h3>
+      <p>Follow the ones you care about. ${signedIn()
+        ? "Saved to your account."
+        : "Kept in this browser until you sign in."}</p>
+
+      <div class="wl-grid">${popular.map(q => `
+        <div class="wl-card" data-add="${esc(q.symbol)}">
+          <div class="wl-top">
+            <span class="dot" style="background:${avatarColour(q.symbol)}">${esc(q.symbol.slice(0,2))}</span>
+            <b>${esc(q.symbol)}</b>
+            <button type="button" class="wl-plus" aria-label="Add ${esc(q.symbol)}">+</button>
+          </div>
+          <div class="wl-px">${esc(price(q.price))}
+            <span class="${dir(q.changePct)}">${esc(pct(q.changePct))}</span></div>
+          <div class="wl-name">${esc(q.name || "")}</div>
+        </div>`).join("")}</div>
+
+      ${watchSearchMarkup("Search for a ticker to add…")}
+    </div>`;
+
+  host.querySelectorAll("[data-add]").forEach(card => {
+    card.onclick = async () => {
+      await toggleWatch(card.dataset.add);
+      renderWatchlist();
+    };
+  });
+  wireWatchSearch();
+}
+
+function wireWatchSearch(){
+  const q = document.getElementById("wl-q"), ac = document.getElementById("wl-ac");
+  if (!q) return;
+  let timer = null;
+  const close = () => { ac.innerHTML = ""; ac.classList.remove("open"); };
+  q.addEventListener("input", () => {
+    clearTimeout(timer);
+    const term = q.value.trim();
+    if (!term) return close();
+    timer = setTimeout(async () => {
+      let items = [];
+      try { items = await rpc("search_companies", { q: term }) || []; } catch {}
+      if (!items.length) return close();
+      ac.innerHTML = items.slice(0, 6).map(x =>
+        `<div data-s="${esc(x.ticker)}"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`).join("");
+      ac.classList.add("open");
+      ac.querySelectorAll("[data-s]").forEach(d => d.onmousedown = async e => {
+        e.preventDefault();
+        const sym = d.dataset.s;
+        // Add it if it is new, then show it on the chart either way -- picking
+        // a company should put it in front of you, not just on a list.
+        if (!(await watchSymbols()).includes(sym)) await toggleWatch(sym);
+        await renderWatchlist();
+        selectSymbol(sym);
+      });
+    }, 140);
+  });
+  q.addEventListener("blur", () => setTimeout(close, 150));
+  document.getElementById("wl-search").onsubmit = async e => {
+    e.preventDefault();
+    const sym = q.value.trim().toUpperCase();
+    if (!sym) return;
+    if (!(await watchSymbols()).includes(sym)) await toggleWatch(sym);
+    await renderWatchlist();
+    selectSymbol(sym);
+  };
+}
+
+/** A list built without an account lives in one browser. Say so once, at the
+    moment it starts being worth something, rather than gating the feature. */
+function promptSaveWatchlist(n){
+  if (sessionStorage.getItem("wl-prompted")) return;
+  sessionStorage.setItem("wl-prompted", "1");
+  const el = document.createElement("div");
+  el.className = "wl-prompt";
+  el.innerHTML = `
+    <div class="wl-prompt-in">
+      <b>Keep your watchlist</b>
+      <p>${n} ${n === 1 ? "company is" : "companies are"} saved in this browser only.
+         Sign in and they follow you to any device.</p>
+      <div class="wl-prompt-btns">
+        <button type="button" class="ghost" data-later>Not now</button>
+        <button type="button" class="wl-cta" data-signin>Sign in</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector("[data-later]").onclick = () => el.remove();
+  el.querySelector("[data-signin]").onclick = () => {
+    el.remove();
+    if (window.TA) window.TA.signIn();
+  };
+}
+
 /* ---- chart --------------------------------------------------------------- */
 async function selectSymbol(sym){
   S.symbol = sym;
-  renderRows();
+  // Move the highlight rather than rebuilding the table. Re-rendering here
+  // tore down whatever surrounded the rows -- the watchlist's search bar --
+  // and could hand the chart a different company than the one clicked.
+  document.querySelectorAll("#rows tr[data-s], #wl-rows tr[data-s]").forEach(tr =>
+    tr.setAttribute("aria-selected", String(tr.dataset.s === sym)));
   document.getElementById("c-sym").textContent = sym;
+  paintChartStar(sym);
   document.getElementById("c-price").textContent = "";
   document.getElementById("c-meta").textContent = "";
   document.getElementById("chart").innerHTML = `<div class="note"><span class="load"></span></div>`;
@@ -1238,7 +1583,30 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
   rpc("get_news_feed", { p_hours: 24, p_limit: 12 }).then(renderNewsBar)
     .catch(() => renderNewsBar(null));
 
-  await setView("market_cap");
+  // A signed-in visitor came back for their own list; everyone else gets the
+  // market. ?tab= overrides both, which is what sign-in redirects back to.
+  const wanted = new URLSearchParams(location.search).get("tab");
+  await setView(wanted === "watchlist" || (!wanted && signedIn()) ? "watchlist" : "market_cap");
+
+  // Signing in mid-session: fold the browser's list into the account, then
+  // show it. Signing out drops back to the market.
+  if (window.TA) window.TA.onAuthChange(async isIn => {
+    if (isIn) {
+      const added = await mergeLocalWatchlist();
+      document.querySelectorAll(".wl-prompt").forEach(el => el.remove());
+      await setView("watchlist");
+      if (added) toast(`${added} ${added === 1 ? "company" : "companies"} added to your watchlist`);
+    } else if (S.view === "watchlist") {
+      await setView("market_cap");
+    }
+  });
+
+  // If the page loaded already signed in with a local list left over from
+  // before, merge that too.
+  if (signedIn() && localWatch.read().length) {
+    const added = await mergeLocalWatchlist();
+    if (added && S.view === "watchlist") await setView("watchlist");
+  }
 
   // The sections below load independently, so one failing does not take the
   // rest of the page with it.
