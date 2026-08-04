@@ -2827,6 +2827,7 @@ function wireMobileTabs(){
     document.querySelectorAll(".mtab-panel").forEach(p => {
       p.classList.toggle("on", p.dataset.mtab === id);
     });
+    document.body.classList.toggle("mtab-chart", id === "chart");
     if (id === "chart" && PRICE.bars.length) drawCandles();
     // Charts in a display:none panel get a zero box; redraw once revealed.
     if (id === "filing") {
@@ -2841,6 +2842,8 @@ function wireMobileTabs(){
   bar.querySelectorAll("[data-mtab]").forEach(b => {
     b.onclick = () => select(b.dataset.mtab);
   });
+  document.body.classList.toggle("mtab-chart",
+    !!document.querySelector('#mtab-chart.on, .mtab-panel.on[data-mtab="chart"]'));
 }
 
 /** Pinch / drag zoom for SVG diagrams that are wider than a phone. */
