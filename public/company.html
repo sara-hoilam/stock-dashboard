@@ -911,7 +911,10 @@ const SEASON_RAMP = {
   down: [[0xfb, 0xe2, 0xdf], [0xe2, 0x63, 0x59]],
   // How often a month closes positive is a different quantity from a return,
   // so it gets its own hue rather than a third shade of green.
-  pos:  [[0xfd, 0xf4, 0xd4], [0xe0, 0xa9, 0x2e]],
+  // Lemon rather than mustard, and starting almost white so a month that
+  // finishes up a quarter of the time is visibly paler than one that manages
+  // it three quarters of the time.
+  pos:  [[0xff, 0xfd, 0xe8], [0xf2, 0xdc, 0x2e]],
 };
 
 const mixRamp = (ramp, t) => {
@@ -945,7 +948,11 @@ const swatch = (ramp, t) => {
 
 // Saturating at 12% keeps one extraordinary month from flattening the rest.
 const seasonStyle = v => swatch(SEASON_RAMP[v >= 0 ? "up" : "down"], Math.abs(v) / 12);
-const positiveStyle = pct => swatch(SEASON_RAMP.pos, pct / 100);
+// A hit rate never approaches 0% or 100% in practice -- these sit between
+// roughly a quarter and three quarters -- so mapping the raw percentage onto
+// the ramp would spend it all in the middle and look flat. Stretching the
+// realistic band across the whole ramp is what makes the row readable.
+const positiveStyle = pct => swatch(SEASON_RAMP.pos, (pct - 20) / 60);
 
 
 function drawSeasonality(){
