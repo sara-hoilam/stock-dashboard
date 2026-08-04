@@ -809,8 +809,12 @@ async function setView(v){
   if (v === "watchlist") return renderWatchlist();
 
   S.rows = await rpc("get_market_summary", { p_view: v, p_limit: 20 }) || [];
+  // Draw the table first, always. selectSymbol only moves the highlight now,
+  // so relying on it to render left the list showing its loading spinner
+  // whenever the previous selection was absent from the new view -- which is
+  // every first load.
+  renderRows();
   if (!S.rows.some(r => r.symbol === S.symbol) && S.rows.length) selectSymbol(S.rows[0].symbol);
-  else renderRows();
 }
 
 /** The star beside the ticker on the chart. Present on every tab, so a
