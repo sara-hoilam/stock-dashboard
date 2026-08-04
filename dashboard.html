@@ -345,10 +345,11 @@ tbody tr:hover td{background:var(--sunk)}
 .season td{text-align:center;padding:5px 3px;border-radius:4px;white-space:nowrap}
 /* Opacity carries magnitude, so a strong month reads as strong without a
    second colour scale to learn. */
-/* Green up, red down, deeper with the size of the move. The fill is set
-   inline from seasonColour so the ramp lives in one place. */
-.season .sc{color:#f2f4f7}
+/* Fill and text colour are both set inline, from one ramp definition, because
+   a pale cell and a deep one cannot share a text colour. */
 .season .sc.empty{background:var(--sunk)}
+.season .sf.tint{font-weight:600}
+.season tbody th,.season tfoot th{white-space:nowrap}
 .season tfoot th{color:var(--ink-2)}
 .season .sf{background:var(--sunk);color:var(--ink-2);font-weight:500}
 
@@ -895,24 +896,56 @@ function drawPE(){
 }
 
 /* ---- 3. monthly seasonality ---------------------------------------------- */
-// One hue each way, shaded continuously by size. The ten-step ramp this
-// replaced asked the eye to decode a shade before reading a number printed in
-// the same cell; a single hue per direction still answers "green or red" at a
-// glance, and the depth adds weight without becoming a second scale to learn.
+// One hue each way, shaded continuously by size: pale for a quiet month, deep
+// for a violent one. Running it the other way round buried the ordinary months
+// under the darkest fills and made the grid read heavier than the data is.
 //
-// Both ends stay dark enough for the light text that sits on them.
+// A ramp that reaches from near-white to near-black cannot carry a single text
+// colour, so every cell picks the one it can actually be read in.
+// Every ramp stops in the light half of the range. Running on into the dark
+// half would cross the band where neither black nor white reaches 4.5:1 on
+// the fill -- the deep ends measured 4.1:1, and no choice of ink fixes a
+// background sitting at that luminance.
 const SEASON_RAMP = {
-  up:   [[0x24, 0x4f, 0x38], [0x2f, 0xa2, 0x5c]],
-  down: [[0x4a, 0x25, 0x23], [0xd9, 0x3a, 0x30]],
+  up:   [[0xdd, 0xf3, 0xe4], [0x3f, 0xa7, 0x6e]],
+  down: [[0xfb, 0xe2, 0xdf], [0xe2, 0x63, 0x59]],
+  // How often a month closes positive is a different quantity from a return,
+  // so it gets its own hue rather than a third shade of green.
+  pos:  [[0xfd, 0xf4, 0xd4], [0xe0, 0xa9, 0x2e]],
 };
 
-function seasonColour(v){
-  const [from, to] = SEASON_RAMP[v >= 0 ? "up" : "down"];
-  // Saturating at 12% keeps one extraordinary month from washing out the rest.
-  const t = Math.min(1, Math.abs(v) / 12);
-  const mix = i => Math.round(from[i] + (to[i] - from[i]) * t);
-  return `rgb(${mix(0)},${mix(1)},${mix(2)})`;
+const mixRamp = (ramp, t) => {
+  const [from, to] = ramp;
+  const at = i => Math.round(from[i] + (to[i] - from[i]) * Math.min(1, Math.max(0, t)));
+  return [at(0), at(1), at(2)];
+};
+
+const INK_DARK = "#14181d", INK_LIGHT = "#f8fafc";
+
+function luminance(rgb){
+  const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
 }
+
+/** Whichever ink actually contrasts better against this fill.
+    Choosing on a fixed luminance threshold instead put white on mid-tone
+    greens where black was three times more legible -- 2:1 where the standard
+    asks for 4.5:1. Comparing the two ratios cannot make that mistake. */
+function inkOn(rgb){
+  const L = luminance(rgb);
+  const withLight = (1.05) / (L + 0.05);
+  const withDark = (L + 0.05) / (luminance([20, 24, 29]) + 0.05);
+  return withDark >= withLight ? INK_DARK : INK_LIGHT;
+}
+
+const swatch = (ramp, t) => {
+  const rgb = mixRamp(ramp, t);
+  return `background:rgb(${rgb.join(",")});color:${inkOn(rgb)}`;
+};
+
+// Saturating at 12% keeps one extraordinary month from flattening the rest.
+const seasonStyle = v => swatch(SEASON_RAMP[v >= 0 ? "up" : "down"], Math.abs(v) / 12);
+const positiveStyle = pct => swatch(SEASON_RAMP.pos, pct / 100);
 
 
 function drawSeasonality(){
@@ -933,7 +966,7 @@ function drawSeasonality(){
 
   const cell = v => v === undefined || v === null
     ? `<td class="sc empty"></td>`
-    : `<td class="sc" style="background:${seasonColour(v)}">${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
+    : `<td class="sc" style="${seasonStyle(v)}">${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
 
   const avg = mo => {
     const vs = years.map(y => ret[y][mo]).filter(v => v !== undefined);
@@ -954,9 +987,10 @@ function drawSeasonality(){
         const v = avg(i + 1);
         return `<td class="sf">${v === null ? "" : (v >= 0 ? "+" : "") + v.toFixed(1) + "%"}</td>`;
       }).join("")}</tr>
-      <tr><th>Green</th>${MON.map((_, i) => {
+      <tr><th>Positive return</th>${MON.map((_, i) => {
         const v = green(i + 1);
-        return `<td class="sf">${v === null ? "" : v.toFixed(0) + "%"}</td>`;
+        return v === null ? `<td class="sf"></td>`
+          : `<td class="sf tint" style="${positiveStyle(v)}">${v.toFixed(0)}%</td>`;
       }).join("")}</tr>
     </tfoot></table>`;
 }
