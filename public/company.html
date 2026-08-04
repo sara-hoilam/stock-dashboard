@@ -345,11 +345,9 @@ tbody tr:hover td{background:var(--sunk)}
 .season td{text-align:center;padding:5px 3px;border-radius:4px;white-space:nowrap}
 /* Opacity carries magnitude, so a strong month reads as strong without a
    second colour scale to learn. */
-/* Green up, red down, nothing in between -- the two ends of the market
-   heatmap's ramp, so the colours still mean the same thing site-wide. */
+/* Green up, red down, deeper with the size of the move. The fill is set
+   inline from seasonColour so the ramp lives in one place. */
 .season .sc{color:#f2f4f7}
-.season .sc.up{background:#2c8a4e}
-.season .sc.down{background:#c9342c}
 .season .sc.empty{background:var(--sunk)}
 .season tfoot th{color:var(--ink-2)}
 .season .sf{background:var(--sunk);color:var(--ink-2);font-weight:500}
@@ -897,6 +895,26 @@ function drawPE(){
 }
 
 /* ---- 3. monthly seasonality ---------------------------------------------- */
+// One hue each way, shaded continuously by size. The ten-step ramp this
+// replaced asked the eye to decode a shade before reading a number printed in
+// the same cell; a single hue per direction still answers "green or red" at a
+// glance, and the depth adds weight without becoming a second scale to learn.
+//
+// Both ends stay dark enough for the light text that sits on them.
+const SEASON_RAMP = {
+  up:   [[0x24, 0x4f, 0x38], [0x2f, 0xa2, 0x5c]],
+  down: [[0x4a, 0x25, 0x23], [0xd9, 0x3a, 0x30]],
+};
+
+function seasonColour(v){
+  const [from, to] = SEASON_RAMP[v >= 0 ? "up" : "down"];
+  // Saturating at 12% keeps one extraordinary month from washing out the rest.
+  const t = Math.min(1, Math.abs(v) / 12);
+  const mix = i => Math.round(from[i] + (to[i] - from[i]) * t);
+  return `rgb(${mix(0)},${mix(1)},${mix(2)})`;
+}
+
+
 function drawSeasonality(){
   const host = document.getElementById("season-grid");
   const m = EXTRA.data.monthly || [];
@@ -913,12 +931,9 @@ function drawSeasonality(){
   const years = Object.keys(ret).sort((a, b) => b - a).slice(0, 11);
   const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  // Two tones, not ten. The question this grid answers is whether a month was
-  // up or down; the size is already written in the cell, so shading it as well
-  // made a wall of colour that was harder to scan, not easier.
   const cell = v => v === undefined || v === null
     ? `<td class="sc empty"></td>`
-    : `<td class="sc ${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
+    : `<td class="sc" style="background:${seasonColour(v)}">${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
 
   const avg = mo => {
     const vs = years.map(y => ret[y][mo]).filter(v => v !== undefined);
