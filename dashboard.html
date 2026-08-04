@@ -313,6 +313,63 @@ tbody tr:hover td{background:var(--sunk)}
 }
 @media (max-width:640px){ .pstats{grid-template-columns:1fr 1fr} }
 
+
+/* ---- industry benchmark, seasonality, bollinger, news -------------------- */
+.grouphead{font-family:"IBM Plex Serif",Georgia,serif;font-size:19px;font-weight:600;
+  letter-spacing:-.015em;margin:26px 0 12px}
+.pairrow{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:4px}
+.pairrow>.panel{margin-bottom:16px}
+
+.lwrap{padding:2px 14px 12px}
+.lchart{width:100%;height:auto;display:block;touch-action:none}
+.lchart .ax{font-family:"IBM Plex Mono",monospace;font-size:9.5px;fill:var(--ink-3)}
+.lchart .ax.mid{text-anchor:middle}
+.lkey,.lread{display:flex;flex-wrap:wrap;gap:6px 15px;align-items:center;
+  font-size:11.5px;color:var(--ink-3);padding:7px 2px 0}
+.lkey i,.lread i{display:inline-block;width:9px;height:2.5px;border-radius:2px;
+  margin-right:5px;vertical-align:2px}
+.lkey i.dash{height:0;border-top:2px dashed currentColor;background:none!important}
+.lread{min-height:19px;font-family:"IBM Plex Mono",monospace;font-size:11px}
+.lread b{color:var(--ink);font-family:"IBM Plex Sans",sans-serif;font-size:11.5px}
+
+.swrap{padding:0 14px 14px;overflow-x:auto}
+.season{width:100%;border-collapse:separate;border-spacing:2px;font-size:11px;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.season th{font-family:"IBM Plex Sans",sans-serif;font-size:10.5px;font-weight:600;
+  color:var(--ink-3);text-align:center;padding:4px 2px;white-space:nowrap}
+.season tbody th{text-align:right;padding-right:8px;color:var(--ink-2)}
+.season td{text-align:center;padding:5px 3px;border-radius:4px;white-space:nowrap}
+/* Opacity carries magnitude, so a strong month reads as strong without a
+   second colour scale to learn. */
+.season .sc.up{background:color-mix(in srgb,var(--up) calc(var(--a)*62%),transparent);color:var(--ink)}
+.season .sc.down{background:color-mix(in srgb,var(--down) calc(var(--a)*62%),transparent);color:var(--ink)}
+.season .sc.empty{background:var(--sunk)}
+.season tfoot th{color:var(--ink-2)}
+.season .sf{background:var(--sunk);color:var(--ink-2);font-weight:500}
+
+.newswrap{padding:0 4px 6px;max-height:340px;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+.conews{display:block;text-decoration:none;padding:11px 14px;border-bottom:1px solid var(--rule-2)}
+.conews:last-child{border-bottom:0}
+.conews:hover{background:var(--sunk)}
+.conews .when{font-size:11px;color:var(--ink-3);margin-bottom:4px}
+.conews .tag{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--accent);font-weight:600}
+.conews h4{font-size:13.5px;font-weight:600;line-height:1.3;margin-bottom:3px}
+.conews p{font-size:12px;color:var(--ink-2);line-height:1.4}
+
+/* ---- the (i) beside every chart title ------------------------------------ */
+.info{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;
+  background:var(--sunk);border:1px solid var(--rule);color:var(--ink-3);
+  font-family:"IBM Plex Serif",Georgia,serif;font-size:10px;font-style:italic;
+  font-weight:600;cursor:help;vertical-align:1px;margin-left:5px;user-select:none}
+.info:hover,.info:focus-visible{border-color:var(--accent);color:var(--accent)}
+.helptip{position:absolute;z-index:200;background:var(--card);
+  border:1px solid var(--rule);border-radius:9px;box-shadow:var(--shadow);
+  padding:10px 12px;font-size:12px;line-height:1.45;color:var(--ink-2)}
+.helptip[hidden]{display:none}
+
+@media (max-width:1000px){ .pairrow{grid-template-columns:1fr} }
+
 @media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} }
 </style>
 </head>
@@ -488,6 +545,8 @@ const API = {
                            : Promise.resolve(null),
   requestPrices: symbol => HOSTED ? rpc("request_prices", { p_symbol: symbol })
                                   : Promise.resolve(null),
+  extras: symbol => HOSTED ? rpc("get_company_extras", { p_symbol: symbol })
+                           : Promise.resolve(null),
 };
 
 /* ===========================================================================
@@ -587,6 +646,355 @@ async function waitForBackfill(ticker){
     if (st && st.status === "done") return { empty: true };
   }
   return { timedOut: true };
+}
+
+
+/* ===========================================================================
+   Industry benchmark, seasonality, Bollinger and company news
+
+   Four panels that sit between the price row and the chart builder. All of
+   them describe the market's view of the company rather than the company's
+   own account of itself, so they are grouped away from the filed statements.
+=========================================================================== */
+const EXTRA = { symbol: null, data: null };
+
+/** Relative time, because "2 hours ago" is what a reader wants from a feed.
+    The news page has its own copy; this page had none, and the missing
+    function took the whole news panel down without a word. */
+function ago(iso){
+  if (!iso) return "";
+  const then = new Date(iso.replace(" ", "T") + (/[Zz+]/.test(iso) ? "" : "Z"));
+  const mins = Math.max(0, Math.round((Date.now() - then.getTime()) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.round(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+}
+
+/** Explanations for the little (i) beside every chart title. */
+const HELP = {
+  sankey:    "Every dollar of revenue for the selected quarter, followed left to right as it splits between costs and what survives as profit. Widths are proportional to dollars, so a wide red band is a large cost.",
+  mix:       "Which parts of the business produced the revenue, as reported in the filing's segment note. Companies that do not disclose a breakdown show a single bar.",
+  revTrend:  "Revenue for each of the twelve quarters ending with the one selected. Bars derived from an annual report rather than filed directly are outlined.",
+  margins:   "Gross, operating and net margin over time. Margin is the share of each revenue dollar left after the costs above that line.",
+  costStack: "Cost and expense structure each quarter as a share of revenue, so the bars are comparable even as the company grows.",
+  statement: "The income statement for the selected quarter, against the same quarter a year earlier and the quarter immediately before it. Figures are as filed; a line marked derived was computed from the lines around it.",
+  builder:   "Plot any line the company reports, on your own choice of chart. Only lines present in this company's filings are offered.",
+  price:     "Daily open, high, low and close, with volume beneath and a fifty-day average through the middle. Market data from Financial Modeling Prep, not from the filings.",
+  bench:     "This company against its sector, both rebased to 100 at the start of the window, so the lines show relative performance rather than price. The sector is represented by its SPDR sector fund, because no per-industry price index is published.",
+  pe:        "Price divided by trailing-twelve-month diluted earnings per share, computed from the filed quarters rather than taken from a data vendor. The dashed line is the current average for this company's industry; its history is not available, so it is a reference level rather than a series.",
+  season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
+  bollinger: "The twenty-day average with bands two standard deviations either side. The bands widen when the stock is moving around more than usual and narrow when it is quiet; price outside a band is unusual rather than necessarily wrong.",
+  news:      "Recent stories mentioning this company or its industry, newest first.",
+};
+
+const helpIcon = k => HELP[k]
+  ? `<span class="info" tabindex="0" role="img" aria-label="What this chart shows"
+       data-help="${esc(HELP[k])}">i</span>` : "";
+
+/** One tooltip element, positioned next to whichever icon is hovered. */
+function wireHelp(){
+  let tip = document.getElementById("helptip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "helptip";
+    tip.className = "helptip";
+    tip.hidden = true;
+    document.body.appendChild(tip);
+  }
+  const show = el => {
+    tip.textContent = el.dataset.help;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const w = Math.min(300, innerWidth - 24);
+    tip.style.width = w + "px";
+    let left = r.left + r.width / 2 - w / 2 + scrollX;
+    left = Math.max(12, Math.min(left, innerWidth - w - 12));
+    tip.style.left = left + "px";
+    tip.style.top = (r.bottom + scrollY + 9) + "px";
+  };
+  const hide = () => { tip.hidden = true; };
+  document.querySelectorAll(".info").forEach(el => {
+    el.onpointerenter = () => show(el);
+    el.onpointerleave = hide;
+    el.onfocus = () => show(el);
+    el.onblur = hide;
+  });
+}
+
+async function loadExtras(){
+  const sym = S.company && S.company.ticker;
+  if (!sym || !HOSTED) return;
+  const row = document.getElementById("extras");
+  if (!row) return;
+
+  if (EXTRA.symbol !== sym) {
+    EXTRA.symbol = sym;
+    EXTRA.data = null;
+    try { EXTRA.data = await API.extras(sym); } catch { return; }
+  }
+  if (!EXTRA.data) return;
+  row.hidden = false;
+  drawSeasonality();          // needs only the monthly closes
+  loadTickerNews();
+  marketPanels();             // the rest wait on the price bars
+  wireHelp();
+}
+
+/* ---- shared line-chart plumbing ------------------------------------------ */
+function linePlot(host, series, opts){
+  const W = 620, H = 260, ml = 6, mr = 52, mt = 12, mb = 26;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const all = series.flatMap(s => s.pts.map(p => p.v)).filter(v => v !== null);
+  if (!all.length) { host.innerHTML = `<div class="note">Not enough data.</div>`; return; }
+
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const pad = (hi - lo) * 0.08 || 1;
+  const y0 = opts.zero ? Math.min(0, lo - pad) : lo - pad, y1 = hi + pad;
+  const n = Math.max(...series.map(s => s.pts.length));
+  const x = i => ml + (n < 2 ? pw / 2 : (i / (n - 1)) * pw);
+  const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
+
+  const ticks = bandTicks(y0, y1, 5);
+  const grid = ticks.map(t => `
+    <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
+      stroke="var(--rule-2)" stroke-width="1"/>
+    <text x="${W - mr + 6}" y="${(y(t) + 3.5).toFixed(1)}" class="ax">${opts.fmtY(t)}</text>`).join("");
+
+  const paths = series.map(s => {
+    const d = s.pts.map((p, i) => p.v === null ? null : `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`)
+      .filter(Boolean).join(" ");
+    return d ? `<polyline points="${d}" fill="none" stroke="${s.colour}"
+      stroke-width="1.6" stroke-linejoin="round"/>` : "";
+  }).join("");
+
+  const refs = (opts.refs || []).map(r => `
+    <line x1="${ml}" x2="${W - mr}" y1="${y(r.v).toFixed(1)}" y2="${y(r.v).toFixed(1)}"
+      stroke="${r.colour}" stroke-width="1.4" stroke-dasharray="5 4"/>`).join("");
+
+  const labs = series[0].pts;
+  const every = Math.max(1, Math.round(labs.length / 5));
+  const dates = labs.map((p, i) => i % every === 0 && i < labs.length - every / 2
+    ? `<text x="${x(i).toFixed(1)}" y="${H - 7}" class="ax mid">${p.label}</text>` : "").join("");
+
+  host.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img" aria-label="${esc(opts.alt || "")}">
+      ${grid}${refs}${paths}${dates}
+      <g id="${opts.id}-cross" style="display:none">
+        <line class="xh" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
+          stroke-width="1" stroke-dasharray="3 3"/>
+      </g>
+      <rect x="${ml}" y="0" width="${pw}" height="${H}" fill="transparent" class="hit"/>
+    </svg>
+    <div class="lkey">${series.map(s =>
+      `<span><i style="background:${s.colour}"></i>${esc(s.name)}</span>`).join("")}
+      ${(opts.refs || []).map(r =>
+      `<span><i class="dash" style="background:${r.colour}"></i>${esc(r.name)}</span>`).join("")}
+    </div>
+    <div class="lread" id="${opts.id}-read">${opts.idle || ""}</div>`;
+
+  // Crosshair reading every series at the hovered point.
+  const svg = host.querySelector("svg");
+  const cross = host.querySelector(`#${opts.id}-cross`);
+  const xh = cross.querySelector(".xh");
+  const read = host.querySelector(`#${opts.id}-read`);
+  const hit = host.querySelector(".hit");
+  hit.addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(n - 1, Math.round((px - ml) / pw * (n - 1))));
+    cross.style.display = "";
+    xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i));
+    read.innerHTML = `<b>${esc(labs[i] ? labs[i].full || labs[i].label : "")}</b>` +
+      series.map(s => s.pts[i] && s.pts[i].v !== null
+        ? ` <span><i style="background:${s.colour}"></i>${esc(s.name)} ${opts.fmtV(s.pts[i].v)}</span>`
+        : "").join("");
+  });
+  hit.addEventListener("pointerleave", () => {
+    cross.style.display = "none";
+    read.innerHTML = opts.idle || "";
+  });
+}
+
+/* ---- 1. price against the sector ----------------------------------------- */
+function drawBenchmark(){
+  const host = document.getElementById("bench-chart");
+  const bars = PRICE.bars || [];
+  const bm = EXTRA.data.benchmark;
+  if (!bars.length || !bm || !(bm.closes || []).length) {
+    host.innerHTML = `<div class="note">No sector benchmark for this company.</div>`;
+    return;
+  }
+  // Both rebased to 100 at the first common date, so the lines compare
+  // performance rather than price -- a $600 stock and a $170 fund otherwise
+  // share no axis worth reading.
+  const byDate = Object.fromEntries(bm.closes.map(c => [c.d, c.c]));
+  const pts = bars.filter(b => byDate[b.d] !== undefined);
+  if (pts.length < 2) {
+    host.innerHTML = `<div class="note">No overlapping history with the sector.</div>`;
+    return;
+  }
+  const c0 = pts[0].c, b0 = byDate[pts[0].d];
+  const label = d => shortDate(d);
+  linePlot(host, [
+    { name: S.company.ticker, colour: "var(--accent)",
+      pts: pts.map(p => ({ v: p.c / c0 * 100, label: label(p.d), full: longDate(p.d) })) },
+    { name: `${bm.symbol} · ${EXTRA.data.sector || "sector"}`, colour: "var(--ink-3)",
+      pts: pts.map(p => ({ v: byDate[p.d] / b0 * 100, label: label(p.d), full: longDate(p.d) })) },
+  ], { id: "bench", fmtY: v => v.toFixed(0), fmtV: v => (v - 100).toFixed(1) + "%",
+       alt: "Company against its sector", idle: "Both rebased to 100 at the start." });
+}
+
+/* ---- 2. price/earnings against the industry ------------------------------ */
+function drawPE(){
+  const host = document.getElementById("pe-chart");
+  const bars = PRICE.bars || [];
+  const qs = (S.company.quarters || []).filter(q => q.lines && q.lines.epsDiluted !== null
+                                                 && q.lines.epsDiluted !== undefined);
+  if (bars.length < 2 || qs.length < 4) {
+    host.innerHTML = `<div class="note">Needs four quarters of diluted EPS on file; ` +
+      `${qs.length} available.</div>`;
+    return;
+  }
+  // Trailing twelve months of EPS as at each date: the four most recent
+  // quarters whose period had already ended.
+  const asc = [...qs].sort((a, b) => a.end < b.end ? -1 : 1);
+  const ttmAt = d => {
+    const done = asc.filter(q => q.end <= d);
+    if (done.length < 4) return null;
+    const last4 = done.slice(-4).map(q => q.lines.epsDiluted);
+    const sum = last4.reduce((a, v) => a + v, 0);
+    return sum > 0 ? sum : null;      // a loss-making year has no meaningful PE
+  };
+  const pts = bars.map(b => {
+    const e = ttmAt(b.d);
+    return { v: e ? b.c / e : null, label: shortDate(b.d), full: longDate(b.d) };
+  });
+  if (!pts.some(p => p.v !== null)) {
+    host.innerHTML = `<div class="note">No positive trailing earnings in this window.</div>`;
+    return;
+  }
+  const ind = EXTRA.data.industryPe;
+  linePlot(host, [{ name: `${S.company.ticker} P/E`, colour: "var(--accent)", pts }], {
+    id: "pe", zero: false,
+    fmtY: v => v.toFixed(0), fmtV: v => v.toFixed(1),
+    refs: ind ? [{ v: ind, colour: "var(--warn, #eda100)",
+                   name: `${EXTRA.data.industry || "Industry"} today ${ind.toFixed(1)}` }] : [],
+    alt: "Price to earnings against the industry",
+    idle: "From filed diluted EPS, trailing twelve months.",
+  });
+}
+
+/* ---- 3. monthly seasonality ---------------------------------------------- */
+function drawSeasonality(){
+  const host = document.getElementById("season-grid");
+  const m = EXTRA.data.monthly || [];
+  if (m.length < 13) { host.innerHTML = `<div class="note">Needs a year of history.</div>`; return; }
+
+  // Month-on-month total return from consecutive month-end closes.
+  const ret = {};
+  for (let i = 1; i < m.length; i++) {
+    const prev = m[i - 1].c, cur = m[i].c;
+    if (!prev) continue;
+    const [y, mo] = m[i].d.split("-");
+    (ret[y] = ret[y] || {})[+mo] = (cur / prev - 1) * 100;
+  }
+  const years = Object.keys(ret).sort((a, b) => b - a).slice(0, 11);
+  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  const cell = v => v === undefined || v === null
+    ? `<td class="sc empty"></td>`
+    : `<td class="sc ${v >= 0 ? "up" : "down"}" style="--a:${Math.min(1, Math.abs(v) / 18).toFixed(2)}"
+         >${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
+
+  const avg = mo => {
+    const vs = years.map(y => ret[y][mo]).filter(v => v !== undefined);
+    return vs.length ? vs.reduce((a, v) => a + v, 0) / vs.length : null;
+  };
+  const green = mo => {
+    const vs = years.map(y => ret[y][mo]).filter(v => v !== undefined);
+    return vs.length ? vs.filter(v => v >= 0).length / vs.length * 100 : null;
+  };
+
+  host.innerHTML = `<table class="season">
+    <thead><tr><th>Year</th>${MON.map(x => `<th>${x}</th>`).join("")}</tr></thead>
+    <tbody>${years.map(y =>
+      `<tr><th>${y}</th>${MON.map((_, i) => cell(ret[y][i + 1])).join("")}</tr>`).join("")}
+    </tbody>
+    <tfoot>
+      <tr><th>Average</th>${MON.map((_, i) => {
+        const v = avg(i + 1);
+        return `<td class="sf">${v === null ? "" : (v >= 0 ? "+" : "") + v.toFixed(1) + "%"}</td>`;
+      }).join("")}</tr>
+      <tr><th>Green</th>${MON.map((_, i) => {
+        const v = green(i + 1);
+        return `<td class="sf">${v === null ? "" : v.toFixed(0) + "%"}</td>`;
+      }).join("")}</tr>
+    </tfoot></table>`;
+}
+
+/* ---- 4. Bollinger bands --------------------------------------------------- */
+function drawBollinger(){
+  const host = document.getElementById("boll-chart");
+  const bars = (PRICE.bars || []).slice(-180);
+  if (bars.length < 25) { host.innerHTML = `<div class="note">Not enough price history.</div>`; return; }
+
+  const N = 20, K = 2;
+  const mid = [], up = [], lo = [];
+  for (let i = 0; i < bars.length; i++) {
+    if (i < N - 1) { mid.push(null); up.push(null); lo.push(null); continue; }
+    const win = bars.slice(i - N + 1, i + 1).map(b => b.c);
+    const mean = win.reduce((a, v) => a + v, 0) / N;
+    const sd = Math.sqrt(win.reduce((a, v) => a + (v - mean) ** 2, 0) / N);
+    mid.push(mean); up.push(mean + K * sd); lo.push(mean - K * sd);
+  }
+  const label = i => ({ label: shortDate(bars[i].d), full: longDate(bars[i].d) });
+  linePlot(host, [
+    { name: "Upper", colour: "var(--ink-3)", pts: up.map((v, i) => ({ v, ...label(i) })) },
+    { name: "20-day mean", colour: "var(--accent)", pts: mid.map((v, i) => ({ v, ...label(i) })) },
+    { name: "Lower", colour: "var(--ink-3)", pts: lo.map((v, i) => ({ v, ...label(i) })) },
+    { name: "Close", colour: "var(--up)", pts: bars.map((b, i) => ({ v: b.c, ...label(i) })) },
+  ], { id: "boll", fmtY: v => v < 10 ? v.toFixed(2) : v.toFixed(0),
+       fmtV: v => v.toFixed(2), alt: "Bollinger bands",
+       idle: "Twenty-day mean, two standard deviations either side." });
+}
+
+/* ---- 5. news about this company ------------------------------------------ */
+async function loadTickerNews(){
+  const host = document.getElementById("co-news");
+  const sym = S.company.ticker;
+  let d = null;
+  try { d = await rpc("get_news", { p_q: sym, p_limit: 8 }); } catch {}
+  let arts = (d && d.articles) || [];
+
+  // Nothing about the company itself: fall back to its industry, which is
+  // still more relevant than the market at large.
+  let scope = sym;
+  if (!arts.length && EXTRA.data.industry) {
+    scope = EXTRA.data.industry;
+    try {
+      const e = await rpc("get_news", { p_q: scope, p_limit: 8 });
+      arts = (e && e.articles) || [];
+    } catch {}
+  }
+  if (!arts.length) { host.innerHTML = `<div class="note">No recent stories.</div>`; return; }
+
+  document.getElementById("news-scope").textContent =
+    scope === sym ? `Stories mentioning ${sym}` : `No ${sym} stories — showing ${scope}`;
+  try {
+  host.innerHTML = arts.map(a => `
+    <a class="conews" href="${esc(a.url)}" target="_blank" rel="noopener">
+      <div class="when">${esc(ago(a.published))}${a.symbol ? ` · <span class="tag">${esc(a.symbol)}</span>` : ""}</div>
+      <h4>${esc(a.title)}</h4>
+      <p>${esc((a.summary || "").slice(0, 150))}</p>
+    </a>`).join("");
+  } catch (e) {
+    // Better a visible complaint than an empty panel that looks deliberate.
+    host.innerHTML = `<div class="note">Could not render the news: ${esc(e.message)}</div>`;
+    console.error("[news]", e);
+  }
 }
 
 /** A company with no US quarterly filings -- a foreign private issuer, or one
@@ -852,7 +1260,7 @@ function render(){
     <div class="pricerow" id="pricerow" hidden>
       <section class="card pricechart">
         <div class="phead"><div>
-          <h2>Price</h2>
+          <h2>Price ${helpIcon("price")}</h2>
           <p id="price-sub"></p>
         </div><div class="ranges" id="price-ranges"></div></div>
         <div id="price-chart"><div class="ptip" id="ptip" hidden></div></div>
@@ -865,7 +1273,7 @@ function render(){
     <section class="card panel" id="sankey-panel">
       <div class="phead">
         <div>
-          <h2>How the quarter's revenue became profit</h2>
+          <h2>How the quarter's revenue became profit ${helpIcon("sankey")}</h2>
           <p id="sankey-sub"></p>
         </div>
       </div>
@@ -875,7 +1283,7 @@ function render(){
     <div class="grid2">
       <section class="card panel" id="mix-panel">
         <div class="phead">
-          <div><h2>Where the revenue came from</h2><p id="mix-sub"></p></div>
+          <div><h2>Where the revenue came from ${helpIcon("mix")}</h2><p id="mix-sub"></p></div>
           <div class="seg" id="mix-cuts"></div>
         </div>
         <div class="scroll" id="mix"></div>
@@ -883,7 +1291,7 @@ function render(){
 
       <section class="card panel">
         <div class="phead"><div>
-          <h2>Revenue by quarter</h2>
+          <h2>Revenue by quarter ${helpIcon("revTrend")}</h2>
           <p>The twelve quarters ending with the one selected. Bars derived from an
              annual report rather than filed directly are outlined.</p>
         </div></div>
@@ -894,7 +1302,7 @@ function render(){
     <div class="grid2">
       <section class="card panel">
         <div class="phead"><div>
-          <h2>Margins</h2>
+          <h2>Margins ${helpIcon("margins")}</h2>
           <p>Gross, operating and net profit as a share of revenue — all three on one scale.</p>
         </div></div>
         <div class="scroll" id="margins"></div>
@@ -903,7 +1311,7 @@ function render(){
 
       <section class="card panel">
         <div class="phead"><div>
-          <h2>Where the revenue went</h2>
+          <h2>Where the revenue went ${helpIcon("costStack")}</h2>
           <p>Cost and expense structure each quarter, as a share of revenue.</p>
         </div></div>
         <div class="scroll" id="coststack"></div>
@@ -913,16 +1321,62 @@ function render(){
 
     <section class="card panel">
       <div class="phead"><div>
-        <h2>Income statement</h2>
+        <h2>Income statement ${helpIcon("statement")}</h2>
         <p>Quarterly figures for Q${q.fq} FY${q.fy}, against the same quarter a year earlier
            and the quarter immediately before.</p>
       </div></div>
       <div class="scroll" id="istmt"></div>
     </section>
 
+    <div id="extras" hidden>
+      <h3 class="grouphead">Industry benchmark</h3>
+      <div class="pairrow">
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Price vs sector ${helpIcon("bench")}</h2>
+            <p>Both rebased to 100, so the lines compare performance not price.</p>
+          </div></div>
+          <div class="lwrap" id="bench-chart"></div>
+        </section>
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>P/E vs industry ${helpIcon("pe")}</h2>
+            <p>Price over trailing diluted EPS, from the filings.</p>
+          </div></div>
+          <div class="lwrap" id="pe-chart"></div>
+        </section>
+      </div>
+
+      <h3 class="grouphead">Seasonality</h3>
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Monthly returns ${helpIcon("season")}</h2>
+          <p>Every month's return, one row per year, newest first.</p>
+        </div></div>
+        <div class="swrap" id="season-grid"></div>
+      </section>
+
+      <div class="pairrow">
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Bollinger bands ${helpIcon("bollinger")}</h2>
+            <p>Twenty-day mean, two standard deviations either side.</p>
+          </div></div>
+          <div class="lwrap" id="boll-chart"></div>
+        </section>
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>News ${helpIcon("news")}</h2>
+            <p id="news-scope">Recent stories.</p>
+          </div></div>
+          <div class="newswrap" id="co-news"></div>
+        </section>
+      </div>
+    </div>
+
     <section class="card panel" id="builder">
       <div class="phead"><div>
-        <h2>Build your own chart</h2>
+        <h2>Build your own chart ${helpIcon("builder")}</h2>
         <p>Pick what to plot. Only the lines this company actually reports are
            offered, so a chart here can never show data that is not in the filings.</p>
       </div></div>
@@ -972,6 +1426,7 @@ function render(){
 
   renderKPIs();
   loadPrices();
+  loadExtras();
   renderSankey();
   renderMix();
   renderRevTrend();
@@ -2079,6 +2534,21 @@ function paintPrices(){
 
   drawPriceStats();          // sets the caption the crosshair restores
   drawCandles();
+
+  // Three of the panels below are drawn from these bars. Prices arrive after
+  // the first render, so whichever of the two finishes last does the drawing.
+  marketPanels();
+}
+
+/** The panels that need both the extras payload and the price bars. */
+function marketPanels(){
+  if (!EXTRA.data || !(PRICE.bars || []).length) return;
+  if (!document.getElementById("bench-chart")) return;
+  document.getElementById("extras").hidden = false;
+  drawBenchmark();
+  drawPE();
+  drawBollinger();
+  wireHelp();
 }
 
 function visibleBars(){
