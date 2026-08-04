@@ -632,6 +632,14 @@ tbody tr:hover td{background:var(--sunk)}
 
 
 /* ---- analyst rating ------------------------------------------------------ */
+/* The coverage column: one card, with the source note under it rather than
+   inside it, so the note is not scrolled away with the table. */
+.acol{display:flex;flex-direction:column;min-width:0;margin-bottom:16px}
+.acol>.panel{margin-bottom:0}
+/* Half the page wide, the longer of the two subtitles wraps -- and without
+   this it pushes the view switch onto its own line, so the control moves when
+   you use it. The text gives way instead. */
+.acol .phead>div:first-child{flex:1;min-width:0}
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
 .atable{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -1440,7 +1448,8 @@ function driftNews(wrap){
    the rating tally, each firm's latest action, and the wire story behind each
    target change -- so each number can be followed back to its note.
 =========================================================================== */
-const ANALYST = { symbol: null, data: null, tries: 0, asked: false, queued: true, poll: null };
+const ANALYST = { symbol: null, data: null, view: "houses",
+                  tries: 0, asked: false, queued: true, poll: null };
 
 async function loadAnalyst(){
   const sym = S.company && S.company.ticker;
@@ -1583,58 +1592,82 @@ function consensusSummary(spot){
     </div>`;
 }
 
+/** One card, two readings of the same coverage: where each house stands now,
+    and the notes that moved the targets. They answer different questions
+    about one subject, so they share a panel rather than competing for the
+    width beside the news. */
 function drawAnalyst(d){
   const host = document.getElementById("analyst");
-  const counts = d.targetCounts;
-
-  const houses = (d.grades || []).map(g => `
-    <tr>
-      <td>${esc(g.house)}</td>
-      <td>${esc(shortDate(g.date))}</td>
-      <td><span class="grade ${GRADE_TONE(g.to)}">${esc(g.to || "—")}</span></td>
-      <td class="act ${ACTION_TONE(g.action)}">${esc(g.action || "")}</td>
-    </tr>`).join("");
-
-  const stories = (d.news || []).map(n => `
-    <a class="asrc" href="${esc(n.url)}" target="_blank" rel="noopener">
-      <div class="when">${esc(ago(n.published))}${n.house ? ` · ${esc(n.house)}` : ""}</div>
-      <div class="atitle">${esc(n.title || "")}</div>
-      ${n.target != null ? `<div class="atgt">Target <b>${Number(n.target).toFixed(2)}</b>${
-        n.priceWhenPosted != null ? ` · price then ${Number(n.priceWhenPosted).toFixed(2)}` : ""}</div>` : ""}
-    </a>`).join("");
 
   host.innerHTML = `
-    <div class="pairrow">
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Analyst Rating News ${helpIcon("asrc")}</h2>
-          <p>${counts && counts.year ? `${counts.month || 0} targets in the last month,
-            ${counts.year} in the last year${counts.yearAvg
-              ? `, averaging ${Number(counts.yearAvg).toFixed(2)}` : ""}. ` : ""}Each target
-            change links to the note that reported it.</p>
-        </div></div>
-        <div class="ascroll asrcs">${stories
-          || `<div class="note">No target-change stories.</div>`}</div>
-      </section>
-
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Latest by institution ${helpIcon("houses")}</h2>
-          <p>Most recent action from each firm.</p>
-        </div></div>
-        <div class="ascroll">
-          ${houses ? `<table class="atable">
-            <thead><tr><th>Institution</th><th>Date</th><th>Rating</th><th>Action</th></tr></thead>
-            <tbody>${houses}</tbody></table>`
-            : `<div class="note">No house ratings published.</div>`}
+    <section class="card panel">
+      <div class="phead">
+        <div>
+          <h2>Analyst Ratings <span id="arat-help"></span></h2>
+          <p id="arat-sub"></p>
         </div>
-      </section>
-    </div>
+        <div class="seg" id="arat-views">
+          <button type="button" data-v="houses">By institution</button>
+          <button type="button" data-v="news">News</button>
+        </div>
+      </div>
+      <div id="arat-body"></div>
+    </section>
 
     <div class="afoot">Analyst data from
       <a href="https://site.financialmodelingprep.com/" target="_blank" rel="noopener">Financial
       Modeling Prep</a>${d.updatedAt ? ` · updated ${esc(ago(d.updatedAt))}` : ""}.
       Ratings are the analysts' own opinions, not a recommendation from this site.</div>`;
+
+  host.querySelectorAll("#arat-views button").forEach(b =>
+    b.onclick = () => { ANALYST.view = b.dataset.v; paintAnalyst(); });
+  paintAnalyst();
+}
+
+function paintAnalyst(){
+  const d = ANALYST.data || {};
+  const body = document.getElementById("arat-body");
+  if (!body) return;
+  const view = ANALYST.view === "news" ? "news" : "houses";
+  const counts = d.targetCounts;
+
+  document.querySelectorAll("#arat-views button").forEach(b =>
+    b.setAttribute("aria-pressed", b.dataset.v === view));
+
+  if (view === "houses") {
+    const rows = (d.grades || []).map(g => `
+      <tr>
+        <td>${esc(g.house)}</td>
+        <td>${esc(shortDate(g.date))}</td>
+        <td><span class="grade ${GRADE_TONE(g.to)}">${esc(g.to || "—")}</span></td>
+        <td class="act ${ACTION_TONE(g.action)}">${esc(g.action || "")}</td>
+      </tr>`).join("");
+    document.getElementById("arat-sub").textContent = "Most recent action from each firm.";
+    body.className = "ascroll";
+    body.innerHTML = rows ? `<table class="atable">
+      <thead><tr><th>Institution</th><th>Date</th><th>Rating</th><th>Action</th></tr></thead>
+      <tbody>${rows}</tbody></table>`
+      : `<div class="note">No house ratings published.</div>`;
+  } else {
+    const stories = (d.news || []).map(n => `
+      <a class="asrc" href="${esc(n.url)}" target="_blank" rel="noopener">
+        <div class="when">${esc(ago(n.published))}${n.house ? ` · ${esc(n.house)}` : ""}</div>
+        <div class="atitle">${esc(n.title || "")}</div>
+        ${n.target != null ? `<div class="atgt">Target <b>${Number(n.target).toFixed(2)}</b>${
+          n.priceWhenPosted != null ? ` · price then ${Number(n.priceWhenPosted).toFixed(2)}` : ""}</div>` : ""}
+      </a>`).join("");
+    document.getElementById("arat-sub").textContent =
+      (counts && counts.year
+        ? `${counts.month || 0} targets in the last month, ${counts.year} in the last year${
+            counts.yearAvg ? `, averaging ${Number(counts.yearAvg).toFixed(2)}` : ""}. `
+        : "") + "Each target change links to the note that reported it.";
+    body.className = "ascroll asrcs";
+    body.innerHTML = stories || `<div class="note">No target-change stories.</div>`;
+  }
+
+  const help = document.getElementById("arat-help");
+  if (help) help.innerHTML = helpIcon(view === "houses" ? "houses" : "asrc");
+  wireHelp();
 }
 
 /** A company with no US quarterly filings -- a foreign private issuer, or one
@@ -1661,7 +1694,7 @@ function marketOnly(ticker, company, why){
 
     <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
       <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
-      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Rating</button>
+      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Ratings</button>
     </nav>
 
     <div class="mtab-panel on" data-mtab="chart" id="mtab-chart" role="tabpanel">
@@ -1672,8 +1705,8 @@ function marketOnly(ticker, company, why){
     </div>
 
     <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
-      <h3 class="grouphead">Analyst rating</h3>
-      <div id="analyst"><section class="card panel"><div class="note">
+      <h3 class="grouphead">Analyst ratings</h3>
+      <div class="acol" id="analyst"><section class="card panel"><div class="note">
         <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
     </div>`;
 
@@ -1913,7 +1946,6 @@ function render(){
       <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
       <button type="button" role="tab" data-mtab="filing" aria-selected="false">Filing</button>
       <button type="button" role="tab" data-mtab="market" aria-selected="false">Market</button>
-      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Rating</button>
       <button type="button" role="tab" data-mtab="news" aria-selected="false">News</button>
       <button type="button" role="tab" data-mtab="custom" aria-selected="false">Custom</button>
     </nav>
@@ -2044,20 +2076,20 @@ function render(){
       </div>
     </div>
 
-    <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
-      <h3 class="grouphead">Analyst rating</h3>
-      <div id="analyst"><section class="card panel"><div class="note">
-        <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
-    </div>
-
     <div class="mtab-panel" data-mtab="news" id="mtab-news" role="tabpanel">
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>News ${helpIcon("news")}</h2>
-          <p id="news-scope">Recent stories.</p>
-        </div></div>
-        <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
-      </section>
+      <h3 class="grouphead">News</h3>
+      <div class="pairrow">
+        <div class="acol" id="analyst"><section class="card panel"><div class="note">
+          <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
+
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>News ${helpIcon("news")}</h2>
+            <p id="news-scope">Recent stories.</p>
+          </div></div>
+          <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
+        </section>
+      </div>
     </div>
 
     <div class="mtab-panel" data-mtab="custom" id="mtab-custom" role="tabpanel">
@@ -3150,7 +3182,9 @@ function wireMobileTabs(){
       renderMargins(); renderCostStack();
     }
     if (id === "market") marketPanels();
-    if (id === "analyst") loadAnalyst();
+    // The report keeps coverage in its News tab; the market-only view, which
+    // has no news to keep it company, gives it a tab of its own.
+    if (id === "news" || id === "analyst") loadAnalyst();
     if (id === "custom") { try { renderBuilder(); } catch {} }
     scrollTo({ top: 0, behavior: "auto" });
   };
