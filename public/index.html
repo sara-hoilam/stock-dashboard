@@ -290,6 +290,14 @@ svg{display:block;max-width:100%}
 .cstar.on{color:#e0a92e}
 .cstar[disabled]{opacity:.5}
 
+
+/* Star on each summary row — yellow once followed. */
+.tickline{display:flex;align-items:center;gap:5px}
+.rstar{background:none;border:0;padding:0;cursor:pointer;line-height:1;
+  font-size:12.5px;color:var(--rule);flex-shrink:0}
+.rstar:hover{color:#e0a92e}
+.rstar.on{color:#e0a92e}
+
 /* Symbol over company name in the summary rows. */
 .symtext{display:flex;flex-direction:column;gap:1px;min-width:0}
 .coname{font-size:10.5px;color:var(--ink-3);font-family:"IBM Plex Sans",sans-serif;
@@ -321,7 +329,7 @@ svg{display:block;max-width:100%}
 .wl-name{font-size:11px;color:var(--ink-3);margin-top:3px;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 
-.wl-search{position:relative;max-width:340px;margin:0 auto}
+.wl-search{position:relative;max-width:340px;margin:0 auto 18px}
 .wl-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);
   width:15px;height:15px;color:var(--ink-3);pointer-events:none}
 .wl-search input{width:100%;background:var(--card);border:1px solid var(--rule);
@@ -701,6 +709,14 @@ function renderAsOf(o){
 }
 
 /* ---- the list ------------------------------------------------------------ */
+// Which symbols are on this visitor's list, kept to hand so a table of twenty
+// rows does not make twenty round trips to find out.
+S.watched = new Set();
+
+async function refreshWatched(){
+  try { S.watched = new Set(await watchSymbols()); } catch { S.watched = new Set(); }
+}
+
 function renderRows(into){
   // On the watchlist the rows live in their own container beneath the search
   // bar. Writing to #rows instead would take the search bar with them, which
@@ -719,7 +735,14 @@ function renderRows(into){
         <td><span class="sym">
           <span class="dot" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
           <span class="symtext">
-            <span class="tick">${esc(r.symbol)}</span>
+            <span class="tickline">
+              <span class="tick">${esc(r.symbol)}</span>
+              <button type="button" class="rstar${S.watched.has(r.symbol) ? " on" : ""}"
+                      data-star="${esc(r.symbol)}"
+                      title="${S.watched.has(r.symbol) ? "On your watchlist" : "Add to watchlist"}"
+                      aria-pressed="${S.watched.has(r.symbol)}"
+                >${S.watched.has(r.symbol) ? "★" : "☆"}</button>
+            </span>
             ${r.name ? `<span class="coname">${esc(r.name)}</span>` : ""}
           </span></span></td>
         <td>${esc(price(r.price))}</td>
@@ -729,6 +752,22 @@ function renderRows(into){
 
   // A row click loads the chart; the symbol itself opens the financials, which
   // is the whole point of the landing page.
+  // The star toggles without selecting the row or opening the company.
+  host.querySelectorAll("[data-star]").forEach(btn => {
+    btn.onclick = async e => {
+      e.stopPropagation();
+      const sym = btn.dataset.star;
+      const now = await toggleWatch(sym);
+      now ? S.watched.add(sym) : S.watched.delete(sym);
+      btn.textContent = now ? "★" : "☆";
+      btn.classList.toggle("on", now);
+      btn.setAttribute("aria-pressed", String(now));
+      btn.title = now ? "On your watchlist" : "Add to watchlist";
+      if (sym === S.symbol) paintChartStar(sym);
+      if (S.view === "watchlist") renderWatchlist();
+    };
+  });
+
   host.querySelectorAll("tr[data-s]").forEach(tr => {
     tr.onclick = () => selectSymbol(tr.dataset.s);
     tr.querySelector(".tick").onclick = e => { e.stopPropagation(); openCompany(tr.dataset.s); };
@@ -806,6 +845,7 @@ async function setView(v){
     b.setAttribute("aria-pressed", b.dataset.v === v));
   document.getElementById("rows").innerHTML = `<div class="note"><span class="load"></span></div>`;
 
+  await refreshWatched();
   if (v === "watchlist") return renderWatchlist();
 
   S.rows = await rpc("get_market_summary", { p_view: v, p_limit: 20 }) || [];
@@ -867,6 +907,9 @@ function toast(msg){
 async function renderWatchlist(){
   const host = document.getElementById("rows");
   const syms = await watchSymbols();
+  // These are the watched symbols by definition, so the row stars can be told
+  // straight away rather than reading a set that predates the last add.
+  S.watched = new Set(syms);
 
   if (!syms.length) return renderWatchEmpty(host);
 
@@ -884,6 +927,10 @@ async function renderWatchlist(){
                     <div id="wl-rows"></div>`;
   renderRows(document.getElementById("wl-rows"));
   wireWatchSearch();
+
+  // Show the top of the list straight away, the way the other tabs do; an
+  // empty chart beside a full list looks like something failed.
+  if (!S.rows.some(r => r.symbol === S.symbol)) selectSymbol(S.rows[0].symbol);
 
   if (!signedIn()) promptSaveWatchlist(syms.length);
 }
@@ -910,9 +957,8 @@ async function renderWatchEmpty(host){
     <div class="wl-empty">
       <div class="wl-star">★</div>
       <h3>Add companies to your watchlist</h3>
-      <p>Follow the ones you care about. ${signedIn()
-        ? "Saved to your account."
-        : "Kept in this browser until you sign in."}</p>
+
+      ${watchSearchMarkup("Search for a ticker to add…")}
 
       <div class="wl-grid">${popular.map(q => `
         <div class="wl-card" data-add="${esc(q.symbol)}">
@@ -926,7 +972,6 @@ async function renderWatchEmpty(host){
           <div class="wl-name">${esc(q.name || "")}</div>
         </div>`).join("")}</div>
 
-      ${watchSearchMarkup("Search for a ticker to add…")}
     </div>`;
 
   host.querySelectorAll("[data-add]").forEach(card => {
