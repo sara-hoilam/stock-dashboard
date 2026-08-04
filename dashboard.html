@@ -654,6 +654,38 @@ tbody tr:hover td{background:var(--sunk)}
   border-top:1px solid var(--rule-2)}
 .afoot a{color:var(--accent)}
 
+
+/* ---- chart toolbar ------------------------------------------------------- */
+.ptools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tmenu{position:relative}
+.tbtn{display:inline-flex;align-items:center;gap:6px;background:var(--sunk);
+  border:1px solid var(--rule);border-radius:8px;padding:5px 11px;font:inherit;
+  font-size:11.5px;font-weight:500;color:var(--ink-2);cursor:pointer;min-height:0}
+.tbtn:hover{border-color:var(--accent);color:var(--accent)}
+.tbtn svg{width:9px;height:6px}
+.tbtn.off{opacity:.45;cursor:default}
+.tmenu.open>.tbtn{border-color:var(--accent);color:var(--accent)}
+.tpop{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:60;
+  min-width:216px;background:var(--card);border:1px solid var(--rule);
+  border-radius:10px;box-shadow:var(--shadow);padding:6px;overflow:hidden}
+.tmenu.open .tpop{display:block}
+.tpop-h{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;padding:7px 10px 5px}
+.tpop button{display:block;width:100%;text-align:left;background:transparent;
+  border:0;border-radius:7px;padding:8px 10px;font:inherit;font-size:12.5px;
+  color:var(--ink-2);cursor:pointer}
+.tpop button:hover{background:var(--sunk);color:var(--ink)}
+/* A tick rather than a highlight: several can be on at once. */
+.tpop button.on{color:var(--accent);font-weight:600}
+.tpop button.on::before{content:"✓ ";}
+.ta-key{padding:0 16px 10px}
+
+@media (max-width:720px){
+  .ptools{width:100%;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .ptools::-webkit-scrollbar{display:none}
+  .tpop{right:auto;left:0}
+}
+
 @media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} .mtabs{display:none!important} }
 </style>
 </head>
@@ -975,7 +1007,6 @@ const HELP = {
   bench:     "This company against its sector, both rebased to 100 at the start of the window, so the lines show relative performance rather than price. The sector is represented by its SPDR sector fund, because no per-industry price index is published.",
   pe:        "Price divided by trailing-twelve-month diluted earnings per share, computed from the filed quarters rather than taken from a data vendor. The dashed line is the current average for this company's industry; its history is not available, so it is a reference level rather than a series.",
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
-  bollinger: "The twenty-day average with bands two standard deviations either side. The bands widen when the stock is moving around more than usual and narrow when it is quiet; price outside a band is unusual rather than necessarily wrong.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
   consensus: "How the analysts covering this company are split, and where they think the price is going. The bar shows the low, consensus and high targets, with the last close marked on it.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
@@ -1290,119 +1321,6 @@ function drawSeasonality(){
           : `<td class="sf tint" style="${positiveStyle(v)}">${v.toFixed(0)}%</td>`;
       }).join("")}</tr>
     </tfoot></table>`;
-}
-
-/* ---- 4. Bollinger bands --------------------------------------------------- */
-// Candles rather than a close line, the way the bands are conventionally
-// drawn: the point of the chart is where price sits against the envelope, and
-// a candle shows the whole day's range against it rather than one number.
-function drawBollinger(){
-  const host = document.getElementById("boll-chart");
-  const bars = (PRICE.bars || []).slice(-150);
-  if (bars.length < 25) { host.innerHTML = `<div class="note">Not enough price history.</div>`; return; }
-
-  const N = 20, K = 2;
-  const mid = [], up = [], lo = [];
-  for (let i = 0; i < bars.length; i++) {
-    if (i < N - 1) { mid.push(null); up.push(null); lo.push(null); continue; }
-    const win = bars.slice(i - N + 1, i + 1).map(b => b.c);
-    const mean = win.reduce((a, v) => a + v, 0) / N;
-    const sd = Math.sqrt(win.reduce((a, v) => a + (v - mean) ** 2, 0) / N);
-    mid.push(mean); up.push(mean + K * sd); lo.push(mean - K * sd);
-  }
-
-  const W = 620, H = 280, ml = 6, mr = 52, mt = 12, mb = 26;
-  const pw = W - ml - mr, ph = H - mt - mb;
-  const vals = bars.flatMap(b => [b.h ?? b.c, b.l ?? b.c])
-    .concat(up.filter(v => v !== null), lo.filter(v => v !== null));
-  const loV = Math.min(...vals), hiV = Math.max(...vals);
-  const pad = (hiV - loV) * 0.06 || 1;
-  const y0 = loV - pad, y1 = hiV + pad;
-  const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
-  const step = pw / bars.length;
-  const bw = Math.max(1.2, Math.min(7, step * 0.6));
-  const x = i => ml + step * (i + 0.5);
-
-  // The envelope as one filled shape: down the upper band, back along the
-  // lower. Shading between them is what makes a squeeze visible.
-  const first = up.findIndex(v => v !== null);
-  const band = first < 0 ? "" : (() => {
-    const top = up.map((v, i) => v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean);
-    const bot = lo.map((v, i) => v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).reverse();
-    return `<polygon points="${top.concat(bot).join(" ")}" fill="var(--c-bandfill)"/>`;
-  })();
-
-  const line = (arr, dash) => {
-    const d = arr.map((v, i) => v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
-      .filter(Boolean).join(" ");
-    return d ? `<polyline points="${d}" fill="none" stroke="var(--c-band)" stroke-width="1.5"
-      ${dash ? 'stroke-dasharray="5 4"' : ""} opacity="${dash ? .95 : .8}"/>` : "";
-  };
-
-  const candles = bars.map((b, i) => {
-    const rising = (b.c ?? 0) >= (b.o ?? b.c ?? 0);
-    const col = rising ? "var(--up)" : "var(--down)";
-    const top = y(Math.max(b.o ?? b.c, b.c)), bot = y(Math.min(b.o ?? b.c, b.c));
-    return `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}"
-              y1="${y(b.h ?? b.c).toFixed(1)}" y2="${y(b.l ?? b.c).toFixed(1)}"
-              stroke="${col}" stroke-width="1"/>
-            <rect x="${(x(i) - bw / 2).toFixed(1)}" y="${top.toFixed(1)}"
-              width="${bw.toFixed(1)}" height="${Math.max(1, bot - top).toFixed(1)}"
-              fill="${col}"/>`;
-  }).join("");
-
-  const ticks = bandTicks(y0, y1, 5);
-  const grid = ticks.map(t => `
-    <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
-      stroke="var(--rule-2)" stroke-width="1"/>
-    <text x="${W - mr + 6}" y="${(y(t) + 3.5).toFixed(1)}" class="ax">${t < 10 ? t.toFixed(2) : Math.round(t)}</text>`).join("");
-  const every = Math.max(1, Math.round(bars.length / 5));
-  const dates = bars.map((b, i) => i % every === 0 && i < bars.length - every / 2
-    ? `<text x="${x(i).toFixed(1)}" y="${H - 7}" class="ax mid">${shortDate(b.d)}</text>` : "").join("");
-
-  host.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
-         aria-label="Bollinger bands for ${esc(S.company.ticker)}">
-      ${grid}${band}${line(up)}${line(lo)}${line(mid, true)}${candles}${dates}
-      <g id="boll-cross" style="display:none">
-        <line class="xh" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
-          stroke-width="1" stroke-dasharray="3 3"/>
-      </g>
-      <rect x="${ml}" y="0" width="${pw}" height="${H}" fill="transparent" class="hit"/>
-    </svg>
-    <div class="lkey">
-      <span><i style="background:var(--c-band)"></i>Upper &amp; lower band</span>
-      <span><i class="dash" style="background:var(--c-band)"></i>20-day mean</span>
-      <span><i style="background:var(--up)"></i>Up day</span>
-      <span><i style="background:var(--down)"></i>Down day</span>
-    </div>
-    <div class="lread" id="boll-read">Bands two standard deviations either side.</div>`;
-
-  const svg = host.querySelector("svg");
-  const cross = host.querySelector("#boll-cross");
-  const xh = cross.querySelector(".xh");
-  const read = host.querySelector("#boll-read");
-  const idle = read.textContent;
-  host.querySelector(".hit").addEventListener("pointermove", e => {
-    const r = svg.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width * W;
-    const i = Math.max(0, Math.min(bars.length - 1, Math.round((px - ml) / step - 0.5)));
-    const b = bars[i];
-    cross.style.display = "";
-    xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i));
-    const f = v => v === null || v === undefined ? "—" : v.toFixed(2);
-    // Where the close sits inside the envelope, which is the whole question
-    // the chart is asked.
-    const pos = up[i] !== null && up[i] !== lo[i]
-      ? ` · ${((b.c - lo[i]) / (up[i] - lo[i]) * 100).toFixed(0)}% of band` : "";
-    read.innerHTML = `<b>${esc(longDate(b.d))}</b> <span>Close ${f(b.c)}</span>` +
-      `<span>Upper ${f(up[i])}</span><span>Mean ${f(mid[i])}</span>` +
-      `<span>Lower ${f(lo[i])}${pos}</span>`;
-  });
-  host.querySelector(".hit").addEventListener("pointerleave", () => {
-    cross.style.display = "none";
-    read.textContent = idle;
-  });
 }
 
 /* ---- 5. news about this company and its industry -------------------------- */
@@ -1945,6 +1863,7 @@ function render(){
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <div class="ranges" id="price-ranges"></div>
+            <div class="ptools" id="price-tools"></div>
             <button type="button" class="chart-fs-btn" id="price-fs" aria-label="Expand chart"
               title="Full screen">
               <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
@@ -1954,6 +1873,7 @@ function render(){
             </button>
           </div></div>
           <div id="price-chart"><div class="ptip" id="ptip" hidden></div></div>
+      <div class="lkey ta-key" id="ta-key" hidden></div>
         </section>
         <aside class="card pricestats" id="price-stats"></aside>
       </div>
@@ -2056,14 +1976,6 @@ function render(){
             <p>Every month's return, one row per year, newest first.</p>
           </div></div>
           <div class="swrap" id="season-grid"></div>
-        </section>
-
-        <section class="card panel">
-          <div class="phead"><div>
-            <h2>Bollinger bands ${helpIcon("bollinger")}</h2>
-            <p>Twenty-day mean, two standard deviations either side.</p>
-          </div></div>
-          <div class="lwrap" id="boll-chart"></div>
         </section>
       </div>
     </div>
@@ -3420,6 +3332,7 @@ function restorePriceRow(){
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <div class="ranges" id="price-ranges"></div>
+        <div class="ptools" id="price-tools"></div>
         <button type="button" class="chart-fs-btn" id="price-fs" aria-label="Expand chart"
           title="Full screen">
           <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
@@ -3429,6 +3342,7 @@ function restorePriceRow(){
         </button>
       </div></div>
       <div id="price-chart"><div class="ptip" id="ptip" hidden></div></div>
+      <div class="lkey ta-key" id="ta-key" hidden></div>
     </section>
     <aside class="card pricestats" id="price-stats"></aside>`;
 }
@@ -3482,6 +3396,11 @@ function paintPrices(){
   ranges.querySelectorAll("button").forEach(b =>
     b.onclick = () => { PRICE.range = +b.dataset.n; PRICE.view = null; paintPrices(); });
 
+  // The indicator and interval menus are rebuilt with the panel, so their
+  // ticked state always matches what is actually drawn.
+  const tools = document.getElementById("price-tools");
+  if (tools) { tools.innerHTML = chartToolbar(); wireToolbar(); }
+
   wirePriceFullscreen();
   drawPriceStats();          // sets the caption the crosshair restores
   drawCandles();
@@ -3501,7 +3420,6 @@ function marketPanels(){
   document.getElementById("extras").hidden = false;
   drawBenchmark();
   drawPE();
-  drawBollinger();
   wireHelp();
 }
 
@@ -3510,6 +3428,269 @@ function baseWindow(){
   const n = PRICE.range, len = PRICE.bars.length;
   if (n > 0 && len > n) return { a: len - n, b: len };
   return { a: 0, b: len };
+}
+
+
+/* ===========================================================================
+   Technical analysis
+
+   Overlays drawn on the price chart itself, grouped the way a trader thinks
+   about them rather than as one long list. Every one is computed here from the
+   OHLCV already on the page -- no indicator endpoint is called, so adding one
+   costs nothing and they all agree with the candles they sit on.
+=========================================================================== */
+
+/** Daily bars folded into weeks or months. The daily series is the only one
+    stored, so longer intervals are made rather than fetched. */
+function resample(bars, interval){
+  if (interval === "daily" || !bars.length) return bars;
+  const key = b => interval === "weekly"
+    // ISO-ish week key: the Thursday of the week keeps years from splitting.
+    ? (() => { const d = new Date(b.d + "T00:00:00Z");
+               d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+               return d.toISOString().slice(0, 10); })()
+    : b.d.slice(0, 7);
+  const out = [];
+  let cur = null, k = null;
+  for (const b of bars) {
+    const bk = key(b);
+    if (bk !== k) {
+      if (cur) out.push(cur);
+      k = bk;
+      cur = { d: b.d, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v || 0 };
+    } else {
+      cur.h = Math.max(cur.h ?? b.h, b.h ?? cur.h);
+      cur.l = Math.min(cur.l ?? b.l, b.l ?? cur.l);
+      cur.c = b.c;
+      cur.d = b.d;                        // label the period by its last day
+      cur.v = (cur.v || 0) + (b.v || 0);
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/* ---- the maths ----------------------------------------------------------- */
+const sma = (xs, n) => xs.map((_, i) =>
+  i < n - 1 ? null : xs.slice(i - n + 1, i + 1).reduce((a, v) => a + v, 0) / n);
+
+function ema(xs, n){
+  const k = 2 / (n + 1), out = [];
+  let prev = null;
+  xs.forEach((v, i) => {
+    if (i < n - 1) { out.push(null); return; }
+    if (prev === null) {
+      prev = xs.slice(0, n).reduce((a, x) => a + x, 0) / n;
+    } else {
+      prev = v * k + prev * (1 - k);
+    }
+    out.push(prev);
+  });
+  return out;
+}
+
+const stdev = (xs, n) => xs.map((_, i) => {
+  if (i < n - 1) return null;
+  const w = xs.slice(i - n + 1, i + 1);
+  const m = w.reduce((a, v) => a + v, 0) / n;
+  return Math.sqrt(w.reduce((a, v) => a + (v - m) ** 2, 0) / n);
+});
+
+/** True range, which Keltner and ADX both need. */
+const trueRange = bars => bars.map((b, i) => {
+  const pc = i ? bars[i - 1].c : b.o ?? b.c;
+  return Math.max(b.h - b.l, Math.abs(b.h - pc), Math.abs(b.l - pc));
+});
+
+/* ---- the catalogue ------------------------------------------------------- */
+// Each entry returns lines and bands in price units; the chart scales them
+// with the candles, so an indicator never needs to know the geometry.
+const TA = {
+  trend: {
+    label: "Trend",
+    items: {
+      ma: { name: "Moving Averages (20/50/200)", fn: bars => {
+        const c = bars.map(b => b.c);
+        return { lines: [
+          { pts: sma(c, 20),  colour: "#2f7dff", name: "20" },
+          { pts: sma(c, 50),  colour: "#f0952a", name: "50" },
+          { pts: sma(c, 200), colour: "#a855f7", name: "200" },
+        ] };
+      }},
+      ribbon: { name: "EMA Ribbon", fn: bars => {
+        const c = bars.map(b => b.c);
+        // Compression means the short and long horizons agree; expansion is a
+        // trend taking hold. Eight strands read as a band, not eight lines.
+        const periods = [8, 13, 21, 34, 55, 89];
+        return { lines: periods.map((n, i) => ({
+          pts: ema(c, n), name: String(n),
+          colour: `hsl(${210 + i * 12} 85% ${62 - i * 5}%)`, thin: true,
+        })) };
+      }},
+      ichimoku: { name: "Ichimoku Cloud", fn: bars => {
+        const hi = (n, i) => Math.max(...bars.slice(Math.max(0, i - n + 1), i + 1).map(b => b.h));
+        const lo = (n, i) => Math.min(...bars.slice(Math.max(0, i - n + 1), i + 1).map(b => b.l));
+        const mid = n => bars.map((_, i) => i < n - 1 ? null : (hi(n, i) + lo(n, i)) / 2);
+        const tenkan = mid(9), kijun = mid(26);
+        // Both spans are plotted 26 ahead in a real Ichimoku; shifting inside
+        // a fixed window would cut the right edge off, so they are drawn in
+        // place and the shift is noted in the key.
+        const spanA = bars.map((_, i) =>
+          tenkan[i] === null || kijun[i] === null ? null : (tenkan[i] + kijun[i]) / 2);
+        const spanB = mid(52);
+        return {
+          lines: [{ pts: tenkan, colour: "#2f7dff", name: "Tenkan 9" },
+                  { pts: kijun, colour: "#a855f7", name: "Kijun 26" }],
+          cloud: { a: spanA, b: spanB, up: "#16c78433", down: "#ea394333" },
+        };
+      }},
+    },
+  },
+  volatility: {
+    label: "Volatility",
+    items: {
+      bollinger: { name: "Bollinger Bands (20, 2σ)", fn: bars => {
+        const c = bars.map(b => b.c);
+        const m = sma(c, 20), sd = stdev(c, 20);
+        const up = m.map((v, i) => v === null ? null : v + 2 * sd[i]);
+        const dn = m.map((v, i) => v === null ? null : v - 2 * sd[i]);
+        return { lines: [{ pts: m, colour: "#a855f7", name: "20 SMA", dash: true }],
+                 band: { hi: up, lo: dn, colour: "#a855f733", name: "±2σ" } };
+      }},
+      keltner: { name: "Keltner Channels (20, 2 ATR)", fn: bars => {
+        const c = bars.map(b => b.c);
+        const mid = ema(c, 20), atr = sma(trueRange(bars), 20);
+        const up = mid.map((v, i) => v === null || atr[i] === null ? null : v + 2 * atr[i]);
+        const dn = mid.map((v, i) => v === null || atr[i] === null ? null : v - 2 * atr[i]);
+        return { lines: [{ pts: mid, colour: "#16a3c7", name: "20 EMA", dash: true }],
+                 band: { hi: up, lo: dn, colour: "#16a3c733", name: "±2 ATR" } };
+      }},
+      donchian: { name: "Donchian Channels (20)", fn: bars => {
+        const up = bars.map((_, i) => i < 19 ? null
+          : Math.max(...bars.slice(i - 19, i + 1).map(b => b.h)));
+        const dn = bars.map((_, i) => i < 19 ? null
+          : Math.min(...bars.slice(i - 19, i + 1).map(b => b.l)));
+        const mid = up.map((v, i) => v === null ? null : (v + dn[i]) / 2);
+        return { lines: [{ pts: mid, colour: "#f0952a", name: "Midline", dash: true }],
+                 band: { hi: up, lo: dn, colour: "#f0952a2b", name: "20-day high/low" } };
+      }},
+    },
+  },
+  structure: {
+    label: "Structure",
+    items: {
+      fib: { name: "Fibonacci Retracement", fn: bars => {
+        const hi = Math.max(...bars.map(b => b.h));
+        const lo = Math.min(...bars.map(b => b.l));
+        const span = hi - lo;
+        // Measured across the window on screen, so changing the range moves
+        // the levels -- which is how a retracement is actually read.
+        return { levels: [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1].map(f => ({
+          v: hi - span * f,
+          name: f === 0 ? "High" : f === 1 ? "Low" : `${(f * 100).toFixed(1)}%`,
+          colour: f === 0 || f === 1 ? "var(--ink-3)" : "#d4a017",
+        })) };
+      }},
+      pivots: { name: "Pivot Points (classic)", fn: bars => {
+        // From the last completed period, which is what the next session
+        // trades against.
+        const b = bars[bars.length - 2] || bars[bars.length - 1];
+        if (!b) return {};
+        const p = (b.h + b.l + b.c) / 3;
+        return { levels: [
+          { v: p + (p - b.l),          name: "R2", colour: "#ea3943" },
+          { v: 2 * p - b.l,            name: "R1", colour: "#ea394399" },
+          { v: p,                      name: "P",  colour: "var(--ink-3)" },
+          { v: 2 * p - b.h,            name: "S1", colour: "#16c78499" },
+          { v: p - (b.h - p),          name: "S2", colour: "#16c784" },
+        ] };
+      }},
+      vwap: { name: "VWAP (anchored to window)", fn: bars => {
+        let pv = 0, vol = 0;
+        const pts = bars.map(b => {
+          const typical = ((b.h ?? b.c) + (b.l ?? b.c) + b.c) / 3;
+          pv += typical * (b.v || 0); vol += (b.v || 0);
+          return vol ? pv / vol : null;
+        });
+        return { lines: [{ pts, colour: "#e0a92e", name: "VWAP" }] };
+      }},
+    },
+  },
+};
+
+/* ---- state --------------------------------------------------------------- */
+PRICE.interval = "daily";
+PRICE.active = new Set();
+
+const INTERVALS = [["Daily", "daily"], ["Weekly", "weekly"], ["Monthly", "monthly"]];
+
+/** The two dropdown groups above the chart. */
+function chartToolbar(){
+  const menu = (id, label, body) => `
+    <div class="tmenu" data-menu="${id}">
+      <button type="button" class="tbtn" aria-expanded="false">${esc(label)}
+        <svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none"
+          stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <div class="tpop">${body}</div>
+    </div>`;
+
+  const timeBody = INTERVALS.map(([lab, v]) =>
+    `<button type="button" data-interval="${v}"
+       class="${PRICE.interval === v ? "on" : ""}">${lab}</button>`).join("");
+
+  const groups = Object.entries(TA).map(([gid, g]) =>
+    menu(gid, g.label, `<div class="tpop-h">${esc(g.label)}</div>` +
+      Object.entries(g.items).map(([id, it]) =>
+        `<button type="button" data-ta="${id}"
+           class="${PRICE.active.has(id) ? "on" : ""}">${esc(it.name)}</button>`).join(""))).join("");
+
+  const anyOn = PRICE.active.size > 0;
+  return menu("time", "Time", `<div class="tpop-h">Interval</div>${timeBody}`) + groups +
+    `<button type="button" class="tbtn ${anyOn ? "" : "off"}" data-ta-clear
+       ${anyOn ? "" : "disabled"}>Clear</button>`;
+}
+
+function wireToolbar(){
+  const bar = document.getElementById("price-tools");
+  if (!bar) return;
+  bar.querySelectorAll(".tmenu").forEach(m => {
+    const btn = m.querySelector(".tbtn");
+    btn.onclick = e => {
+      e.stopPropagation();
+      const open = m.classList.contains("open");
+      bar.querySelectorAll(".tmenu").forEach(x => x.classList.remove("open"));
+      m.classList.toggle("open", !open);
+      btn.setAttribute("aria-expanded", String(!open));
+    };
+  });
+  document.addEventListener("click", () =>
+    bar.querySelectorAll(".tmenu").forEach(m => m.classList.remove("open")));
+
+  bar.querySelectorAll("[data-interval]").forEach(b => b.onclick = () => {
+    PRICE.interval = b.dataset.interval;
+    paintPrices();
+  });
+  bar.querySelectorAll("[data-ta]").forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const id = b.dataset.ta;
+    PRICE.active.has(id) ? PRICE.active.delete(id) : PRICE.active.add(id);
+    paintPrices();
+  });
+  const clear = bar.querySelector("[data-ta-clear]");
+  if (clear) clear.onclick = () => { PRICE.active.clear(); paintPrices(); };
+}
+
+/** Every active overlay, resolved against the bars on screen. */
+function activeOverlays(bars){
+  const out = [];
+  for (const [, g] of Object.entries(TA)) {
+    for (const [id, it] of Object.entries(g.items)) {
+      if (!PRICE.active.has(id)) continue;
+      try { out.push({ id, name: it.name, ...it.fn(bars) }); }
+      catch (e) { console.error("[ta]", id, e); }
+    }
+  }
+  return out;
 }
 
 function visibleBars(){
@@ -3629,7 +3810,7 @@ function wirePriceGestures(host){
 function drawCandles(){
   const host = document.getElementById("price-chart");
   if (!host) return;
-  const bars = visibleBars();
+  const bars = resample(visibleBars(), PRICE.interval);
   if (!bars.length) { host.innerHTML = ""; PZOOM.geom = null; return; }
 
   const mobile = MOBILE_MQ.matches || document.body.classList.contains("chart-fs-open");
@@ -3669,13 +3850,59 @@ function drawCandles(){
        width="${bw.toFixed(1)}" height="${(H - mb - vy(b.v || 0)).toFixed(1)}"
        fill="${col(b)}" opacity=".26"/>`).join("");
 
-  // A 50-day mean, drawn only where fifty days exist behind it.
-  const closes = bars.map(b => b.c);
-  const maPts = [];
-  for (let i = 49; i < closes.length; i++) {
-    const m = closes.slice(i - 49, i + 1).reduce((a, v) => a + v, 0) / 50;
-    maPts.push(`${x(i).toFixed(1)},${y(m).toFixed(1)}`);
-  }
+  // Overlays replace the old fixed 50-day line: the same information is now
+  // one option among many rather than the only one on offer.
+  const overlays = activeOverlays(bars);
+  const path = pts => pts.map((v, i) => v === null || v === undefined ? null
+      : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).join(" ");
+
+  const taSvg = overlays.map(o => {
+    let out = "";
+    if (o.band) {
+      // Down the upper edge and back along the lower: one shape, so a squeeze
+      // reads as the gap closing rather than two lines converging.
+      const top = o.band.hi.map((v, i) => v === null ? null
+        : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean);
+      const bot = o.band.lo.map((v, i) => v === null ? null
+        : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).reverse();
+      if (top.length) out += `<polygon points="${top.concat(bot).join(" ")}"
+        fill="${o.band.colour}"/>`;
+      [o.band.hi, o.band.lo].forEach(edge => {
+        const d = path(edge);
+        if (d) out += `<polyline points="${d}" fill="none"
+          stroke="${o.band.colour.slice(0, 7)}" stroke-width="1.2" opacity=".85"/>`;
+      });
+    }
+    if (o.cloud) {
+      // Shaded green where the leading span is above the lagging one, red
+      // below -- the colour is the signal, not decoration.
+      for (let i = 1; i < o.cloud.a.length; i++) {
+        const a0 = o.cloud.a[i - 1], b0 = o.cloud.b[i - 1];
+        const a1 = o.cloud.a[i], b1 = o.cloud.b[i];
+        if ([a0, b0, a1, b1].some(v => v === null || v === undefined)) continue;
+        out += `<polygon points="${x(i-1).toFixed(1)},${y(a0).toFixed(1)} `
+             + `${x(i).toFixed(1)},${y(a1).toFixed(1)} `
+             + `${x(i).toFixed(1)},${y(b1).toFixed(1)} `
+             + `${x(i-1).toFixed(1)},${y(b0).toFixed(1)}"
+               fill="${a1 >= b1 ? o.cloud.up : o.cloud.down}"/>`;
+      }
+    }
+    (o.lines || []).forEach(l => {
+      const d = path(l.pts);
+      if (d) out += `<polyline points="${d}" fill="none" stroke="${l.colour}"
+        stroke-width="${l.thin ? 1 : 1.5}"
+        ${l.dash ? 'stroke-dasharray="5 4"' : ""} opacity=".92"/>`;
+    });
+    (o.levels || []).forEach(lv => {
+      if (lv.v < y0 || lv.v > y1) return;
+      out += `<line x1="${ml}" x2="${W - mr}" y1="${y(lv.v).toFixed(1)}"
+        y2="${y(lv.v).toFixed(1)}" stroke="${lv.colour}" stroke-width="1"
+        stroke-dasharray="4 4" opacity=".9"/>
+        <text x="${ml + 4}" y="${(y(lv.v) - 3).toFixed(1)}" class="ax"
+          fill="${lv.colour}">${esc(lv.name)}</text>`;
+    });
+    return out;
+  }).join("");
 
   const ticks = bandTicks(y0, y1, 5);
   const grid = ticks.map(t => `
@@ -3694,9 +3921,7 @@ function drawCandles(){
     <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
          aria-label="Daily prices for ${esc(PRICE.symbol)}"
          preserveAspectRatio="${mobile ? "none" : "xMidYMid meet"}">
-      ${grid}${vols}${candles}
-      ${maPts.length ? `<polyline points="${maPts.join(" ")}" fill="none"
-        stroke="var(--accent)" stroke-width="1.4" opacity=".85"/>` : ""}
+      ${grid}${taSvg}${vols}${candles}
       ${dates}
       <g id="pcross" style="display:none">
         <line id="pcx" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
@@ -3709,6 +3934,22 @@ function drawCandles(){
   if (keptTip) {
     keptTip.hidden = true;
     host.appendChild(keptTip);
+  }
+
+  // Name what is drawn. An unlabelled line on a price chart is a guess.
+  const key = document.getElementById("ta-key");
+  if (key) {
+    const bits = [];
+    overlays.forEach(o => {
+      (o.lines || []).forEach(l => bits.push(
+        `<span><i style="background:${l.colour}"></i>${esc(o.name.split(" (")[0])} ${esc(l.name)}</span>`));
+      if (o.band) bits.push(
+        `<span><i style="background:${o.band.colour.slice(0,7)}"></i>${esc(o.band.name)}</span>`);
+      if (o.cloud) bits.push(`<span><i style="background:#16c784"></i>Cloud</span>`);
+      if (o.levels) bits.push(`<span><i style="background:#d4a017"></i>${esc(o.name.split(" (")[0])}</span>`);
+    });
+    key.innerHTML = bits.join("");
+    key.hidden = !bits.length;
   }
 
   // Crosshair, with the day's numbers in a box at the crossing point. The box
