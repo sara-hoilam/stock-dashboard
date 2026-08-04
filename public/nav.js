@@ -201,11 +201,52 @@
   // The pages need to know who is signed in and be told when that changes.
   // Without this the session is trapped in this closure and every page invents
   // its own copy, which is how two of them end up disagreeing.
+  // Access tokens expire after about an hour. Supabase rejects a request
+  // carrying a stale one with 401 -- including the public functions that need
+  // no account at all -- so an unrefreshed token does not merely break the
+  // watchlist, it empties every page. recover() is what the pages call when
+  // that happens: renew if we can, sign out cleanly if we cannot, and either
+  // way let the caller continue anonymously rather than showing nothing.
+  let refreshing = null;
+
+  async function recover(){
+    if (refreshing) return refreshing;
+    refreshing = (async () => {
+      const s = session();
+      if (s && s.refresh_token) {
+        try {
+          const r = await fetch(
+            `${CFG.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+              method: "POST",
+              headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
+              body: JSON.stringify({ refresh_token: s.refresh_token }),
+            });
+          const d = await r.json();
+          if (r.ok && d.access_token) {
+            saveSession({ ...s, access_token: d.access_token,
+                          refresh_token: d.refresh_token || s.refresh_token });
+            return d.access_token;
+          }
+        } catch {}
+      }
+      // Cannot renew: drop it so the next call goes out anonymously and the
+      // page keeps working, signed out.
+      saveSession(null);
+      renderAuth();
+      announce();
+      return null;
+    })();
+    const tok = await refreshing;
+    refreshing = null;
+    return tok;
+  }
+
   window.TA = {
     session,
     token: () => (session() || {}).access_token || null,
     signedIn: () => !!(session() && session().user),
     signIn,
+    recover,
     onAuthChange(fn){ addEventListener("ta-auth", () => fn(window.TA.signedIn())); },
   };
   const announce = () => dispatchEvent(new CustomEvent("ta-auth"));

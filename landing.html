@@ -545,10 +545,10 @@ const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 
 async function rpc(fn, args){
   if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
-  // Row-level security identifies the caller by their JWT; the anon key alone
-  // is anonymous, and every user table would come back empty.
-  const tok = window.TA && window.TA.token();
-  const r = await fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
+  // A stale token must never take the page down with it. If Supabase rejects
+  // one, renew it and retry; if it cannot be renewed the session is dropped
+  // and the same call goes out anonymously, so public data always arrives.
+  const send = tok => fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
     method: "POST",
     headers: {
       apikey: CFG.supabaseAnonKey,
@@ -557,6 +557,12 @@ async function rpc(fn, args){
     },
     body: JSON.stringify(args || {}),
   });
+
+  let tok = window.TA && window.TA.token();
+  let r = await send(tok);
+  if (r.status === 401 && tok && window.TA && window.TA.recover) {
+    r = await send(await window.TA.recover());
+  }
   if (!r.ok) throw new Error(`${fn} failed (${r.status})`);
   return r.json();
 }
