@@ -76,7 +76,6 @@ main{max-width:1360px;margin:0 auto;padding:26px 24px 72px}
 .ghost:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 
 /* ---- headline cards ------------------------------------------------------ */
-.cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:26px}
 .card{
   background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
   padding:15px 16px;box-shadow:var(--shadow);min-height:104px;
@@ -282,11 +281,11 @@ svg{display:block;max-width:100%}
 }
 .nb-tag:hover{background:var(--accent);color:#fff}
 
-@media (max-width:1180px){ .cards{grid-template-columns:repeat(3,minmax(0,1fr))} .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
+@media (max-width:1180px){ .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
 @media (max-width:900px){
   .grid2, .grid2.wide{grid-template-columns:1fr}
 }
-@media (max-width:640px){ .cards{grid-template-columns:repeat(2,minmax(0,1fr))} .top h1{font-size:26px} main{padding:18px 14px 60px} .search input{width:160px} }
+@media (max-width:640px){ .top h1{font-size:26px} main{padding:18px 14px 60px} .search input{width:160px} }
 
 /* Mobile: charts use the full card width instead of a letterboxed fixed SVG. */
 @media (max-width:720px){
@@ -302,7 +301,7 @@ svg{display:block;max-width:100%}
 
   /* Drop the Markets Today masthead and the six overview cards — on a phone
      the pulse bar + Market Summary are the first useful blocks. */
-  .top,.cards{display:none!important}
+  .top{display:none!important}
 
   /* Pulse: one compact row of four, matching the reference strip. */
   .pulse{
@@ -361,7 +360,6 @@ svg{display:block;max-width:100%}
 
   </div>
 
-  <section class="cards" id="cards"></section>
 
   <h2>Market Summary</h2>
   <div class="pulse" id="pulse" aria-label="Market pulse">
@@ -611,38 +609,11 @@ function renderNewsBar(articles){
 }
 
 /* ---- headline cards ------------------------------------------------------ */
-function renderCards(o){
-  const sectors = o.sectors || [];
-  const best = sectors[0], worst = sectors[sectors.length - 1];
-  const b = o.breadth;
-  // "Bullish" is a claim, so the card shows what it rests on rather than
-  // asserting a mood on its own.
-  const bullish = b && b.total ? b.up / b.total >= 0.5 : null;
-
-  const cards = [
-    ["Market",
-     bullish === null ? "—" : (bullish ? "Bullish" : "Bearish"),
-     b ? `<b class="${dir(b.avgChange)}">${b.up}/${b.total}</b> advancing` : ""],
-    ["Leader", o.leader ? o.leader.symbol : "—",
-     o.leader ? `<b class="${dir(o.leader.changePct)}">${pct(o.leader.changePct)}</b>` : ""],
-    ["Hottest sector", best ? best.sector : "—",
-     best ? `<b class="${dir(best.changePct)}">${pct(best.changePct)}</b>` : ""],
-    ["Worst sector", worst ? worst.sector : "—",
-     worst ? `<b class="${dir(worst.changePct)}">${pct(worst.changePct)}</b>` : ""],
-    ["Top stock", o.topStock ? o.topStock.symbol : "—",
-     o.topStock ? `<b class="${dir(o.topStock.changePct)}">${pct(o.topStock.changePct)}</b>` : ""],
-    ["Worst stock", o.worstStock ? o.worstStock.symbol : "—",
-     o.worstStock ? `<b class="${dir(o.worstStock.changePct)}">${pct(o.worstStock.changePct)}</b>` : ""],
-  ];
-
-  document.getElementById("cards").innerHTML = cards.map(([k,v,d]) => `
-    <div class="card">
-      <div class="k">${esc(k)}</div>
-      <div class="v">${esc(v)}</div>
-      <div class="d">${d}</div>
-    </div>`).join("");
-
-  document.getElementById("asof").innerHTML = o.asOf
+// The six tiles that used to sit here said the same things as the pulse bar
+// and the panels below it -- breadth twice, best and worst sector twice, best
+// and worst stock twice. Only the dateline was unique to them.
+function renderAsOf(o){
+  document.getElementById("asof").innerHTML = o && o.asOf
     ? `Last trading day <b>${longDate(o.asOf)}</b> · every figure is the close, not a live quote`
     : "No market data yet";
 }
@@ -1250,7 +1221,7 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
 
   try {
     S.overview = await rpc("get_market_overview");
-    renderCards(S.overview || {});
+    renderAsOf(S.overview);
   } catch (e) {
     document.getElementById("asof").textContent = "Market data unavailable: " + e.message;
   }
