@@ -282,7 +282,9 @@ def refresh_market() -> bool:
         fg = market.fear_greed()
         store.upsert_sentiment("fear_greed", fg["score"], fg.get("rating"),
                                fg.get("previous"), fg.get("source"))
-        log(f"  fear&greed: {fg['score']:.0f} ({fg.get('rating')})")
+        log(f"  fear&greed: {fg['score']:.0f} ({fg.get('rating')}) "
+            f"via {fg.get('source')}"
+            + (f" — {fg['note']}" if fg.get("note") else ""))
     except (market.MarketError, store.StoreError) as exc:
         log(f"  fear&greed: {exc}")
 

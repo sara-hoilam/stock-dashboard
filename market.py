@@ -679,7 +679,87 @@ _CNN_HEADERS = {
 }
 
 
+def _series(symbol: str, days: int = 200) -> list[float]:
+    end = dt.date.today()
+    rows = _get("historical-price-eod/light", symbol=symbol,
+                **{"from": (end - dt.timedelta(days=days)).isoformat(),
+                   "to": end.isoformat()}) or []
+    rows = [r for r in rows if r.get("price") is not None]
+    rows.sort(key=lambda r: r["date"])
+    return [float(r["price"]) for r in rows]
+
+
+def _scale(v: float, lo: float, hi: float) -> float:
+    """Put a raw reading on 0-100, clamped."""
+    if hi == lo:
+        return 50.0
+    return max(0.0, min(100.0, (v - lo) / (hi - lo) * 100.0))
+
+
+def fear_greed_composite() -> dict:
+    """A composite in the spirit of CNN's index, from the parts FMP serves.
+
+    Five of CNN's seven components are reproducible here; their put/call ratio
+    and 52-week high/low breadth are not, so this is our own reading rather
+    than theirs, and it is labelled that way. Each component is scored 0-100,
+    where 100 is greed, and the score is their mean.
+    """
+    parts: dict[str, float] = {}
+
+    spy = _series("SPY", 220)
+    if len(spy) > 130:
+        ma125 = sum(spy[-125:]) / 125
+        # +/-8% either side of the mean spans the range in practice.
+        parts["momentum"] = _scale((spy[-1] / ma125 - 1) * 100, -8, 8)
+
+    vix = _series("^VIX", 120)
+    if len(vix) > 55:
+        ma50 = sum(vix[-50:]) / 50
+        # Inverted: a VIX above its own average is fear.
+        parts["volatility"] = _scale((ma50 / vix[-1] - 1) * 100, -35, 35)
+
+    tlt = _series("TLT", 60)
+    if len(spy) > 21 and len(tlt) > 21:
+        stocks = spy[-1] / spy[-21] - 1
+        bonds = tlt[-1] / tlt[-21] - 1
+        parts["safeHaven"] = _scale((stocks - bonds) * 100, -8, 8)
+
+    hyg, lqd = _series("HYG", 60), _series("LQD", 60)
+    if len(hyg) > 21 and len(lqd) > 21:
+        junk = hyg[-1] / hyg[-21] - 1
+        safe = lqd[-1] / lqd[-21] - 1
+        parts["junkBonds"] = _scale((junk - safe) * 100, -3, 3)
+
+    if not parts:
+        return {}
+    score = round(sum(parts.values()) / len(parts))
+    label = ("Extreme fear" if score < 25 else "Fear" if score < 45 else
+             "Neutral" if score < 55 else "Greed" if score < 75 else "Extreme greed")
+    return {"score": float(score), "rating": label, "previous": None,
+            "source": "composite",
+            "components": {k: round(v) for k, v in parts.items()}}
+
+
 def fear_greed() -> dict:
+    """Current Fear & Greed score.
+
+    CNN first, because theirs is the index people mean by the name. It is an
+    undocumented endpoint on someone else's site, though, so a failure there
+    falls back to our own composite rather than leaving the card blank -- and
+    the row records which one it was, so the page never passes one off as the
+    other.
+    """
+    try:
+        return _fear_greed_cnn()
+    except MarketError as exc:
+        own = fear_greed_composite()
+        if not own:
+            raise
+        own["note"] = f"CNN unavailable ({exc})"
+        return own
+
+
+def _fear_greed_cnn() -> dict:
     """Current CNN Fear & Greed score. Raises MarketError on failure."""
     req = urllib.request.Request(_CNN_FNG, headers=_CNN_HEADERS)
     try:
