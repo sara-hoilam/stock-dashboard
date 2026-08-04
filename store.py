@@ -159,6 +159,18 @@ def upsert_intraday(symbol: str, points: list[dict], as_of: str | None) -> None:
         {"p_symbol": symbol, "p_points": points, "p_as_of": as_of})
 
 
+def skip_intraday(symbol: str) -> None:
+    rpc("skip_intraday", {"p_symbol": symbol})
+
+
+def pending_intraday(limit: int = 5) -> list[str]:
+    return rpc("pending_intraday", {"p_limit": limit}) or []
+
+
+def watchlisted_symbols(limit: int = 40) -> list[str]:
+    return rpc("watchlisted_symbols", {"p_limit": limit}) or []
+
+
 def replace_heatmap(rows: list[dict], as_of: str | None) -> int:
     return rpc("replace_heatmap", {"p_rows": rows, "p_as_of": as_of}) or 0
 

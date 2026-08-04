@@ -234,6 +234,13 @@ WATCHLIST = os.environ.get("WATCHLIST", "").split(",") if os.environ.get("WATCHL
     "AVGO", "JPM", "UBER", "COIN", "MU", "NFLX",
 ]
 
+# How many followed companies get a chart series on every market pass. One
+# FMP request each, so this is the cost of the feature: at the default
+# fifteen-minute cadence, forty names is 160 requests an hour. Raise it when
+# the plan allows; anything past the cap still gets a series the moment
+# someone opens it, through the request queue.
+FOLLOWED_CHARTS = int(os.environ.get("FOLLOWED_CHART_LIMIT", "40"))
+
 
 def refresh_market() -> bool:
     """Pull the day's market picture into Supabase.
@@ -265,11 +272,22 @@ def refresh_market() -> bool:
         store.upsert_quotes(quotes)
 
     # Chart series for the watchlist and for the top few movers, so every
-    # view of the summary list has something to draw when it is opened.
+    # view of the summary list has something to draw when it is opened --
+    # and for what people actually follow, which is the only part of this
+    # list that is not known in advance.
+    followed: list[str] = []
+    try:
+        followed = store.watchlisted_symbols(FOLLOWED_CHARTS)
+    except store.StoreError as exc:
+        # 0020 not applied yet. Followed companies still get a series from the
+        # request queue when someone opens one; they just are not pre-fetched.
+        log(f"  followed symbols unavailable (apply 0020_intraday_requests.sql): {exc}")
+
     chart_syms = list(dict.fromkeys(
         WATCHLIST
         + [r["symbol"] for r in (store_movers.get("gainer") or [])[:6]]
-        + [r["symbol"] for r in (store_movers.get("loser") or [])[:6]]))
+        + [r["symbol"] for r in (store_movers.get("loser") or [])[:6]]
+        + followed))
     for sym in chart_syms:
         try:
             pts = market.intraday(sym, days=2)
@@ -485,12 +503,38 @@ def refresh_intraday(symbol: str) -> bool:
         return False
     pts = market.intraday(symbol, days=2)
     if not pts:
+        # Close the request anyway. A symbol FMP has no series for -- a
+        # delisting, a ticker that never traded -- would otherwise sit at the
+        # head of the queue and be drawn again on every pass.
+        try:
+            store.skip_intraday(symbol)
+        except store.StoreError:
+            pass
         return False
     store.upsert_intraday(symbol, pts, pts[-1]["t"][:10])
     q = market.quote(symbol)
     if q:
         store.upsert_quotes([q])
     return True
+
+
+def drain_intraday(max_items: int = 5) -> int:
+    """Fetch chart series for companies someone has just opened or followed.
+
+    The market refresh pre-fetches a fixed set. Anything outside it -- a
+    company added to a personal watchlist -- is pulled here, so it has a chart
+    within a minute of being followed rather than at the next refresh.
+    """
+    if not market.configured():
+        return 0
+    try:
+        pending = store.pending_intraday(max_items)
+    except store.StoreError as exc:
+        # 0020 not applied yet. The page falls back to daily closes, so this
+        # degrades rather than taking the loop down with it.
+        log(f"  intraday queue unavailable (apply 0020_intraday_requests.sql): {exc}")
+        return 0
+    return sum(1 for sym in pending if refresh_intraday(sym))
 
 
 # ---------------------------------------------------------------------------
@@ -553,6 +597,8 @@ def run() -> None:
             if drain_backfill():
                 continue
             if drain_prices():
+                continue
+            if drain_intraday():
                 continue
             if drain_analyst():
                 continue

@@ -599,7 +599,7 @@ const avatarColour = s => {
 };
 
 const S = { view: "market_cap", rows: [], symbol: null, overview: null, movement: null,
-            pricePoll: null };
+            pricePoll: null, intraPoll: null, sel: 0, gotIntraday: false };
 
 /* ---- shared tooltip ------------------------------------------------------ */
 const tipEl = document.getElementById("tip");
@@ -1063,7 +1063,14 @@ function promptSaveWatchlist(n){
 /* ---- chart --------------------------------------------------------------- */
 async function selectSymbol(sym){
   S.symbol = sym;
+  // Two fetches race for this panel -- the intraday series and the daily
+  // fallback -- and a third selection can land while both are in flight. The
+  // token settles all of it: anything that comes back holding a stale one is
+  // an answer to a question nobody is asking any more.
+  const sel = ++S.sel;
+  S.gotIntraday = false;
   clearTimeout(S.pricePoll);            // stop waiting on the previous company
+  clearTimeout(S.intraPoll);
   // Move the highlight rather than rebuilding the table. Re-rendering here
   // tore down whatever surrounded the rows -- the watchlist's search bar --
   // and could hand the chart a different company than the one clicked.
@@ -1077,18 +1084,55 @@ async function selectSymbol(sym){
 
   let d = null;
   try { d = await rpc("get_intraday", { p_symbol: sym }); } catch {}
+  if (sel !== S.sel) return;
   const row = S.rows.find(r => r.symbol === sym);
   const q = (d && d.quote) || row || null;
 
   if (q) fillQuoteHead(sym, q);
 
-  if (d && d.points && d.points.length) return drawChart(d.points);
+  if (d && d.points && d.points.length) {
+    S.gotIntraday = true;
+    drawChart(d.points);
+    // Old enough to be worth replacing: ask, and let the next visit have it.
+    // Redrawing under someone mid-read would move the line they are looking at.
+    if (d.stale) askIntraday(sym);
+    return;
+  }
 
-  // The worker only keeps a minute-by-minute series for the names it already
-  // tracks, so anything just added to a watchlist has none. Fall back to the
-  // daily closes, which are fetched on demand for any company -- a six-month
-  // line is a better answer than telling someone their new ticker has no chart.
-  return dailyFallback(sym);
+  // The worker keeps a five-minute series for the names it already tracks, so
+  // a company just added to a watchlist has none. Ask for one -- then draw the
+  // daily closes straight away rather than holding an empty panel while the
+  // worker gets to it, and swap the intraday in when it lands.
+  askIntraday(sym);
+  await dailyFallback(sym, sel);
+  if (sel === S.sel) pollIntraday(sym, sel);
+}
+
+/** Ask the worker for a five-minute series. Fire and forget: the caller has
+    something to draw either way, and a failed request costs nothing. */
+function askIntraday(sym){
+  rpc("request_intraday", { p_symbol: sym }).catch(() => {});
+}
+
+/** Wait for a requested series, then replace the daily line with it. Gives up
+    quietly -- there is a chart on screen already, so a company FMP has no
+    intraday for simply keeps its daily one rather than being told about it. */
+function pollIntraday(sym, sel){
+  clearTimeout(S.intraPoll);
+  let tries = 0;
+  const tick = async () => {
+    if (sel !== S.sel || tries++ > 20) return;      // ~85 seconds
+    let d = null;
+    try { d = await rpc("get_intraday", { p_symbol: sym }); } catch {}
+    if (sel !== S.sel) return;
+    if (d && d.points && d.points.length) {
+      S.gotIntraday = true;
+      if (d.quote) fillQuoteHead(sym, d.quote);     // clears the range label
+      return drawChart(d.points);
+    }
+    S.intraPoll = setTimeout(tick, 4000);
+  };
+  S.intraPoll = setTimeout(tick, 4000);
 }
 
 /** Price, name and change above the chart. */
@@ -1104,11 +1148,12 @@ function fillQuoteHead(sym, q){
 
 /** Daily closes for a symbol with no intraday series, fetching them if this
     is the first time anyone has asked for this company. */
-async function dailyFallback(sym){
+async function dailyFallback(sym, sel){
   const chart = document.getElementById("chart");
   let d = null;
   try { d = await rpc("get_prices", { p_symbol: sym }); } catch {}
-  if (S.symbol !== sym) return;                 // another row was clicked
+  if (sel !== S.sel) return;                    // another row was clicked
+  if (S.gotIntraday) return;                    // the real series beat us here
 
   // A ticker reached from the search box is not in the table, so the header
   // may still be blank. get_prices carries a quote of its own.
@@ -1123,18 +1168,19 @@ async function dailyFallback(sym){
   }
 
   try { await rpc("request_prices", { p_symbol: sym }); } catch {}
+  if (sel !== S.sel || S.gotIntraday) return;
   chart.innerHTML = `<div class="note"><span class="load"></span> &nbsp;Fetching prices for ${esc(sym)}…</div>`;
-  pollDaily(sym);
+  pollDaily(sym, sel);
 }
 
 /** The worker fills a request in seconds when it is idle and a minute or two
     when it is behind on filings. Wait the longer of the two, then say so
     rather than leaving a space that never fills. */
-function pollDaily(sym){
+function pollDaily(sym, sel){
   clearTimeout(S.pricePoll);
   let tries = 0;
   const tick = async () => {
-    if (S.symbol !== sym) return;
+    if (sel !== S.sel || S.gotIntraday) return;
     if (tries++ > 40) {                          // ~2 minutes
       document.getElementById("chart").innerHTML =
         `<div class="note">Prices for ${esc(sym)} are still being fetched. Check back in a minute.<br>
@@ -1144,7 +1190,7 @@ function pollDaily(sym){
     }
     let d = null;
     try { d = await rpc("get_prices", { p_symbol: sym }); } catch {}
-    if (S.symbol !== sym) return;
+    if (sel !== S.sel || S.gotIntraday) return;
     if (d && (d.bars || []).length) return drawDaily(sym, d.bars);
     S.pricePoll = setTimeout(tick, 3000);
   };
