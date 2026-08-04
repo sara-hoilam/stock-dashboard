@@ -10,6 +10,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py sections           refresh heatmap, rotation and trades
     python worker.py news               refresh market news
     python worker.py prices [TICKER...] fill price requests, or named symbols
+    python worker.py analyst [TICKER...] fill coverage requests, or named symbols
     python worker.py intraday TICKER    refresh one chart series
     python worker.py stats              coverage summary
     python worker.py run                the long-running loop (this is what
@@ -340,15 +341,35 @@ def fetch_prices(symbol: str) -> bool:
         log(f"  extras {sym}: {exc}")
 
     # Analyst coverage rides along with the same visit.
-    try:
-        view = market.analyst_view(sym)
-        if view.get("target") or view.get("consensus"):
-            store.upsert_analyst(sym, view)
-            extras += (f", {len((view.get('grades') or []))} analysts")
-    except market.MarketError as exc:
-        log(f"  extras {sym}: {exc}")
+    if fetch_analyst(sym):
+        extras += ", analysts"
 
     log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
+    return True
+
+
+def fetch_analyst(symbol: str) -> bool:
+    """Targets, the rating tally and recent house actions for one company.
+
+    Written even when FMP returns nothing, because "no house covers this
+    company" is an answer the report can show, and an absent row is
+    indistinguishable from one that has not been fetched yet. Fields that came
+    back empty keep whatever they held, so a single failing endpoint cannot
+    blank a section that was complete a minute ago.
+    """
+    if not market.configured():
+        return False
+    sym = symbol.upper()
+    try:
+        view = market.analyst_view(sym)
+    except market.MarketError as exc:
+        log(f"  analyst {sym}: {exc}")
+        return False
+    store.upsert_analyst(sym, view)
+    c = view.get("consensus") or {}
+    log(f"analyst {sym}: {c.get('rating') or 'no consensus'}, "
+        f"{len(view.get('grades') or [])} houses, "
+        f"{len(view.get('news') or [])} stories")
     return True
 
 
@@ -396,6 +417,26 @@ def drain_prices(max_items: int = 5) -> int:
         if fetch_prices(sym):
             done += 1
     return done
+
+
+def drain_analyst(max_items: int = 5) -> int:
+    """Fetch coverage for the companies whose report pages have asked for it.
+
+    Coverage used to be a passenger on the price fetch, which only runs when
+    the page finds prices missing or half a day old -- so a company with fresh
+    prices never got any, and its report sat on a spinner forever. It has its
+    own queue now, drained the same way prices are.
+    """
+    if not market.configured():
+        return 0
+    try:
+        pending = store.pending_analyst(max_items)
+    except store.StoreError as exc:
+        # 0017 not applied yet. Coverage still arrives with the price fetch,
+        # so this degrades rather than taking the loop down with it.
+        log(f"  analyst queue unavailable (apply 0017_analyst_requests.sql): {exc}")
+        return 0
+    return sum(1 for sym in pending if fetch_analyst(sym))
 
 
 def refresh_sections() -> bool:
@@ -513,6 +554,8 @@ def run() -> None:
                 continue
             if drain_prices():
                 continue
+            if drain_analyst():
+                continue
 
             today = dt.date.today()
             if last_sweep_day != today and dt.datetime.now().hour >= 22:
@@ -564,6 +607,13 @@ def main(argv: list[str]) -> int:
                 fetch_prices(sym)
         else:
             log(f"filled {drain_prices(25)} price request(s)")
+
+    elif cmd == "analyst":
+        if len(argv) > 1:
+            for sym in argv[1:]:
+                fetch_analyst(sym)
+        else:
+            log(f"filled {drain_analyst(25)} analyst request(s)")
 
     elif cmd == "industry-pe":
         log("industry PE refreshed" if refresh_industry_pe()
