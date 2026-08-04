@@ -25,6 +25,9 @@
   --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
   --rule:#dde2e8; --rule-2:#eaeef2;
   --accent:#1e4fbf; --accent-soft:#e6ecfb;
+  /* Chart colours that must read as distinct at a glance, rather than
+     as shades of the interface. */
+  --c-blue:#2f7dff; --c-grey:#98a2b3; --c-band:#7c3aed; --c-bandfill:#7c3aed1f;
   --up:#0b7a4b; --down:#c0392e;
 
   --revenue:#2a78d6; --profit:#008300; --cost:#e34948;
@@ -41,6 +44,7 @@
   --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
   --rule:#232d3a; --rule-2:#1c2531;
   --accent:#6e9bff; --accent-soft:#1a2740;
+  --c-blue:#4d94ff; --c-grey:#7d8899; --c-band:#a78bfa; --c-bandfill:#a78bfa26;
   --up:#38b37d; --down:#f0736a;
 
   --revenue:#3987e5; --profit:#00a300; --cost:#e66767;
@@ -341,14 +345,17 @@ tbody tr:hover td{background:var(--sunk)}
 .season td{text-align:center;padding:5px 3px;border-radius:4px;white-space:nowrap}
 /* Opacity carries magnitude, so a strong month reads as strong without a
    second colour scale to learn. */
-.season .sc.up{background:color-mix(in srgb,var(--up) calc(var(--a)*62%),transparent);color:var(--ink)}
-.season .sc.down{background:color-mix(in srgb,var(--down) calc(var(--a)*62%),transparent);color:var(--ink)}
+/* The same scale as the market heatmap, so the colours mean one thing across
+   the site. It is a dark ramp, so the text on it is always light. */
+.season .sc{color:#f2f4f7}
 .season .sc.empty{background:var(--sunk)}
 .season tfoot th{color:var(--ink-2)}
 .season .sf{background:var(--sunk);color:var(--ink-2);font-weight:500}
 
-.newswrap{padding:0 4px 6px;max-height:340px;overflow-y:auto;
+.newswrap{padding:0 4px 6px;height:340px;overflow-y:auto;overscroll-behavior:contain;
   scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+.newswrap::-webkit-scrollbar{width:8px}
+.newswrap::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
 .conews{display:block;text-decoration:none;padding:11px 14px;border-bottom:1px solid var(--rule-2)}
 .conews:last-child{border-bottom:0}
 .conews:hover{background:var(--sunk)}
@@ -673,6 +680,22 @@ function ago(iso){
   return `${d} day${d === 1 ? "" : "s"} ago`;
 }
 
+// The same scale the market heatmap uses, so a red month here and a red tile
+// there mean the same thing. Monthly moves are wider than daily ones, so the
+// thresholds are scaled up rather than reinvented.
+const HEAT_SCALE = [
+  [-18, "#e8433a"], [-9,   "#c9342c"], [-4.5, "#8f3029"],
+  [-1.5,"#5c2b28"], [-0.15,"#3b2f2e"],
+  [0.15,"#2c3a30"], [1.5,  "#26543a"], [4.5,  "#2c8a4e"],
+  [9,   "#39b862"], [18,   "#5fe083"],
+];
+function heatColour(p){
+  if (p === null || p === undefined) return "var(--rule)";
+  let c = HEAT_SCALE[0][1];
+  for (const [t, col] of HEAT_SCALE) if (p >= t) c = col;
+  return c;
+}
+
 /** Explanations for the little (i) beside every chart title. */
 const HELP = {
   sankey:    "Every dollar of revenue for the selected quarter, followed left to right as it splits between costs and what survives as profit. Widths are proportional to dollars, so a wide red band is a large cost.",
@@ -839,9 +862,9 @@ function drawBenchmark(){
   const c0 = pts[0].c, b0 = byDate[pts[0].d];
   const label = d => shortDate(d);
   linePlot(host, [
-    { name: S.company.ticker, colour: "var(--accent)",
+    { name: S.company.ticker, colour: "var(--c-blue)",
       pts: pts.map(p => ({ v: p.c / c0 * 100, label: label(p.d), full: longDate(p.d) })) },
-    { name: `${bm.symbol} · ${EXTRA.data.sector || "sector"}`, colour: "var(--ink-3)",
+    { name: `${bm.symbol} · ${EXTRA.data.sector || "sector"}`, colour: "var(--c-grey)",
       pts: pts.map(p => ({ v: byDate[p.d] / b0 * 100, label: label(p.d), full: longDate(p.d) })) },
   ], { id: "bench", fmtY: v => v.toFixed(0), fmtV: v => (v - 100).toFixed(1) + "%",
        alt: "Company against its sector", idle: "Both rebased to 100 at the start." });
@@ -877,7 +900,7 @@ function drawPE(){
     return;
   }
   const ind = EXTRA.data.industryPe;
-  linePlot(host, [{ name: `${S.company.ticker} P/E`, colour: "var(--accent)", pts }], {
+  linePlot(host, [{ name: `${S.company.ticker} P/E`, colour: "var(--c-blue)", pts }], {
     id: "pe", zero: false,
     fmtY: v => v.toFixed(0), fmtV: v => v.toFixed(1),
     refs: ind ? [{ v: ind, colour: "var(--warn, #eda100)",
@@ -906,8 +929,7 @@ function drawSeasonality(){
 
   const cell = v => v === undefined || v === null
     ? `<td class="sc empty"></td>`
-    : `<td class="sc ${v >= 0 ? "up" : "down"}" style="--a:${Math.min(1, Math.abs(v) / 18).toFixed(2)}"
-         >${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
+    : `<td class="sc" style="background:${heatColour(v)}">${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
 
   const avg = mo => {
     const vs = years.map(y => ret[y][mo]).filter(v => v !== undefined);
@@ -936,9 +958,12 @@ function drawSeasonality(){
 }
 
 /* ---- 4. Bollinger bands --------------------------------------------------- */
+// Candles rather than a close line, the way the bands are conventionally
+// drawn: the point of the chart is where price sits against the envelope, and
+// a candle shows the whole day's range against it rather than one number.
 function drawBollinger(){
   const host = document.getElementById("boll-chart");
-  const bars = (PRICE.bars || []).slice(-180);
+  const bars = (PRICE.bars || []).slice(-150);
   if (bars.length < 25) { host.innerHTML = `<div class="note">Not enough price history.</div>`; return; }
 
   const N = 20, K = 2;
@@ -950,51 +975,187 @@ function drawBollinger(){
     const sd = Math.sqrt(win.reduce((a, v) => a + (v - mean) ** 2, 0) / N);
     mid.push(mean); up.push(mean + K * sd); lo.push(mean - K * sd);
   }
-  const label = i => ({ label: shortDate(bars[i].d), full: longDate(bars[i].d) });
-  linePlot(host, [
-    { name: "Upper", colour: "var(--ink-3)", pts: up.map((v, i) => ({ v, ...label(i) })) },
-    { name: "20-day mean", colour: "var(--accent)", pts: mid.map((v, i) => ({ v, ...label(i) })) },
-    { name: "Lower", colour: "var(--ink-3)", pts: lo.map((v, i) => ({ v, ...label(i) })) },
-    { name: "Close", colour: "var(--up)", pts: bars.map((b, i) => ({ v: b.c, ...label(i) })) },
-  ], { id: "boll", fmtY: v => v < 10 ? v.toFixed(2) : v.toFixed(0),
-       fmtV: v => v.toFixed(2), alt: "Bollinger bands",
-       idle: "Twenty-day mean, two standard deviations either side." });
+
+  const W = 620, H = 280, ml = 6, mr = 52, mt = 12, mb = 26;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const vals = bars.flatMap(b => [b.h ?? b.c, b.l ?? b.c])
+    .concat(up.filter(v => v !== null), lo.filter(v => v !== null));
+  const loV = Math.min(...vals), hiV = Math.max(...vals);
+  const pad = (hiV - loV) * 0.06 || 1;
+  const y0 = loV - pad, y1 = hiV + pad;
+  const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
+  const step = pw / bars.length;
+  const bw = Math.max(1.2, Math.min(7, step * 0.6));
+  const x = i => ml + step * (i + 0.5);
+
+  // The envelope as one filled shape: down the upper band, back along the
+  // lower. Shading between them is what makes a squeeze visible.
+  const first = up.findIndex(v => v !== null);
+  const band = first < 0 ? "" : (() => {
+    const top = up.map((v, i) => v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean);
+    const bot = lo.map((v, i) => v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`).filter(Boolean).reverse();
+    return `<polygon points="${top.concat(bot).join(" ")}" fill="var(--c-bandfill)"/>`;
+  })();
+
+  const line = (arr, dash) => {
+    const d = arr.map((v, i) => v === null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+      .filter(Boolean).join(" ");
+    return d ? `<polyline points="${d}" fill="none" stroke="var(--c-band)" stroke-width="1.5"
+      ${dash ? 'stroke-dasharray="5 4"' : ""} opacity="${dash ? .95 : .8}"/>` : "";
+  };
+
+  const candles = bars.map((b, i) => {
+    const rising = (b.c ?? 0) >= (b.o ?? b.c ?? 0);
+    const col = rising ? "var(--up)" : "var(--down)";
+    const top = y(Math.max(b.o ?? b.c, b.c)), bot = y(Math.min(b.o ?? b.c, b.c));
+    return `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}"
+              y1="${y(b.h ?? b.c).toFixed(1)}" y2="${y(b.l ?? b.c).toFixed(1)}"
+              stroke="${col}" stroke-width="1"/>
+            <rect x="${(x(i) - bw / 2).toFixed(1)}" y="${top.toFixed(1)}"
+              width="${bw.toFixed(1)}" height="${Math.max(1, bot - top).toFixed(1)}"
+              fill="${col}"/>`;
+  }).join("");
+
+  const ticks = bandTicks(y0, y1, 5);
+  const grid = ticks.map(t => `
+    <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
+      stroke="var(--rule-2)" stroke-width="1"/>
+    <text x="${W - mr + 6}" y="${(y(t) + 3.5).toFixed(1)}" class="ax">${t < 10 ? t.toFixed(2) : Math.round(t)}</text>`).join("");
+  const every = Math.max(1, Math.round(bars.length / 5));
+  const dates = bars.map((b, i) => i % every === 0 && i < bars.length - every / 2
+    ? `<text x="${x(i).toFixed(1)}" y="${H - 7}" class="ax mid">${shortDate(b.d)}</text>` : "").join("");
+
+  host.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
+         aria-label="Bollinger bands for ${esc(S.company.ticker)}">
+      ${grid}${band}${line(up)}${line(lo)}${line(mid, true)}${candles}${dates}
+      <g id="boll-cross" style="display:none">
+        <line class="xh" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
+          stroke-width="1" stroke-dasharray="3 3"/>
+      </g>
+      <rect x="${ml}" y="0" width="${pw}" height="${H}" fill="transparent" class="hit"/>
+    </svg>
+    <div class="lkey">
+      <span><i style="background:var(--c-band)"></i>Upper &amp; lower band</span>
+      <span><i class="dash" style="background:var(--c-band)"></i>20-day mean</span>
+      <span><i style="background:var(--up)"></i>Up day</span>
+      <span><i style="background:var(--down)"></i>Down day</span>
+    </div>
+    <div class="lread" id="boll-read">Bands two standard deviations either side.</div>`;
+
+  const svg = host.querySelector("svg");
+  const cross = host.querySelector("#boll-cross");
+  const xh = cross.querySelector(".xh");
+  const read = host.querySelector("#boll-read");
+  const idle = read.textContent;
+  host.querySelector(".hit").addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(bars.length - 1, Math.round((px - ml) / step - 0.5)));
+    const b = bars[i];
+    cross.style.display = "";
+    xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i));
+    const f = v => v === null || v === undefined ? "—" : v.toFixed(2);
+    // Where the close sits inside the envelope, which is the whole question
+    // the chart is asked.
+    const pos = up[i] !== null && up[i] !== lo[i]
+      ? ` · ${((b.c - lo[i]) / (up[i] - lo[i]) * 100).toFixed(0)}% of band` : "";
+    read.innerHTML = `<b>${esc(longDate(b.d))}</b> <span>Close ${f(b.c)}</span>` +
+      `<span>Upper ${f(up[i])}</span><span>Mean ${f(mid[i])}</span>` +
+      `<span>Lower ${f(lo[i])}${pos}</span>`;
+  });
+  host.querySelector(".hit").addEventListener("pointerleave", () => {
+    cross.style.display = "none";
+    read.textContent = idle;
+  });
 }
 
-/* ---- 5. news about this company ------------------------------------------ */
+/* ---- 5. news about this company and its industry -------------------------- */
+// Three searches, widening as they go: the ticker, the company's own name, and
+// its industry. A quiet week for one company is not a quiet week for its
+// sector, and the neighbours are usually what moves it.
 async function loadTickerNews(){
   const host = document.getElementById("co-news");
   const sym = S.company.ticker;
-  let d = null;
-  try { d = await rpc("get_news", { p_q: sym, p_limit: 8 }); } catch {}
-  let arts = (d && d.articles) || [];
+  const name = (S.company.name || "").replace(/,?\s+(inc|corp|corporation|plc|ltd|limited|holdings?|group|co)\.?$/i, "").trim();
+  const industry = EXTRA.data.industry || "";
+  // "Drug Manufacturers - General" never appears in a headline; the head of it
+  // sometimes does.
+  const industryTerm = industry.split(" - ")[0].trim();
 
-  // Nothing about the company itself: fall back to its industry, which is
-  // still more relevant than the market at large.
-  let scope = sym;
-  if (!arts.length && EXTRA.data.industry) {
-    scope = EXTRA.data.industry;
-    try {
-      const e = await rpc("get_news", { p_q: scope, p_limit: 8 });
-      arts = (e && e.articles) || [];
-    } catch {}
+  const searches = [[sym, sym], [name, name], [industryTerm, industryTerm]]
+    .filter(([t], i, arr) => t && t.length > 2 && arr.findIndex(x => x[0] === t) === i);
+
+  const seen = new Set(), arts = [];
+  const scopes = [];
+  for (const [term, label] of searches) {
+    let d = null;
+    try { d = await rpc("get_news", { p_q: term, p_limit: 10 }); } catch { continue; }
+    const got = (d && d.articles) || [];
+    if (got.length) scopes.push(label);
+    for (const a of got) {
+      if (seen.has(a.url)) continue;
+      seen.add(a.url);
+      arts.push(a);
+    }
   }
-  if (!arts.length) { host.innerHTML = `<div class="note">No recent stories.</div>`; return; }
+  arts.sort((a, b) => (b.published || "").localeCompare(a.published || ""));
 
-  document.getElementById("news-scope").textContent =
-    scope === sym ? `Stories mentioning ${sym}` : `No ${sym} stories — showing ${scope}`;
+  const scopeEl = document.getElementById("news-scope");
+  if (!arts.length) {
+    scopeEl.textContent = `Nothing recent for ${sym}`;
+    host.innerHTML = `<div class="note">No recent stories.</div>`;
+    return;
+  }
+  scopeEl.textContent = `${sym}, ${name || "the company"} and ${industryTerm || "its industry"}`;
+
   try {
-  host.innerHTML = arts.map(a => `
-    <a class="conews" href="${esc(a.url)}" target="_blank" rel="noopener">
-      <div class="when">${esc(ago(a.published))}${a.symbol ? ` · <span class="tag">${esc(a.symbol)}</span>` : ""}</div>
-      <h4>${esc(a.title)}</h4>
-      <p>${esc((a.summary || "").slice(0, 150))}</p>
-    </a>`).join("");
+    const item = a => `
+      <a class="conews" href="${esc(a.url)}" target="_blank" rel="noopener">
+        <div class="when">${esc(ago(a.published))}${a.symbol ? ` · <span class="tag">${esc(a.symbol)}</span>` : ""}</div>
+        <h4>${esc(a.title)}</h4>
+        <p>${esc((a.summary || "").slice(0, 150))}</p>
+      </a>`;
+    // Rendered twice so the drift below can wrap without a visible seam.
+    host.innerHTML = `<div id="conews-a">${arts.map(item).join("")}</div>` +
+                     `<div aria-hidden="true">${arts.map(item).join("")}</div>`;
+    requestAnimationFrame(() => driftNews(host));
   } catch (e) {
-    // Better a visible complaint than an empty panel that looks deliberate.
     host.innerHTML = `<div class="note">Could not render the news: ${esc(e.message)}</div>`;
     console.error("[news]", e);
   }
+}
+
+/** Scroll the list slowly, yielding the moment a reader takes hold of it.
+    Only a real gesture counts: the drift moves content under a resting
+    cursor, and treating that as intent would stop the feed for good. */
+function driftNews(wrap){
+  const copy = document.getElementById("conews-a");
+  if (!copy || wrap.dataset.drifting) return;
+  wrap.dataset.drifting = "1";
+
+  let held = 0, last = 0, pos = 1;
+  const SPEED = 16, HOLD = 1500;
+  const hold = () => { held = Date.now() + HOLD; pos = wrap.scrollTop; };
+  ["wheel", "touchstart", "touchmove", "pointerdown", "keydown"].forEach(e =>
+    wrap.addEventListener(e, hold, { passive: true }));
+
+  function frame(now){
+    requestAnimationFrame(frame);
+    const dt = last ? Math.min(100, now - last) : 0;
+    last = now;
+    const one = copy.offsetHeight;
+    if (!one || one <= wrap.clientHeight) return;   // nothing to scroll
+
+    if (Date.now() < held) pos = wrap.scrollTop;
+    else pos += SPEED * dt / 1000;
+
+    if (pos >= one * 2 - wrap.clientHeight) pos -= one;
+    else if (pos < 1) pos += one;
+    if (Math.abs(wrap.scrollTop - pos) > 0.01) wrap.scrollTop = pos;
+  }
+  wrap.scrollTop = pos;
+  requestAnimationFrame(frame);
 }
 
 /** A company with no US quarterly filings -- a foreign private issuer, or one
