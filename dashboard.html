@@ -1701,11 +1701,7 @@ function render(){
       <div class="period">
         <div class="qpick" id="qpick"></div>
         <div class="small">
-          ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)}<br>
-          ${q.basis === "derived"
-            ? `derived from the ${esc(q.form || "10-K")}`
-            : `as filed in the ${esc(q.form || "10-Q")}`}${
-            q.filed ? ` filed ${shortDate(q.filed)}` : ""} ·
+          ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)} ·
           <a href="${filingUrl}" target="_blank" rel="noopener">filing ↗</a>
         </div>
       </div>
