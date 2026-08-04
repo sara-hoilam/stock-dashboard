@@ -282,6 +282,23 @@ svg{display:block;max-width:100%}
 .nb-tag:hover{background:var(--accent);color:#fff}
 
 
+
+/* Star on the chart header — yellow when followed, grey when not. */
+.cstar{background:none;border:0;cursor:pointer;font-size:21px;line-height:1;
+  color:var(--ink-3);padding:0 2px;align-self:center}
+.cstar:hover{color:#e0a92e}
+.cstar.on{color:#e0a92e}
+.cstar[disabled]{opacity:.5}
+
+/* Symbol over company name in the summary rows. */
+.symtext{display:flex;flex-direction:column;gap:1px;min-width:0}
+.coname{font-size:10.5px;color:var(--ink-3);font-family:"IBM Plex Sans",sans-serif;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:118px}
+
+/* The watchlist search sits above the rows, not inside them. */
+.wl-bar{padding:10px 12px;border-bottom:1px solid var(--rule)}
+.wl-bar .wl-search{max-width:none;margin:0}
+
 /* ---- watchlist ----------------------------------------------------------- */
 .wl-empty{padding:26px 20px 30px;text-align:center}
 .wl-star{width:56px;height:56px;border-radius:50%;margin:0 auto 14px;
@@ -440,7 +457,10 @@ svg{display:block;max-width:100%}
       <div class="chartwrap">
         <div class="chead">
           <div>
-            <div class="price"><b id="c-sym">—</b><span id="c-price"></span></div>
+            <div class="price"><b id="c-sym">—</b>
+              <button type="button" class="cstar" id="c-star" aria-pressed="false"
+                      title="Add to watchlist" hidden>☆</button>
+              <span id="c-price"></span></div>
             <div class="meta" id="c-meta"></div>
           </div>
           <div class="search">
@@ -681,8 +701,13 @@ function renderAsOf(o){
 }
 
 /* ---- the list ------------------------------------------------------------ */
-function renderRows(){
-  const host = document.getElementById("rows");
+function renderRows(into){
+  // On the watchlist the rows live in their own container beneath the search
+  // bar. Writing to #rows instead would take the search bar with them, which
+  // is exactly what selecting a search result used to do.
+  const host = into
+    || document.getElementById("wl-rows")
+    || document.getElementById("rows");
   if (!S.rows.length){ host.innerHTML = `<div class="note">Nothing to show for this view yet.</div>`; return; }
   const showCap = S.view === "market_cap";
 
@@ -693,7 +718,10 @@ function renderRows(){
           title="Open ${esc(r.symbol)} financials">
         <td><span class="sym">
           <span class="dot" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
-          <span class="tick">${esc(r.symbol)}</span></span></td>
+          <span class="symtext">
+            <span class="tick">${esc(r.symbol)}</span>
+            ${r.name ? `<span class="coname">${esc(r.name)}</span>` : ""}
+          </span></span></td>
         <td>${esc(price(r.price))}</td>
         ${showCap ? `<td>${esc(cap(r.marketCap))}</td>` : ""}
         <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
@@ -785,6 +813,42 @@ async function setView(v){
   else renderRows();
 }
 
+/** The star beside the ticker on the chart. Present on every tab, so a
+    company can be followed from wherever it was noticed rather than only from
+    its own page. Yellow when watched, grey when not. */
+async function paintChartStar(sym){
+  const el = document.getElementById("c-star");
+  if (!el) return;
+  el.hidden = false;
+
+  let watching;
+  if (signedIn()) {
+    try {
+      const d = await rpc("is_watched", { p_symbol: sym });
+      watching = !!(d && d.watching);
+    } catch { watching = false; }
+  } else {
+    watching = localWatch.has(sym);
+  }
+
+  const paint = w => {
+    el.textContent = w ? "★" : "☆";
+    el.classList.toggle("on", w);
+    el.setAttribute("aria-pressed", String(w));
+    el.title = w ? `Remove ${sym} from your watchlist` : `Add ${sym} to your watchlist`;
+  };
+  paint(watching);
+
+  el.onclick = async e => {
+    e.stopPropagation();
+    el.disabled = true;
+    paint(await toggleWatch(sym));
+    el.disabled = false;
+    // Watching the list you are looking at: reflect the change immediately.
+    if (S.view === "watchlist") renderWatchlist();
+  };
+}
+
 /** A brief line at the foot of the screen; used only for things the reader
     did not ask to be told twice. */
 function toast(msg){
@@ -809,9 +873,27 @@ async function renderWatchlist(){
   try { quotes = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 50 }) || []; } catch {}
   const byId = Object.fromEntries(quotes.map(q => [q.symbol, q]));
   S.rows = syms.map(sym => byId[sym] || { symbol: sym, price: null, changePct: null });
-  renderRows();
+
+  // The search stays above the list rather than only appearing when the list
+  // is empty: adding the second company should be no harder than the first.
+  host.innerHTML = `<div class="wl-bar">${watchSearchMarkup("Add a company…")}</div>
+                    <div id="wl-rows"></div>`;
+  renderRows(document.getElementById("wl-rows"));
+  wireWatchSearch();
 
   if (!signedIn()) promptSaveWatchlist(syms.length);
+}
+
+/** One search field, used above the list and inside the empty state. */
+function watchSearchMarkup(placeholder){
+  return `
+    <form class="wl-search" id="wl-search">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+        stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="text" id="wl-q" placeholder="${esc(placeholder)}" autocomplete="off">
+      <div class="wl-ac" id="wl-ac"></div>
+    </form>`;
 }
 
 /** Nothing on the list yet: offer the obvious names and a search, rather than
@@ -840,13 +922,7 @@ async function renderWatchEmpty(host){
           <div class="wl-name">${esc(q.name || "")}</div>
         </div>`).join("")}</div>
 
-      <form class="wl-search" id="wl-search">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
-          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round"/></svg>
-        <input type="text" id="wl-q" placeholder="Search for a ticker to add…" autocomplete="off">
-        <div class="wl-ac" id="wl-ac"></div>
-      </form>
+      ${watchSearchMarkup("Search for a ticker to add…")}
     </div>`;
 
   host.querySelectorAll("[data-add]").forEach(card => {
@@ -876,15 +952,23 @@ function wireWatchSearch(){
       ac.classList.add("open");
       ac.querySelectorAll("[data-s]").forEach(d => d.onmousedown = async e => {
         e.preventDefault();
-        await toggleWatch(d.dataset.s);
-        renderWatchlist();
+        const sym = d.dataset.s;
+        // Add it if it is new, then show it on the chart either way -- picking
+        // a company should put it in front of you, not just on a list.
+        if (!(await watchSymbols()).includes(sym)) await toggleWatch(sym);
+        await renderWatchlist();
+        selectSymbol(sym);
       });
     }, 140);
   });
   q.addEventListener("blur", () => setTimeout(close, 150));
   document.getElementById("wl-search").onsubmit = async e => {
     e.preventDefault();
-    if (q.value.trim()) { await toggleWatch(q.value.trim().toUpperCase()); renderWatchlist(); }
+    const sym = q.value.trim().toUpperCase();
+    if (!sym) return;
+    if (!(await watchSymbols()).includes(sym)) await toggleWatch(sym);
+    await renderWatchlist();
+    selectSymbol(sym);
   };
 }
 
@@ -916,8 +1000,13 @@ function promptSaveWatchlist(n){
 /* ---- chart --------------------------------------------------------------- */
 async function selectSymbol(sym){
   S.symbol = sym;
-  renderRows();
+  // Move the highlight rather than rebuilding the table. Re-rendering here
+  // tore down whatever surrounded the rows -- the watchlist's search bar --
+  // and could hand the chart a different company than the one clicked.
+  document.querySelectorAll("#rows tr[data-s], #wl-rows tr[data-s]").forEach(tr =>
+    tr.setAttribute("aria-selected", String(tr.dataset.s === sym)));
   document.getElementById("c-sym").textContent = sym;
+  paintChartStar(sym);
   document.getElementById("c-price").textContent = "";
   document.getElementById("c-meta").textContent = "";
   document.getElementById("chart").innerHTML = `<div class="note"><span class="load"></span></div>`;
