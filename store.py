@@ -199,3 +199,11 @@ def upsert_benchmark(symbol: str, closes: list[dict]) -> int:
 
 def replace_industry_pe(rows: list[dict], as_of: str | None) -> int:
     return rpc("replace_industry_pe", {"p_rows": rows, "p_as_of": as_of}) or 0
+
+
+def upsert_sentiment(key: str, score: float, rating: str | None = None,
+                     previous: float | None = None, source: str | None = None) -> None:
+    rpc("upsert_sentiment", {
+        "p_key": key, "p_score": score, "p_rating": rating,
+        "p_previous": previous, "p_source": source,
+    })

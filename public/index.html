@@ -222,8 +222,66 @@ svg{display:block;max-width:100%}
   border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+/* ---- market pulse + news strip (above Market Summary) -------------------- */
+.pulse{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+  box-shadow:var(--shadow);margin:0 0 10px;overflow:hidden;
+}
+.pulse .cell{padding:14px 16px;border-right:1px solid var(--rule);min-width:0}
+.pulse .cell:last-child{border-right:0}
+.pulse .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;margin-bottom:6px}
+.pulse .v{font-family:"IBM Plex Sans",sans-serif;font-size:22px;font-weight:700;
+  letter-spacing:-.02em;line-height:1.15;color:var(--ink)}
+.pulse .v .dim{color:var(--ink-3);font-weight:500;font-size:16px}
+.pulse .chg{margin-top:6px;font-size:12.5px;font-weight:600;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.pulse .chg.up{color:var(--up)} .pulse .chg.down{color:var(--down)}
+.pulse .scale{margin-top:10px;height:6px;border-radius:99px;position:relative;
+  background:linear-gradient(90deg,#c0392e 0%,#eda100 45%,#2a78d6 100%)}
+.pulse .scale i{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
+  background:var(--card);border:2px solid var(--ink);transform:translate(-50%,-50%);
+  box-shadow:0 0 0 2px var(--card)}
+.pulse .gauge{display:flex;align-items:center;gap:10px;margin-top:2px}
+.pulse .gauge svg{flex:0 0 auto}
+.pulse .gauge .score{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.pulse .gauge .rating{font-size:11.5px;color:var(--ink-3);text-transform:capitalize;margin-top:2px}
+
+.newsbar{
+  display:flex;align-items:center;gap:10px;margin:0 0 18px;min-width:0;
+}
+.nb-track{
+  flex:1;min-width:0;display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 0;
+}
+.nb-track::-webkit-scrollbar{display:none}
+.nb-chip{
+  flex:0 0 auto;scroll-snap-align:start;max-width:min(420px,78vw);
+  display:flex;align-items:center;gap:8px;padding:8px 14px;
+  background:var(--card);border:1px solid var(--rule);border-radius:999px;
+  color:var(--ink);text-decoration:none;font-size:13px;line-height:1.3;
+  box-shadow:var(--shadow);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.nb-chip:hover{border-color:var(--accent);color:var(--accent)}
+.nb-chip .hot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;
+  background:#eb6834;box-shadow:0 0 0 3px color-mix(in srgb, #eb6834 25%, transparent)}
+.nb-chip b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.nb-tag{
+  flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
+  padding:8px 12px;border-radius:999px;border:1px solid var(--accent);
+  color:var(--ink);background:var(--accent-soft);text-decoration:none;
+  font-size:12.5px;font-weight:600;white-space:nowrap;
+}
+.nb-tag:hover{background:var(--accent);color:#fff}
+
 @media (max-width:1180px){ .cards{grid-template-columns:repeat(3,minmax(0,1fr))} .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
-@media (max-width:900px){ .grid2, .grid2.wide{grid-template-columns:1fr} }
+@media (max-width:900px){
+  .grid2, .grid2.wide{grid-template-columns:1fr}
+  .pulse{grid-template-columns:1fr 1fr}
+  .pulse .cell:nth-child(2n){border-right:0}
+  .pulse .cell:nth-child(-n+2){border-bottom:1px solid var(--rule)}
+}
 @media (max-width:640px){ .cards{grid-template-columns:repeat(2,minmax(0,1fr))} .top h1{font-size:26px} main{padding:18px 14px 60px} .search input{width:160px} }
 
 /* Mobile: charts use the full card width instead of a letterboxed fixed SVG. */
@@ -239,8 +297,16 @@ svg{display:block;max-width:100%}
   .foot{margin:18px 14px 0;padding-top:14px}
 
   /* Drop the Markets Today masthead and the six overview cards — on a phone
-     Market Summary is the first useful block. */
+     the pulse bar + Market Summary are the first useful blocks. */
   .top,.cards{display:none!important}
+
+  .pulse{margin:0 0 10px;border-radius:0;border-left:0;border-right:0;
+    grid-template-columns:1fr 1fr}
+  .pulse .cell:nth-child(2n){border-right:0}
+  .pulse .cell:nth-child(-n+2){border-bottom:1px solid var(--rule)}
+  .pulse .v{font-size:18px}
+  .newsbar{padding:0 14px;margin-bottom:14px}
+  h2{margin-top:4px}
 
   /* Market Summary: keep the list; drop the chart panel (ticker header,
      search, and intraday plot) — on a phone the list is enough. */
@@ -275,6 +341,13 @@ svg{display:block;max-width:100%}
   <section class="cards" id="cards"></section>
 
   <h2>Market Summary</h2>
+  <div class="pulse" id="pulse" aria-label="Market pulse">
+    <div class="note" style="grid-column:1/-1;padding:18px"><span class="load"></span></div>
+  </div>
+  <div class="newsbar" id="newsbar" aria-label="Top news">
+    <div class="nb-track" id="nb-track"></div>
+    <a class="nb-tag" href="news.html"><span aria-hidden="true">☰</span> Top News</a>
+  </div>
   <section class="panel">
     <div class="split">
       <div>
@@ -418,6 +491,133 @@ function showTip(ev, title, rows){
   tipEl.style.top = Math.max(8, y) + "px";
 }
 const hideTip = () => tipEl.classList.remove("on");
+
+/* ---- market pulse + news strip ------------------------------------------ */
+function fearColour(score){
+  if (score == null) return "var(--ink-3)";
+  if (score < 25) return "#c0392e";
+  if (score < 45) return "#e67e22";
+  if (score < 55) return "#eda100";
+  if (score < 75) return "#27ae60";
+  return "#0b7a4b";
+}
+
+function fearGauge(score){
+  // Semi-circle gauge: score 0..100 → angle on the arc.
+  const s = Math.max(0, Math.min(100, Number(score) || 0));
+  const W = 64, H = 36, cx = 32, cy = 32, r = 26;
+  const start = Math.PI, end = 0; // left → right through the top
+  const ang = start + (end - start) * (s / 100);
+  const nx = cx + r * Math.cos(ang), ny = cy + r * Math.sin(ang);
+  const stops = [
+    [0, "#c0392e"], [0.25, "#e67e22"], [0.5, "#eda100"],
+    [0.75, "#27ae60"], [1, "#0b7a4b"],
+  ];
+  // Approximate the arc with a thick stroked path coloured in segments.
+  const segs = [];
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a0 = start + (end - start) * stops[i][0];
+    const a1 = start + (end - start) * stops[i + 1][0];
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const large = (a1 - a0) > Math.PI ? 1 : 0;
+    segs.push(`<path d="M${x0} ${y0} A${r} ${r} 0 ${large} 1 ${x1} ${y1}"
+      fill="none" stroke="${stops[i][1]}" stroke-width="5" stroke-linecap="butt"/>`);
+  }
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+    ${segs.join("")}
+    <circle cx="${nx}" cy="${ny}" r="3.5" fill="var(--card)" stroke="var(--ink)" stroke-width="1.5"/>
+  </svg>`;
+}
+
+async function assemblePulseFallback(){
+  // Used until migration 0015 is applied and get_market_pulse exists.
+  const [overview, heatmap, tape] = await Promise.all([
+    rpc("get_market_overview").catch(() => null),
+    rpc("get_heatmap").catch(() => null),
+    rpc("get_ticker_tape").catch(() => null),
+  ]);
+  let marketCap = null;
+  if (Array.isArray(heatmap)) {
+    let tot = 0, wchg = 0;
+    heatmap.forEach(sec => (sec.items || []).forEach(c => {
+      if (c.marketCap == null || c.changePct == null) return;
+      tot += c.marketCap; wchg += c.marketCap * c.changePct;
+    }));
+    if (tot) marketCap = { value: tot, changePct: +(wchg / tot).toFixed(2) };
+  }
+  const spy = (Array.isArray(tape) ? tape.find(t => t.symbol === "SPY") : null)
+    || null;
+  const b = overview && overview.breadth;
+  const breadth = b && b.total ? {
+    up: b.up, total: b.total, avgChange: b.avgChange,
+    score: Math.round(100 * b.up / b.total),
+  } : null;
+  // No CNN score yet — approximate sentiment from breadth so the gauge
+  // still reads, and label it honestly.
+  const fearGreed = breadth ? {
+    score: breadth.score,
+    rating: breadth.score >= 55 ? "greed" : breadth.score <= 45 ? "fear" : "neutral",
+    source: "breadth",
+  } : null;
+  return { marketCap, spy, breadth, fearGreed, asOf: overview && overview.asOf };
+}
+
+function renderPulse(p){
+  const host = document.getElementById("pulse");
+  if (!p) {
+    host.innerHTML = `<div class="note" style="grid-column:1/-1">Pulse unavailable.</div>`;
+    return;
+  }
+  const mc = p.marketCap;
+  const spy = p.spy;
+  const br = p.breadth;
+  const fg = p.fearGreed;
+  const arrow = v => v > 0 ? "▲" : v < 0 ? "▼" : "·";
+
+  const cells = [
+    `<div class="cell">
+      <div class="k">Market Cap</div>
+      <div class="v">${mc ? esc(cap(mc.value)) : "—"}</div>
+      <div class="chg ${mc ? dir(mc.changePct) : ""}">${mc
+        ? `${arrow(mc.changePct)} ${esc(pct(Math.abs(mc.changePct)).replace("+",""))}`
+        : ""}</div>
+    </div>`,
+    `<div class="cell">
+      <div class="k">${spy ? esc(spy.symbol) : "SPY"}</div>
+      <div class="v">${spy ? esc(price(spy.price)) : "—"}</div>
+      <div class="chg ${spy ? dir(spy.changePct) : ""}">${spy
+        ? `${arrow(spy.changePct)} ${esc(pct(Math.abs(spy.changePct)).replace("+",""))}`
+        : ""}</div>
+    </div>`,
+    `<div class="cell">
+      <div class="k">Breadth Index</div>
+      <div class="v">${br ? `${esc(String(br.score))}<span class="dim"> /100</span>` : "—"}</div>
+      ${br ? `<div class="scale" title="${br.up}/${br.total} advancing">
+        <i style="left:${br.score}%"></i></div>` : ""}
+    </div>`,
+    `<div class="cell">
+      <div class="k">Fear &amp; Greed${fg && fg.source === "breadth" ? " *" : ""}</div>
+      ${fg ? `<div class="gauge">${fearGauge(fg.score)}
+        <div><div class="score" style="color:${fearColour(fg.score)}">${esc(String(Math.round(fg.score)))}</div>
+        <div class="rating">${esc(fg.rating || "")}</div></div></div>` : `<div class="v">—</div>`}
+    </div>`,
+  ];
+  host.innerHTML = cells.join("");
+}
+
+function renderNewsBar(articles){
+  const track = document.getElementById("nb-track");
+  if (!articles || !articles.length) {
+    track.innerHTML = `<span class="nb-chip"><span class="hot"></span><b>No headlines yet</b></span>`;
+    return;
+  }
+  track.innerHTML = articles.slice(0, 12).map(a =>
+    `<a class="nb-chip" href="${esc(a.url)}" target="_blank" rel="noopener">
+      <span class="hot" aria-hidden="true"></span>
+      <b>${a.symbol ? esc(a.symbol) + " · " : ""}${esc(a.title)}</b>
+    </a>`).join("");
+}
 
 /* ---- headline cards ------------------------------------------------------ */
 function renderCards(o){
@@ -1063,6 +1263,19 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
   } catch (e) {
     document.getElementById("asof").textContent = "Market data unavailable: " + e.message;
   }
+
+  // Pulse bar: prefer the dedicated RPC (needs migration 0015); otherwise
+  // assemble the same shape from overview + heatmap + tape.
+  (async () => {
+    let pulse = null;
+    try { pulse = await rpc("get_market_pulse"); }
+    catch { try { pulse = await assemblePulseFallback(); } catch {} }
+    renderPulse(pulse);
+  })();
+
+  rpc("get_news_feed", { p_hours: 24, p_limit: 12 }).then(renderNewsBar)
+    .catch(() => renderNewsBar(null));
+
   await setView("market_cap");
 
   // The sections below load independently, so one failing does not take the

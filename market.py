@@ -660,3 +660,41 @@ def industry_pe(day: dt.date | None = None, look_back: int = 6) -> tuple[list[di
         if rows:
             return rows, d
     return [], None
+
+
+# ---------------------------------------------------------------------------
+# Fear & Greed — not an FMP endpoint
+# ---------------------------------------------------------------------------
+
+# CNN publishes a 0–100 equity Fear & Greed index. FMP has no equivalent.
+# The worker reads CNN's public dataviz JSON (the same feed their page uses)
+# and caches the score in Supabase so the browser never talks to CNN.
+_CNN_FNG = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+_CNN_HEADERS = {
+    "User-Agent": ("Mozilla/5.0 (compatible; TickerAlphaBot/1.0; "
+                   "+https://github.com/sara-hoilam/stock-dashboard)"),
+    "Accept": "application/json",
+    "Referer": "https://www.cnn.com/markets/fear-and-greed",
+    "Origin": "https://www.cnn.com",
+}
+
+
+def fear_greed() -> dict:
+    """Current CNN Fear & Greed score. Raises MarketError on failure."""
+    req = urllib.request.Request(_CNN_FNG, headers=_CNN_HEADERS)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+    except Exception as exc:
+        raise MarketError(f"fear_greed: {exc}") from exc
+
+    fg = data.get("fear_and_greed") or {}
+    score = fg.get("score")
+    if score is None:
+        raise MarketError("fear_greed: response missing score")
+    return {
+        "score": float(score),
+        "rating": fg.get("rating"),
+        "previous": fg.get("previous_close"),
+        "source": "cnn",
+    }
