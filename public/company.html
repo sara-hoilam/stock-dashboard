@@ -210,10 +210,6 @@ tbody tr:hover td{background:var(--sunk)}
 /* ---- states -------------------------------------------------------------- */
 .note{padding:26px 22px;color:var(--ink-3);font-size:13px;text-align:center}
 .err{border-color:var(--down);color:var(--down)}
-.foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.7}
-.foot a{color:var(--accent);text-decoration:none}
-.foot a:hover{text-decoration:underline}
-.foot code{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--sunk);padding:1px 5px;border-radius:4px}
 
 .load{display:inline-block;width:13px;height:13px;border:2px solid var(--rule);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -532,9 +528,6 @@ tbody tr:hover td{background:var(--sunk)}
   .lwrap{padding:2px 0 10px}
   .lchart{max-height:min(36vh,300px);max-width:none;touch-action:pan-y}
   .pchart{touch-action:pan-y pinch-zoom}
-  .foot{display:none}
-  #mtab-filing .mfoot{display:block;padding:18px 14px 0;margin:18px 14px 0;
-    border-top:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.7}
   .legend{padding:0 14px 12px}
   .bpad{padding:14px}
   .grouphead{padding:0 14px;margin:18px 0 10px;font-size:17px}
@@ -575,9 +568,7 @@ tbody tr:hover td{background:var(--sunk)}
   body.sankey-fs-open .kpis,
   body.sankey-fs-open .grid2,
   body.sankey-fs-open .grouphead,
-  body.sankey-fs-open .pairrow,
-  body.sankey-fs-open .mfoot,
-  body.sankey-fs-open .foot{display:none!important}
+  body.sankey-fs-open .pairrow{display:none!important}
   body.sankey-fs-open #mtab-filing{display:block!important}
   body.sankey-fs-open #sankey-panel{
     position:fixed!important;z-index:260;margin:0!important;border:0!important;
@@ -613,9 +604,7 @@ tbody tr:hover td{background:var(--sunk)}
   body.chart-fs-open .nav-strip,
   body.chart-fs-open .mtabs,
   body.chart-fs-open .ident,
-  body.chart-fs-open .pricestats,
-  body.chart-fs-open .foot,
-  body.chart-fs-open .mfoot{display:none!important}
+  body.chart-fs-open .pricestats{display:none!important}
   body.chart-fs-open #mtab-chart{display:block!important}
   body.chart-fs-open .pricerow{margin:0}
   body.chart-fs-open .pricechart{
@@ -632,8 +621,8 @@ tbody tr:hover td{background:var(--sunk)}
 
 
 /* ---- analyst rating ------------------------------------------------------ */
-/* The coverage column: one card, with the source note under it rather than
-   inside it, so the note is not scrolled away with the table. */
+/* The coverage column. The card is redrawn into it whenever the data lands,
+   so the grid cell is a wrapper the redraw cannot take with it. */
 .acol{display:flex;flex-direction:column;min-width:0;margin-bottom:16px}
 .acol>.panel{margin-bottom:0}
 /* Half the page wide, the longer of the two subtitles wraps -- and without
@@ -664,9 +653,6 @@ tbody tr:hover td{background:var(--sunk)}
 .asrc .atgt{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3);
   margin-top:3px}
 .asrc .atgt b{color:var(--ink-2)}
-.afoot{padding:11px 16px 14px;font-size:11.5px;color:var(--ink-3);
-  border-top:1px solid var(--rule-2)}
-.afoot a{color:var(--accent)}
 
 
 /* ---- chart toolbar ------------------------------------------------------- */
@@ -1480,7 +1466,7 @@ function showAnalyst(sym){
     if (d.updatedAt) return analystState(`No analyst coverage published for ${sym}.`);
     return awaitAnalyst(sym);
   }
-  drawAnalyst(d);
+  drawAnalyst();
   wireHelp();
   // The price panel carries the consensus beside the price, and whichever of
   // the two arrives second is the one that can draw it.
@@ -1596,7 +1582,7 @@ function consensusSummary(spot){
     and the notes that moved the targets. They answer different questions
     about one subject, so they share a panel rather than competing for the
     width beside the news. */
-function drawAnalyst(d){
+function drawAnalyst(){
   const host = document.getElementById("analyst");
 
   host.innerHTML = `
@@ -1612,12 +1598,7 @@ function drawAnalyst(d){
         </div>
       </div>
       <div id="arat-body"></div>
-    </section>
-
-    <div class="afoot">Analyst data from
-      <a href="https://site.financialmodelingprep.com/" target="_blank" rel="noopener">Financial
-      Modeling Prep</a>${d.updatedAt ? ` · updated ${esc(ago(d.updatedAt))}` : ""}.
-      Ratings are the analysts' own opinions, not a recommendation from this site.</div>`;
+    </section>`;
 
   host.querySelectorAll("#arat-views button").forEach(b =>
     b.onclick = () => { ANALYST.view = b.dataset.v; paintAnalyst(); });
@@ -2042,7 +2023,6 @@ function render(){
         </div></div>
         <div class="scroll" id="istmt"></div>
       </section>
-      <div class="foot mfoot" id="foot-mobile"></div>
     </div>
 
     <div class="mtab-panel" data-mtab="market" id="mtab-market" role="tabpanel">
@@ -2137,8 +2117,6 @@ function render(){
         <div class="legend" id="b-legend"></div>
       </section>
     </div>
-
-    <div class="foot" id="foot"></div>
   `;
 
   document.getElementById("qpick").append(
@@ -2157,7 +2135,6 @@ function render(){
   renderCostStack();
   renderStatement();
   wireBuilder();
-  renderFoot();
   wireMobileTabs();
 }
 
@@ -3085,41 +3062,6 @@ function renderStatement(){
       </tr></thead>
       <tbody>${body}</tbody>
     </table>`;
-}
-
-/* ---- Footer -------------------------------------------------------------- */
-function renderFoot(){
-  const c = S.company, q = S.quarter;
-  const cut = S.breakdowns && S.breakdowns.length ? S.breakdowns[S.cut] : null;
-  const fyeName = MONTHS[(c.fiscalYearEndMonth||12)-1];
-  const html = `
-    <strong>Source.</strong> Every figure is from the company's own filings with the
-    U.S. Securities and Exchange Commission — the
-    <a href="${esc(c.source.facts)}" target="_blank" rel="noopener">XBRL company-facts API</a>
-    for the income statement, and the filed report itself for the revenue breakdown.
-    Nothing here is estimated, and no third-party data is used.<br>
-
-    <strong>Fiscal calendar.</strong> ${esc(c.name)}'s fiscal year ends in ${fyeName},
-    so Q${q.fq} FY${q.fy} covers ${longDate(q.start)} – ${longDate(q.end)}.<br>
-
-    <strong>How quarterly figures are obtained.</strong> Quarterly columns are used as
-    filed where a company reports them. Fourth quarters are not reported on their own,
-    so they are calculated as the annual figure minus the first nine months
-    ${q.basis === "derived" ? "— as this quarter is" : ""}. Lines marked
-    <span class="tag">derived</span> were not tagged in the filing and are computed from
-    the lines around them.<br>
-
-    ${cut ? `<strong>Revenue breakdown.</strong> Taken from
-      “${esc(cut.source)}”. Its parts sum to within 2% of
-      consolidated revenue; breakdowns that do not reconcile are not shown.<br>` : ""}
-
-    <strong>Caching.</strong> Responses are cached on disk. Delete <code>.cache</code>
-    to force a refresh after a new filing.
-  `;
-  const foot = document.getElementById("foot");
-  if (foot) foot.innerHTML = html;
-  const mobile = document.getElementById("foot-mobile");
-  if (mobile) mobile.innerHTML = html;
 }
 
 /* ===========================================================================
