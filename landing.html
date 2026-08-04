@@ -225,6 +225,15 @@ svg{display:block;max-width:100%}
 @media (max-width:1180px){ .cards{grid-template-columns:repeat(3,minmax(0,1fr))} .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
 @media (max-width:900px){ .grid2, .grid2.wide{grid-template-columns:1fr} }
 @media (max-width:640px){ .cards{grid-template-columns:repeat(2,minmax(0,1fr))} .top h1{font-size:26px} main{padding:18px 14px 60px} .search input{width:160px} }
+
+/* Mobile: charts use the full card width instead of a letterboxed fixed SVG. */
+@media (max-width:720px){
+  .scroll{padding-left:8px;padding-right:8px}
+  .scroll svg,.panel svg.fullchart{
+    width:100%!important;height:auto!important;max-width:none;display:block;
+  }
+  .panel .phead{padding-left:14px;padding-right:14px}
+}
 </style>
 </head>
 <body>
@@ -564,7 +573,7 @@ function drawChart(points){
       fill="transparent" style="cursor:crosshair"></rect>`);
 
   document.getElementById("chart").innerHTML =
-    `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+    `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
        aria-label="Intraday price">${parts.join("")}</svg>`;
 
   wireCrosshair({points, x, y, W, H, ml, mr, mt, mb, ph});
@@ -797,7 +806,7 @@ function renderRotation(history){
   parts.push(`<rect id="rhit" x="${ml}" y="${mt}" width="${pw}" height="${ph}"
       fill="transparent" style="cursor:crosshair"></rect>`);
 
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
     aria-label="Cumulative sector performance">${parts.join("")}</svg>`;
 
   document.getElementById("rot-legend").innerHTML = series.map(s =>
@@ -869,7 +878,7 @@ function renderSectorPerf(rows){
         text-anchor="${up ? "start" : "end"}" font-size="12.5" class="tnum"
         fill="var(${up ? "--up" : "--down"})" font-weight="600">${esc(pct(r.changePct))}</text>`);
   });
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
     aria-label="Sector performance">${parts.join("")}</svg>`;
 
   const asOf = (S.movement && S.movement.asOf) || "";
