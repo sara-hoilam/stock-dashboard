@@ -625,6 +625,15 @@ tbody tr:hover td{background:var(--sunk)}
    so the grid cell is a wrapper the redraw cannot take with it. */
 .acol{display:flex;flex-direction:column;min-width:0;margin-bottom:16px}
 .acol>.panel{margin-bottom:0}
+/* The targets, repeated above the ratings for phones only -- see drawAnalyst.
+   As a card of its own it needs none of the rule that separates it from the
+   quote when it sits under one. */
+.mtargets{display:none}
+.mtargets .wst{margin-top:0;padding-top:0;border-top:0}
+@media (max-width:720px){
+  .mtargets{display:block;padding:15px 16px 17px}
+  .acol>.mtargets{margin-bottom:10px}
+}
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
 .atable{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -1531,6 +1540,16 @@ function consensusCall(c){
   return { ...(tied.find(g => said.includes(g.tone)) || tied[0]), total, groups };
 }
 
+/** The last traded price: the quote where there is one, the final bar's close
+    otherwise. Both panels that measure a target against it need the same
+    number, or the same target implies two different changes. */
+function lastPrice(){
+  const q = PRICE.quote;
+  if (q && q.price !== null && q.price !== undefined) return q.price;
+  const bars = PRICE.bars || [];
+  return bars.length ? bars[bars.length - 1].c : null;
+}
+
 /** Where the houses think the price is going, under the price it is measured
     against: the consensus target and what it implies, the range around it,
     and the split that produced it. */
@@ -1564,9 +1583,15 @@ function consensusSummary(spot){
 }
 
 /** Where each house covering the company stands now: one row per firm, its
-    latest grade, and what it did to arrive at it. */
+    latest grade, and what it did to arrive at it.
+
+    The targets lead on a phone. They belong to the price panel and are drawn
+    there, but that panel is a tab away here, and a page of ratings that never
+    says what they are ratings toward is half the story. Above 720px the
+    repeat is hidden, because there the two sit on one scroll. */
 function drawAnalyst(){
   const host = document.getElementById("analyst");
+  const targets = consensusSummary(lastPrice());
   const rows = ((ANALYST.data || {}).grades || []).map(g => `
     <tr>
       <td>${esc(g.house)}</td>
@@ -1576,6 +1601,7 @@ function drawAnalyst(){
     </tr>`).join("");
 
   host.innerHTML = `
+    ${targets ? `<section class="card panel mtargets">${targets}</section>` : ""}
     <section class="card panel">
       <div class="phead"><div>
         <h2>Analyst Ratings ${helpIcon("houses")}</h2>
@@ -3387,6 +3413,10 @@ function paintPrices(){
   // Three of the panels below are drawn from these bars. Prices arrive after
   // the first render, so whichever of the two finishes last does the drawing.
   marketPanels();
+  // The coverage card repeats the targets on a phone, and a target is only
+  // worth a percentage against a price. Coverage often lands first.
+  if (ANALYST.data && ANALYST.symbol && document.getElementById("analyst"))
+    showAnalyst(ANALYST.symbol);
 }
 
 /** The panels that need both the extras payload and the price bars. */
@@ -3988,7 +4018,7 @@ function drawPriceStats(){
   const q = PRICE.quote, bars = PRICE.bars;
   const last = bars[bars.length - 1];
   const host = document.getElementById("price-stats");
-  const price = q && q.price !== null && q.price !== undefined ? q.price : last.c;
+  const price = lastPrice();
   const chg = q ? q.change : null;
   const chgPct = q ? q.change_pct : null;
 
