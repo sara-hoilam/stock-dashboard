@@ -211,3 +211,7 @@ def upsert_sentiment(key: str, score: float, rating: str | None = None,
 
 def upsert_analyst(symbol: str, row: dict) -> int:
     return rpc("upsert_analyst", {"p_symbol": symbol, "p_row": row}) or 0
+
+
+def pending_analyst(limit: int = 5) -> list[str]:
+    return rpc("pending_analyst", {"p_limit": limit}) or []

@@ -297,14 +297,21 @@ tbody tr:hover td{background:var(--sunk)}
   color:#fff}
 
 .pricestats{padding:16px 18px 14px;display:flex;flex-direction:column}
-.pq{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;
-  padding-bottom:13px;border-bottom:1px solid var(--rule)}
+.pqhead{padding-bottom:13px;border-bottom:1px solid var(--rule)}
+.pq{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
 .pq-price{font-family:"IBM Plex Mono",monospace;font-size:29px;font-weight:600;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .pq-pill{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;
   border-radius:6px;padding:2px 7px;line-height:1.5}
 .pq-pill.up{background:var(--up-soft);color:var(--up)}
 .pq-pill.down{background:var(--down-soft);color:var(--down)}
+/* What the houses call it, under the price it is called on. */
+.pq-call{display:flex;align-items:baseline;gap:8px;margin-top:8px}
+.pq-call b{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.pq-call span{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ink-3)}
+.pq-call.buy b{color:var(--up)}
+.pq-call.hold b{color:var(--ink-3)}
+.pq-call.sell b{color:var(--down)}
 .pstats{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:4px}
 .pstats>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
   padding:7px 0;border-bottom:1px solid var(--rule-2)}
@@ -864,6 +871,10 @@ const API = {
                                   : Promise.resolve(null),
   extras: symbol => HOSTED ? rpc("get_company_extras", { p_symbol: symbol })
                            : Promise.resolve(null),
+  analyst: symbol => HOSTED ? rpc("get_analyst", { p_symbol: symbol })
+                            : Promise.resolve(null),
+  requestAnalyst: symbol => HOSTED ? rpc("request_analyst", { p_symbol: symbol })
+                                   : Promise.resolve(null),
 };
 
 /* ===========================================================================
@@ -1424,7 +1435,7 @@ function driftNews(wrap){
    the rating tally, each firm's latest action, and the wire story behind each
    target change -- so each number can be followed back to its note.
 =========================================================================== */
-const ANALYST = { symbol: null, data: null };
+const ANALYST = { symbol: null, data: null, tries: 0, poll: null };
 
 async function loadAnalyst(){
   const sym = S.company && S.company.ticker;
@@ -1433,24 +1444,59 @@ async function loadAnalyst(){
   if (!host) return;
 
   if (ANALYST.symbol !== sym) {
+    clearTimeout(ANALYST.poll);
     ANALYST.symbol = sym;
     ANALYST.data = null;
-    try { ANALYST.data = await rpc("get_analyst", { p_symbol: sym }); }
-    catch { host.innerHTML = `<div class="note">Analyst coverage unavailable.</div>`; return; }
+    ANALYST.tries = 0;
+    try { ANALYST.data = await API.analyst(sym); }
+    catch { return analystState(`Analyst coverage for ${sym} is unavailable.`); }
+    if (ANALYST.symbol !== sym) return;        // another company was opened
   }
+  showAnalyst(sym);
+}
+
+/** Three states, and they are not the same thing. A row carrying figures is
+    drawn; a row without means the houses were asked and none cover this
+    company; no row at all means nobody has opened it since coverage was
+    added, so it is requested and waited for. */
+function showAnalyst(sym){
   const d = ANALYST.data || {};
   if (!d.consensus && !d.target) {
-    // Filled on the same visit as prices, so it arrives a moment later.
-    host.innerHTML = `<div class="note"><span class="load"></span> &nbsp;`
-      + `Fetching analyst coverage for ${esc(sym)}…</div>`;
-    if (!ANALYST.polling) {
-      ANALYST.polling = true;
-      setTimeout(() => { ANALYST.symbol = null; ANALYST.polling = false; loadAnalyst(); }, 6000);
-    }
-    return;
+    if (d.updatedAt) return analystState(`No analyst coverage published for ${sym}.`);
+    return awaitAnalyst(sym);
   }
   drawAnalyst(d);
   wireHelp();
+  // The price panel carries the consensus beside the price, and whichever of
+  // the two arrives second is the one that can draw it.
+  if ((PRICE.bars || []).length && document.getElementById("price-stats")) drawPriceStats();
+}
+
+function analystState(msg, busy){
+  const host = document.getElementById("analyst");
+  if (!host) return;
+  host.innerHTML = `<section class="card panel"><div class="note">`
+    + `${busy ? `<span class="load"></span> &nbsp;` : ""}${esc(msg)}</div></section>`;
+}
+
+/** Coverage is fetched on demand, like prices: the page asks, the worker
+    answers within a few seconds. Say so while waiting, and say plainly when
+    it has not arrived rather than spinning forever. */
+function awaitAnalyst(sym){
+  clearTimeout(ANALYST.poll);
+  if (ANALYST.tries === 0) API.requestAnalyst(sym).catch(() => {});
+  if (ANALYST.tries++ > 20) {                    // ~2 minutes, as for prices
+    return analystState(`Coverage for ${sym} is still being fetched. Reload in a minute.`);
+  }
+  analystState(`Fetching analyst coverage for ${sym}…`, true);
+  ANALYST.poll = setTimeout(async () => {
+    if (!S.company || S.company.ticker !== sym) return;
+    let d = null;
+    try { d = await API.analyst(sym); } catch { return; }
+    if (ANALYST.symbol !== sym) return;
+    ANALYST.data = d;
+    showAnalyst(sym);
+  }, 6000);
 }
 
 /** Buy through sell as one stacked bar — the split is the point, not the
@@ -1511,6 +1557,25 @@ const GRADE_TONE = g => {
 };
 
 const ACTION_TONE = a => ({ upgrade: "up", downgrade: "down" }[(a || "").toLowerCase()] || "");
+
+/** The tally as one word and the ratings behind it. FMP publishes a consensus
+    string of its own, but a word and a count shown together have to come from
+    the same five numbers or they contradict each other -- so the word is the
+    largest of the three groups, and FMP's only breaks a tie. */
+function consensusCall(c){
+  if (!c) return null;
+  const groups = [
+    { word: "Buy",  tone: "buy",  n: (c.strongBuy || 0) + (c.buy || 0) },
+    { word: "Hold", tone: "hold", n: c.hold || 0 },
+    { word: "Sell", tone: "sell", n: (c.sell || 0) + (c.strongSell || 0) },
+  ];
+  const total = groups.reduce((a, g) => a + g.n, 0);
+  if (!total) return null;
+  const most = Math.max(...groups.map(g => g.n));
+  const tied = groups.filter(g => g.n === most);
+  const said = (c.rating || "").toLowerCase();
+  return { ...(tied.find(g => said.includes(g.tone)) || tied[0]), total };
+}
 
 function drawAnalyst(d){
   const host = document.getElementById("analyst");
@@ -1604,6 +1669,7 @@ function marketOnly(ticker, company, why){
 
     <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
       <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
+      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Rating</button>
     </nav>
 
     <div class="mtab-panel on" data-mtab="chart" id="mtab-chart" role="tabpanel">
@@ -1611,6 +1677,12 @@ function marketOnly(ticker, company, why){
       <div class="card note" id="nofilings" style="margin:12px 14px;border-radius:var(--r)">
         <b>No filed financials for ${esc(ticker)}.</b><br>${esc(why)}
       </div>
+    </div>
+
+    <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
+      <h3 class="grouphead">Analyst rating</h3>
+      <div id="analyst"><section class="card panel"><div class="note">
+        <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
     </div>`;
 
   document.body.classList.add("mreport");
@@ -1849,8 +1921,8 @@ function render(){
       <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
       <button type="button" role="tab" data-mtab="filing" aria-selected="false">Filing</button>
       <button type="button" role="tab" data-mtab="market" aria-selected="false">Market</button>
-      <button type="button" role="tab" data-mtab="news" aria-selected="false">News</button>
       <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Rating</button>
+      <button type="button" role="tab" data-mtab="news" aria-selected="false">News</button>
       <button type="button" role="tab" data-mtab="custom" aria-selected="false">Custom</button>
     </nav>
 
@@ -1980,6 +2052,12 @@ function render(){
       </div>
     </div>
 
+    <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
+      <h3 class="grouphead">Analyst rating</h3>
+      <div id="analyst"><section class="card panel"><div class="note">
+        <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
+    </div>
+
     <div class="mtab-panel" data-mtab="news" id="mtab-news" role="tabpanel">
       <section class="card panel">
         <div class="phead"><div>
@@ -1988,10 +2066,6 @@ function render(){
         </div></div>
         <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
       </section>
-    </div>
-
-    <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
-      <div id="analyst"><div class="note"><span class="load"></span> &nbsp;Loading analyst coverage…</div></div>
     </div>
 
     <div class="mtab-panel" data-mtab="custom" id="mtab-custom" role="tabpanel">
@@ -3409,8 +3483,10 @@ function paintPrices(){
   // the first render, so whichever of the two finishes last does the drawing.
   marketPanels();
   // The target range marks the last close on it, which is not known until the
-  // prices land; redraw so the marker is not silently missing.
-  if (ANALYST.data && document.getElementById("analyst")) drawAnalyst(ANALYST.data);
+  // prices land; redraw so the marker is not silently missing. Through
+  // showAnalyst, because a payload can be present and still hold no coverage.
+  if (ANALYST.data && ANALYST.symbol && document.getElementById("analyst"))
+    showAnalyst(ANALYST.symbol);
 }
 
 /** The panels that need both the extras payload and the price bars. */
@@ -4046,12 +4122,23 @@ function drawPriceStats(){
   ];
   const dirClass = (chgPct ?? 0) >= 0 ? "up" : "down";
 
+  // The consensus belongs beside the price it is a call on, not only at the
+  // bottom of the page. It may not have arrived yet; loadAnalyst redraws here
+  // when it does.
+  const call = consensusCall(ANALYST.data && ANALYST.data.consensus);
+
   host.innerHTML = `
-    <div class="pq">
-      <div class="pq-price ${dirClass}">${n(price)}</div>
-      ${chg === null || chg === undefined ? "" : `
-        <span class="pq-pill ${dirClass}">${chg >= 0 ? "+" : ""}${n(chg)}</span>
-        <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
+    <div class="pqhead">
+      <div class="pq">
+        <div class="pq-price ${dirClass}">${n(price)}</div>
+        ${chg === null || chg === undefined ? "" : `
+          <span class="pq-pill ${dirClass}">${chg >= 0 ? "+" : ""}${n(chg)}</span>
+          <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
+      </div>
+      ${!call ? "" : `<div class="pq-call ${call.tone}"
+        title="${call.n} of ${call.total} analysts covering ${esc(PRICE.symbol || "")} rate it ${call.word.toLowerCase()}">
+        <b>${call.word}</b><span>${call.n}/${call.total} ratings</span>
+      </div>`}
     </div>
     <dl class="pstats">
       ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
