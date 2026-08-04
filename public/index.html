@@ -223,7 +223,15 @@ svg{display:block;max-width:100%}
 
 @media (max-width:1180px){ .cards{grid-template-columns:repeat(3,minmax(0,1fr))} .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
 @media (max-width:900px){ .grid2, .grid2.wide{grid-template-columns:1fr} }
-@media (max-width:640px){ .cards{grid-template-columns:repeat(2,minmax(0,1fr))} .top h1{font-size:26px} main{padding:18px 14px 60px} .search input{width:160px} }
+/* On phones the intraday chart is unusable; drop the whole chart panel
+   (ticker header, search, and plot) and keep the summary list. */
+@media (max-width:640px){
+  .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .top h1{font-size:26px}
+  main{padding:18px 14px 60px}
+  .chartwrap{display:none}
+  .rows{border-bottom:0}
+}
 </style>
 </head>
 <body>
