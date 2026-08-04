@@ -1397,10 +1397,12 @@ async function loadTickerNews(){
         <h4>${esc(a.title)}</h4>
         <p>${esc((a.summary || "").slice(0, 150))}</p>
       </a>`;
-    // Rendered twice so the drift below can wrap without a visible seam.
+    // Desktop: render twice so the drift below can wrap without a seam.
+    // Mobile: no auto-scroll — one list, manual scroll only.
+    const mobile = matchMedia("(max-width:720px)").matches;
     host.innerHTML = `<div id="conews-a">${arts.map(item).join("")}</div>` +
-                     `<div aria-hidden="true">${arts.map(item).join("")}</div>`;
-    requestAnimationFrame(() => driftNews(host));
+      (mobile ? "" : `<div aria-hidden="true">${arts.map(item).join("")}</div>`);
+    if (!mobile) requestAnimationFrame(() => driftNews(host));
   } catch (e) {
     host.innerHTML = `<div class="note">Could not render the news: ${esc(e.message)}</div>`;
     console.error("[news]", e);
@@ -1409,8 +1411,10 @@ async function loadTickerNews(){
 
 /** Scroll the list slowly, yielding the moment a reader takes hold of it.
     Only a real gesture counts: the drift moves content under a resting
-    cursor, and treating that as intent would stop the feed for good. */
+    cursor, and treating that as intent would stop the feed for good.
+    Mobile never calls this — news stays still for thumb scrolling. */
 function driftNews(wrap){
+  if (matchMedia("(max-width:720px)").matches) return;
   const copy = document.getElementById("conews-a");
   if (!copy || wrap.dataset.drifting) return;
   wrap.dataset.drifting = "1";
