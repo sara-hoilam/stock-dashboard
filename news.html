@@ -52,7 +52,7 @@ h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
 /* Eight rows, then scroll. The column now carries Topics beneath it, so an
    unbounded list would push them off the screen. */
 .side h3{padding:13px 15px 9px}
-.rows{max-height:340px;overflow-y:auto;scrollbar-width:thin;
+.rows{max-height:298px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
 .rows::-webkit-scrollbar{width:8px}
 .rows::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
@@ -152,7 +152,7 @@ tbody tr:hover td{background:var(--sunk)}
 /* The feed drifts by moving its own scroll position rather than by a CSS
    transform, so a reader can grab it and scroll back to a story that has
    already gone past. It picks the drift back up once they stop. */
-.feedwrap{height:calc(100vh - var(--nav-h,56px) - 210px);min-height:520px;
+.feedwrap{height:calc(100vh - var(--nav-h,56px) - 150px);min-height:580px;
   overflow-y:auto;position:relative;
   scrollbar-width:thin;scrollbar-color:var(--rule) transparent;overscroll-behavior:contain}
 .feedwrap::-webkit-scrollbar{width:8px}

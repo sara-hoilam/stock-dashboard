@@ -153,6 +153,10 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 
 .scroll{overflow-x:auto;padding:8px 22px 20px}
 svg{display:block;max-width:100%}
+/* A viewBox gives an SVG its proportions, not its size: without a width it
+   draws at its intrinsic 560-odd pixels and leaves the rest of a wider panel
+   empty. Scoped to the chart containers so inline icons keep their own size. */
+.scroll > svg{width:100%;height:auto}
 svg text{font-family:"IBM Plex Sans",sans-serif}
 .schart{width:100%;height:auto;display:block}
 .tnum{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
