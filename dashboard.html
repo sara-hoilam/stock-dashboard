@@ -29,6 +29,7 @@
      as shades of the interface. */
   --c-blue:#2f7dff; --c-grey:#98a2b3; --c-band:#7c3aed; --c-bandfill:#7c3aed1f;
   --up:#0b7a4b; --down:#c0392e;
+  --up-soft:#e3f5ec; --down-soft:#fce8e6;
 
   --revenue:#2a78d6; --profit:#008300; --cost:#e34948;
 
@@ -46,6 +47,7 @@
   --accent:#6e9bff; --accent-soft:#1a2740;
   --c-blue:#4d94ff; --c-grey:#7d8899; --c-band:#a78bfa; --c-bandfill:#a78bfa26;
   --up:#38b37d; --down:#f0736a;
+  --up-soft:#163528; --down-soft:#3a1c1c;
 
   --revenue:#3987e5; --profit:#00a300; --cost:#e66767;
 
@@ -152,6 +154,7 @@ main{max-width:1360px;margin:0 auto;padding:24px 24px 72px}
 .scroll{overflow-x:auto;padding:8px 22px 20px}
 svg{display:block;max-width:100%}
 svg text{font-family:"IBM Plex Sans",sans-serif}
+.schart{width:100%;height:auto;display:block}
 .tnum{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:0 22px 16px}
@@ -378,7 +381,126 @@ tbody tr:hover td{background:var(--sunk)}
 
 @media (max-width:1000px){ .pairrow{grid-template-columns:1fr} }
 
-@media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} }
+/* ---- mobile report: Futu-style tabs, full-bleed charts, pinch zoom -------- */
+.mtabs{display:none}
+.chart-fs-btn{display:none}
+.zoom-host{position:relative}
+.zoom-layer{transform-origin:0 0;will-change:transform}
+
+@media (max-width:720px){
+  main{padding:12px 0 72px}
+  .ident{padding:0 14px;margin-bottom:8px;align-items:flex-start;gap:10px}
+  .ident h1{font-size:20px}
+  .ident .period{text-align:left;width:100%}
+  .qpick{justify-content:flex-start}
+  .period .small{font-size:11px}
+  /* Chart tab: keep the ticker strip short so the plot owns the screen. */
+  body.mtab-chart .ident .period .small{display:none}
+  body.mtab-chart .ident{margin-bottom:4px}
+
+  .mtabs{
+    display:flex;gap:0;overflow-x:auto;scrollbar-width:none;
+    position:sticky;top:var(--mtab-top, 96px);z-index:80;
+    background:color-mix(in srgb, var(--card) 94%, transparent);
+    backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--rule);
+    padding:0 8px;margin-bottom:0;
+    -webkit-overflow-scrolling:touch;
+  }
+  .mtabs::-webkit-scrollbar{display:none}
+  .mtabs button{
+    flex:0 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;
+    padding:11px 14px 9px;font-size:13px;font-weight:600;color:var(--ink-3);
+    cursor:pointer;white-space:nowrap;min-height:0;
+  }
+  .mtabs button[aria-selected=true]{color:var(--accent);border-bottom-color:var(--accent)}
+
+  /* One tab at a time — desktop keeps the long scroll via the rule below. */
+  body.mreport .mtab-panel{display:none}
+  body.mreport .mtab-panel.on{display:block}
+
+  .pricerow{margin-bottom:0;gap:0}
+  .pricechart,.pricestats{
+    border-radius:0;border-left:0;border-right:0;box-shadow:none;
+  }
+  .pricechart{border-bottom:0}
+  .pricechart .phead{padding:12px 14px 0}
+  #price-chart{padding:0;min-height:52vh}
+  .pchart{width:100%;height:min(58vh,560px);max-width:none}
+  .chart-fs-btn{
+    display:inline-grid;place-items:center;width:32px;height:32px;margin-left:6px;
+    background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
+    color:var(--ink-2);cursor:pointer;flex-shrink:0;padding:0;
+  }
+  .chart-fs-btn:hover,.chart-fs-btn:focus-visible{border-color:var(--accent);color:var(--accent)}
+  .pricestats{padding:14px}
+  .ranges{padding-right:0}
+  .ranges button{padding:6px 11px;font-size:12px}
+
+  .kpis{padding:12px 14px;margin-bottom:12px;gap:8px}
+  .kpi{padding:11px 12px}
+  .kpi .v{font-size:18px}
+
+  .panel{margin-bottom:12px;border-radius:0;border-left:0;border-right:0;box-shadow:none}
+  .phead{padding:14px 14px 0}
+  .phead p{max-width:none;font-size:11.5px}
+  .scroll{padding:4px 0 14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .scroll svg,.lwrap svg,.swrap svg{max-width:none}
+  /* Narrow charts stretch to the phone; wide ones keep a readable height and
+     spill horizontally so labels stay legible before pinch-zoom. */
+  .zoom-host svg:not(.schart){width:100%!important;height:auto!important;max-width:none}
+  .zoom-host svg.schart{
+    width:auto!important;height:min(56vh,520px)!important;max-width:none;
+  }
+  .lwrap{padding:2px 0 12px}
+  .lchart{height:min(42vh,380px);max-width:none}
+  .foot{display:none}
+  #mtab-filing .mfoot{display:block;padding:18px 14px 0;margin:18px 14px 0;
+    border-top:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.7}
+  .legend{padding:0 14px 14px}
+  .bpad{padding:14px}
+  .grouphead{padding:0 14px;margin:18px 0 10px;font-size:17px}
+  .pairrow{gap:12px;margin:0}
+  .swrap{padding:0 8px 14px}
+  .newswrap{height:min(70vh,640px);padding:0}
+
+  .zoom-host{
+    overflow:hidden;touch-action:none;
+    min-height:min(56vh,520px);background:var(--card);
+  }
+  .zoom-host .zoom-layer{min-height:100%}
+  .zoom-hint{
+    position:absolute;right:10px;bottom:10px;z-index:4;
+    font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--ink-3);background:color-mix(in srgb,var(--card) 88%,transparent);
+    border:1px solid var(--rule);border-radius:6px;padding:3px 7px;
+    pointer-events:none;
+  }
+
+  /* Full-screen chart overlay — trading-app density on a phone. */
+  body.chart-fs-open{overflow:hidden}
+  body.chart-fs-open .nav,
+  body.chart-fs-open .nav-strip,
+  body.chart-fs-open .mtabs,
+  body.chart-fs-open .ident,
+  body.chart-fs-open .pricestats,
+  body.chart-fs-open .foot,
+  body.chart-fs-open .mfoot{display:none!important}
+  body.chart-fs-open #mtab-chart{display:block!important}
+  body.chart-fs-open .pricerow{margin:0}
+  body.chart-fs-open .pricechart{
+    position:fixed!important;inset:0;z-index:250;margin:0;border:0!important;
+    border-radius:0!important;box-shadow:none!important;
+    background:var(--card);display:flex;flex-direction:column;
+    padding-top:env(safe-area-inset-top,0);
+    width:100vw;height:100vh;max-width:none;
+  }
+  body.chart-fs-open .pricechart .phead{padding:10px 12px 0}
+  body.chart-fs-open #price-chart{flex:1;min-height:0;display:flex;flex-direction:column;padding:0}
+  body.chart-fs-open .pchart{flex:1;width:100%!important;height:100%!important;min-height:0;max-width:none}
+}
+
+@media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} .mtabs{display:none!important} }
 </style>
 </head>
 <body>
@@ -515,6 +637,7 @@ const S = { company:null, quarter:null, breakdowns:null, cut:0, ticker:null };
 // drop the page back to local mode.
 const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
 const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+const MOBILE_MQ = matchMedia("(max-width:720px)");
 
 async function rpc(fn, args){
   const r = await fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
@@ -628,10 +751,14 @@ const main = document.getElementById("main");
 const fyEl = document.getElementById("fy"), fqEl = document.getElementById("fq");
 
 function fail(msg){
+  document.body.classList.remove("mreport", "chart-fs-open");
   main.innerHTML = `<div class="card note err">${esc(msg)}</div>`;
 }
 
-const busy = msg => { main.innerHTML = `<div class="card note"><span class="load"></span> &nbsp;${esc(msg)}</div>`; };
+const busy = msg => {
+  document.body.classList.remove("mreport", "chart-fs-open");
+  main.innerHTML = `<div class="card note"><span class="load"></span> &nbsp;${esc(msg)}</div>`;
+};
 
 /** A company nobody has opened yet is not in the database. Ask the worker to
     fetch it, then wait for it to land. Reading the filings takes a few
@@ -753,7 +880,7 @@ async function loadExtras(){
 
 /* ---- shared line-chart plumbing ------------------------------------------ */
 function linePlot(host, series, opts){
-  const W = 620, H = 260, ml = 6, mr = 52, mt = 12, mb = 26;
+  const W = 620, H = MOBILE_MQ.matches ? 360 : 260, ml = 6, mr = 52, mt = 12, mb = 26;
   const pw = W - ml - mr, ph = H - mt - mb;
   const all = series.flatMap(s => s.pts.map(p => p.v)).filter(v => v !== null);
   if (!all.length) { host.innerHTML = `<div class="note">Not enough data.</div>`; return; }
@@ -1226,16 +1353,24 @@ function marketOnly(ticker, company, why){
       </div>
     </div>
 
-    <div class="pricerow" id="pricerow" hidden></div>
+    <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
+      <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
+    </nav>
 
-    <div class="card note" id="nofilings">
-      <b>No filed financials for ${esc(ticker)}.</b><br>${esc(why)}
+    <div class="mtab-panel on" data-mtab="chart" id="mtab-chart" role="tabpanel">
+      <div class="pricerow" id="pricerow" hidden></div>
+      <div class="card note" id="nofilings" style="margin:12px 14px;border-radius:var(--r)">
+        <b>No filed financials for ${esc(ticker)}.</b><br>${esc(why)}
+      </div>
     </div>`;
 
+  document.body.classList.add("mreport");
+  document.body.classList.remove("chart-fs-open");
   // The row is built empty; restorePriceRow fills in the chart and panel.
   document.getElementById("pricerow").classList.add("waiting");
-  PRICE.symbol = null; PRICE.bars = [];
+  PRICE.symbol = null; PRICE.bars = []; PRICE.view = null;
   loadPrices();
+  wireMobileTabs();
 }
 
 /** Leave the empty state for the report, and put the ticker in the URL so the
@@ -1464,166 +1599,194 @@ function render(){
       </div>
     </div>
 
-    <div class="pricerow" id="pricerow" hidden>
-      <section class="card pricechart">
-        <div class="phead"><div>
-          <h2>Price ${helpIcon("price")}</h2>
-          <p id="price-sub"></p>
-        </div><div class="ranges" id="price-ranges"></div></div>
-        <div id="price-chart"><div class="ptip" id="ptip" hidden></div></div>
-      </section>
-      <aside class="card pricestats" id="price-stats"></aside>
+    <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
+      <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
+      <button type="button" role="tab" data-mtab="filing" aria-selected="false">Filing</button>
+      <button type="button" role="tab" data-mtab="market" aria-selected="false">Market</button>
+      <button type="button" role="tab" data-mtab="news" aria-selected="false">News</button>
+      <button type="button" role="tab" data-mtab="custom" aria-selected="false">Custom</button>
+    </nav>
+
+    <div class="mtab-panel on" data-mtab="chart" id="mtab-chart" role="tabpanel">
+      <div class="pricerow" id="pricerow" hidden>
+        <section class="card pricechart">
+          <div class="phead"><div>
+            <h2>Price ${helpIcon("price")}</h2>
+            <p id="price-sub"></p>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <div class="ranges" id="price-ranges"></div>
+            <button type="button" class="chart-fs-btn" id="price-fs" aria-label="Expand chart"
+              title="Full screen">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+                stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+              </svg>
+            </button>
+          </div></div>
+          <div id="price-chart"><div class="ptip" id="ptip" hidden></div></div>
+        </section>
+        <aside class="card pricestats" id="price-stats"></aside>
+      </div>
     </div>
 
-    <div class="kpis" id="kpis"></div>
+    <div class="mtab-panel" data-mtab="filing" id="mtab-filing" role="tabpanel">
+      <div class="kpis" id="kpis"></div>
 
-    <section class="card panel" id="sankey-panel">
-      <div class="phead">
-        <div>
-          <h2>How the quarter's revenue became profit ${helpIcon("sankey")}</h2>
-          <p id="sankey-sub"></p>
-        </div>
-      </div>
-      <div class="scroll" id="sankey"></div>
-    </section>
-
-    <div class="grid2">
-      <section class="card panel" id="mix-panel">
+      <section class="card panel" id="sankey-panel">
         <div class="phead">
-          <div><h2>Where the revenue came from ${helpIcon("mix")}</h2><p id="mix-sub"></p></div>
-          <div class="seg" id="mix-cuts"></div>
+          <div>
+            <h2>How the quarter's revenue became profit ${helpIcon("sankey")}</h2>
+            <p id="sankey-sub"></p>
+          </div>
         </div>
-        <div class="scroll" id="mix"></div>
+        <div class="scroll zoom-host" id="sankey"></div>
       </section>
 
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Revenue by quarter ${helpIcon("revTrend")}</h2>
-          <p>The twelve quarters ending with the one selected. Bars derived from an
-             annual report rather than filed directly are outlined.</p>
-        </div></div>
-        <div class="scroll" id="revtrend"></div>
-      </section>
-    </div>
-
-    <div class="grid2">
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Margins ${helpIcon("margins")}</h2>
-          <p>Gross, operating and net profit as a share of revenue — all three on one scale.</p>
-        </div></div>
-        <div class="scroll" id="margins"></div>
-        <div class="legend" id="margins-legend"></div>
-      </section>
-
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Where the revenue went ${helpIcon("costStack")}</h2>
-          <p>Cost and expense structure each quarter, as a share of revenue.</p>
-        </div></div>
-        <div class="scroll" id="coststack"></div>
-        <div class="legend" id="coststack-legend"></div>
-      </section>
-    </div>
-
-    <section class="card panel">
-      <div class="phead"><div>
-        <h2>Income statement ${helpIcon("statement")}</h2>
-        <p>Quarterly figures for Q${q.fq} FY${q.fy}, against the same quarter a year earlier
-           and the quarter immediately before.</p>
-      </div></div>
-      <div class="scroll" id="istmt"></div>
-    </section>
-
-    <div id="extras" hidden>
-      <h3 class="grouphead">Industry benchmark</h3>
-      <div class="pairrow">
-        <section class="card panel">
-          <div class="phead"><div>
-            <h2>Price vs sector ${helpIcon("bench")}</h2>
-            <p>Both rebased to 100, so the lines compare performance not price.</p>
-          </div></div>
-          <div class="lwrap" id="bench-chart"></div>
+      <div class="grid2">
+        <section class="card panel" id="mix-panel">
+          <div class="phead">
+            <div><h2>Where the revenue came from ${helpIcon("mix")}</h2><p id="mix-sub"></p></div>
+            <div class="seg" id="mix-cuts"></div>
+          </div>
+          <div class="scroll zoom-host" id="mix"></div>
         </section>
+
         <section class="card panel">
           <div class="phead"><div>
-            <h2>P/E vs industry ${helpIcon("pe")}</h2>
-            <p>Price over trailing diluted EPS, from the filings.</p>
+            <h2>Revenue by quarter ${helpIcon("revTrend")}</h2>
+            <p>The twelve quarters ending with the one selected. Bars derived from an
+               annual report rather than filed directly are outlined.</p>
           </div></div>
-          <div class="lwrap" id="pe-chart"></div>
+          <div class="scroll zoom-host" id="revtrend"></div>
         </section>
       </div>
 
-      <h3 class="grouphead">Seasonality</h3>
+      <div class="grid2">
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Margins ${helpIcon("margins")}</h2>
+            <p>Gross, operating and net profit as a share of revenue — all three on one scale.</p>
+          </div></div>
+          <div class="scroll zoom-host" id="margins"></div>
+          <div class="legend" id="margins-legend"></div>
+        </section>
+
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Where the revenue went ${helpIcon("costStack")}</h2>
+            <p>Cost and expense structure each quarter, as a share of revenue.</p>
+          </div></div>
+          <div class="scroll zoom-host" id="coststack"></div>
+          <div class="legend" id="coststack-legend"></div>
+        </section>
+      </div>
+
       <section class="card panel">
         <div class="phead"><div>
-          <h2>Monthly returns ${helpIcon("season")}</h2>
-          <p>Every month's return, one row per year, newest first.</p>
+          <h2>Income statement ${helpIcon("statement")}</h2>
+          <p>Quarterly figures for Q${q.fq} FY${q.fy}, against the same quarter a year earlier
+             and the quarter immediately before.</p>
         </div></div>
-        <div class="swrap" id="season-grid"></div>
+        <div class="scroll" id="istmt"></div>
       </section>
+      <div class="foot mfoot" id="foot-mobile"></div>
+    </div>
 
-      <div class="pairrow">
+    <div class="mtab-panel" data-mtab="market" id="mtab-market" role="tabpanel">
+      <div id="extras" hidden>
+        <h3 class="grouphead">Industry benchmark</h3>
+        <div class="pairrow">
+          <section class="card panel">
+            <div class="phead"><div>
+              <h2>Price vs sector ${helpIcon("bench")}</h2>
+              <p>Both rebased to 100, so the lines compare performance not price.</p>
+            </div></div>
+            <div class="lwrap zoom-host" id="bench-chart"></div>
+          </section>
+          <section class="card panel">
+            <div class="phead"><div>
+              <h2>P/E vs industry ${helpIcon("pe")}</h2>
+              <p>Price over trailing diluted EPS, from the filings.</p>
+            </div></div>
+            <div class="lwrap zoom-host" id="pe-chart"></div>
+          </section>
+        </div>
+
+        <h3 class="grouphead">Seasonality</h3>
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>Monthly returns ${helpIcon("season")}</h2>
+            <p>Every month's return, one row per year, newest first.</p>
+          </div></div>
+          <div class="swrap" id="season-grid"></div>
+        </section>
+
         <section class="card panel">
           <div class="phead"><div>
             <h2>Bollinger bands ${helpIcon("bollinger")}</h2>
             <p>Twenty-day mean, two standard deviations either side.</p>
           </div></div>
-          <div class="lwrap" id="boll-chart"></div>
-        </section>
-        <section class="card panel">
-          <div class="phead"><div>
-            <h2>News ${helpIcon("news")}</h2>
-            <p id="news-scope">Recent stories.</p>
-          </div></div>
-          <div class="newswrap" id="co-news"></div>
+          <div class="lwrap zoom-host" id="boll-chart"></div>
         </section>
       </div>
     </div>
 
-    <section class="card panel" id="builder">
-      <div class="phead"><div>
-        <h2>Build your own chart ${helpIcon("builder")}</h2>
-        <p>Pick what to plot. Only the lines this company actually reports are
-           offered, so a chart here can never show data that is not in the filings.</p>
-      </div></div>
+    <div class="mtab-panel" data-mtab="news" id="mtab-news" role="tabpanel">
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>News ${helpIcon("news")}</h2>
+          <p id="news-scope">Recent stories.</p>
+        </div></div>
+        <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
+      </section>
+    </div>
 
-      <div class="bpad">
-        <div class="bctl">
-          <label>y axis — click to add or remove</label>
-          <div class="chips" id="b-fields"></div>
+    <div class="mtab-panel" data-mtab="custom" id="mtab-custom" role="tabpanel">
+      <section class="card panel" id="builder">
+        <div class="phead"><div>
+          <h2>Build your own chart ${helpIcon("builder")}</h2>
+          <p>Pick what to plot. Only the lines this company actually reports are
+             offered, so a chart here can never show data that is not in the filings.</p>
+        </div></div>
+
+        <div class="bpad">
+          <div class="bctl">
+            <label>y axis — click to add or remove</label>
+            <div class="chips" id="b-fields"></div>
+          </div>
+
+          <div class="bctl row">
+            <div><label for="b-type">Chart</label>
+              <select id="b-type">
+                <option value="bar">Bars</option>
+                <option value="stack">Stacked bars</option>
+                <option value="line">Line</option>
+                <option value="area">Area</option>
+              </select></div>
+            <div><label for="b-mode">Values</label>
+              <select id="b-mode">
+                <option value="absolute">As filed</option>
+                <option value="pctRevenue">% of revenue</option>
+                <option value="yoy">Change vs year ago</option>
+                <option value="qoq">Change vs prior quarter</option>
+              </select></div>
+            <div><label for="b-n">Period</label>
+              <select id="b-n">
+                <option value="4">Last 4 quarters</option>
+                <option value="8">Last 8 quarters</option>
+                <option value="12">Last 12 quarters</option>
+                <option value="16">Last 16 quarters</option>
+                <option value="24">Everything available</option>
+              </select></div>
+            <div class="axes" id="b-axes"></div>
+          </div>
         </div>
 
-        <div class="bctl row">
-          <div><label for="b-type">Chart</label>
-            <select id="b-type">
-              <option value="bar">Bars</option>
-              <option value="stack">Stacked bars</option>
-              <option value="line">Line</option>
-              <option value="area">Area</option>
-            </select></div>
-          <div><label for="b-mode">Values</label>
-            <select id="b-mode">
-              <option value="absolute">As filed</option>
-              <option value="pctRevenue">% of revenue</option>
-              <option value="yoy">Change vs year ago</option>
-              <option value="qoq">Change vs prior quarter</option>
-            </select></div>
-          <div><label for="b-n">Period</label>
-            <select id="b-n">
-              <option value="4">Last 4 quarters</option>
-              <option value="8">Last 8 quarters</option>
-              <option value="12">Last 12 quarters</option>
-              <option value="16">Last 16 quarters</option>
-              <option value="24">Everything available</option>
-            </select></div>
-          <div class="axes" id="b-axes"></div>
-        </div>
-      </div>
-
-      <div class="scroll" id="b-chart"></div>
-      <div class="legend" id="b-legend"></div>
-    </section>
+        <div class="scroll zoom-host" id="b-chart"></div>
+        <div class="legend" id="b-legend"></div>
+      </section>
+    </div>
 
     <div class="foot" id="foot"></div>
   `;
@@ -1631,6 +1794,8 @@ function render(){
   document.getElementById("qpick").append(
     ...document.getElementById("controls").children);
 
+  document.body.classList.add("mreport");
+  document.body.classList.remove("chart-fs-open");
   renderKPIs();
   loadPrices();
   loadExtras();
@@ -1642,6 +1807,8 @@ function render(){
   renderStatement();
   wireBuilder();
   renderFoot();
+  wireMobileTabs();
+  wireChartZoomHosts();
 }
 
 /* ---- KPIs ---------------------------------------------------------------- */
@@ -2003,7 +2170,9 @@ function renderSankey(){
     }
   });
 
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+  // Drop fixed width/height so mobile can full-bleed the viewBox; desktop
+  // still sizes from CSS max-width and the intrinsic aspect ratio.
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" class="schart"
       aria-label="Flow of revenue into costs and profit for Q${q.fq} FY${q.fy}">${parts.join("")}</svg>`;
 
   const sub = document.getElementById("sankey-sub");
@@ -2019,6 +2188,10 @@ function renderSankey(){
     [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
   host.querySelectorAll("[data-k]").forEach(el => hoverable(el, el.dataset.k.replace("→"," → "),
     [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
+  if (MOBILE_MQ.matches) {
+    host.dataset.zoomWired = "";
+    attachTransformZoom(host);
+  }
 }
 
 /* ---- Revenue mix --------------------------------------------------------- */
@@ -2572,7 +2745,7 @@ function renderFoot(){
   const c = S.company, q = S.quarter;
   const cut = S.breakdowns && S.breakdowns.length ? S.breakdowns[S.cut] : null;
   const fyeName = MONTHS[(c.fiscalYearEndMonth||12)-1];
-  document.getElementById("foot").innerHTML = `
+  const html = `
     <strong>Source.</strong> Every figure is from the company's own filings with the
     U.S. Securities and Exchange Commission — the
     <a href="${esc(c.source.facts)}" target="_blank" rel="noopener">XBRL company-facts API</a>
@@ -2596,6 +2769,10 @@ function renderFoot(){
     <strong>Caching.</strong> Responses are cached on disk. Delete <code>.cache</code>
     to force a refresh after a new filing.
   `;
+  const foot = document.getElementById("foot");
+  if (foot) foot.innerHTML = html;
+  const mobile = document.getElementById("foot-mobile");
+  if (mobile) mobile.innerHTML = html;
 }
 
 /* ===========================================================================
@@ -2618,8 +2795,150 @@ addEventListener("themechange", () => {
    this page is the company's own account of itself. They are kept visibly
    apart for that reason.
 =========================================================================== */
-const PRICE = { symbol: null, bars: [], quote: null, range: 126, poll: null };
+const PRICE = { symbol: null, bars: [], quote: null, range: 126, view: null, poll: null };
 const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["Max", 0]];
+
+/** Sticky tab offset under the shared nav (and tape, when present). */
+function syncMtabOffset(){
+  const nav = document.querySelector(".nav");
+  const strip = document.querySelector(".nav-strip");
+  const h = (nav ? nav.offsetHeight : 0) + (strip ? strip.offsetHeight : 0);
+  document.documentElement.style.setProperty("--mtab-top", Math.max(48, h) + "px");
+}
+
+/** Mobile section tabs — desktop keeps the long scroll; phones switch panels. */
+function wireMobileTabs(){
+  const bar = document.getElementById("mtabs");
+  if (!bar) return;
+  syncMtabOffset();
+  if (!wireMobileTabs._ro && typeof ResizeObserver !== "undefined") {
+    wireMobileTabs._ro = new ResizeObserver(syncMtabOffset);
+    const nav = document.querySelector(".nav");
+    const strip = document.querySelector(".nav-strip");
+    if (nav) wireMobileTabs._ro.observe(nav);
+    if (strip) wireMobileTabs._ro.observe(strip);
+  }
+  addEventListener("resize", syncMtabOffset, { passive: true });
+
+  const select = id => {
+    bar.querySelectorAll("[data-mtab]").forEach(b => {
+      b.setAttribute("aria-selected", b.dataset.mtab === id ? "true" : "false");
+    });
+    document.querySelectorAll(".mtab-panel").forEach(p => {
+      p.classList.toggle("on", p.dataset.mtab === id);
+    });
+    document.body.classList.toggle("mtab-chart", id === "chart");
+    if (id === "chart" && PRICE.bars.length) drawCandles();
+    // Charts in a display:none panel get a zero box; redraw once revealed.
+    if (id === "filing") {
+      renderSankey(); renderMix(); renderRevTrend();
+      renderMargins(); renderCostStack();
+      wireChartZoomHosts();
+    }
+    if (id === "market") marketPanels();
+    if (id === "custom") { try { renderBuilder(); } catch {} wireChartZoomHosts(); }
+    scrollTo({ top: 0, behavior: "auto" });
+  };
+  bar.querySelectorAll("[data-mtab]").forEach(b => {
+    b.onclick = () => select(b.dataset.mtab);
+  });
+  document.body.classList.toggle("mtab-chart",
+    !!document.querySelector('#mtab-chart.on, .mtab-panel.on[data-mtab="chart"]'));
+}
+
+/** Pinch / drag zoom for SVG diagrams that are wider than a phone. */
+function attachTransformZoom(host){
+  if (!host || host.dataset.zoomWired === "1") return;
+  host.dataset.zoomWired = "1";
+  let layer = host.querySelector(":scope > .zoom-layer");
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "zoom-layer";
+    while (host.firstChild) layer.appendChild(host.firstChild);
+    host.appendChild(layer);
+  }
+  if (MOBILE_MQ.matches && !host.querySelector(".zoom-hint")) {
+    const hint = document.createElement("div");
+    hint.className = "zoom-hint";
+    hint.textContent = "Pinch to zoom";
+    host.appendChild(hint);
+    setTimeout(() => hint.remove(), 2800);
+  }
+
+  const st = { scale: 1, x: 0, y: 0, pts: null, lastTap: 0 };
+  const apply = () => {
+    layer.style.transform = `translate(${st.x}px,${st.y}px) scale(${st.scale})`;
+  };
+  const clamp = () => {
+    st.scale = Math.max(1, Math.min(4.5, st.scale));
+    if (st.scale === 1) { st.x = 0; st.y = 0; return; }
+    const w = host.clientWidth, h = host.clientHeight;
+    const maxX = 0, minX = w - w * st.scale;
+    const maxY = 0, minY = h - h * st.scale;
+    st.x = Math.min(maxX, Math.max(minX, st.x));
+    st.y = Math.min(maxY, Math.max(minY, st.y));
+  };
+  const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  const mid = (a, b) => ({ x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 });
+
+  host.addEventListener("touchstart", e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const m = mid(e.touches[0], e.touches[1]);
+      const r = host.getBoundingClientRect();
+      st.pts = {
+        d: dist(e.touches[0], e.touches[1]),
+        scale: st.scale, x: st.x, y: st.y,
+        mx: m.x - r.left, my: m.y - r.top,
+      };
+    } else if (e.touches.length === 1 && st.scale > 1) {
+      st.pts = {
+        pan: true, x: st.x, y: st.y,
+        tx: e.touches[0].clientX, ty: e.touches[0].clientY,
+      };
+    }
+  }, { passive: false });
+
+  host.addEventListener("touchmove", e => {
+    if (!st.pts) return;
+    e.preventDefault();
+    if (e.touches.length === 2 && st.pts.d) {
+      const m = mid(e.touches[0], e.touches[1]);
+      const r = host.getBoundingClientRect();
+      const mx = m.x - r.left, my = m.y - r.top;
+      const next = st.pts.scale * (dist(e.touches[0], e.touches[1]) / st.pts.d);
+      const ratio = next / st.pts.scale;
+      st.scale = next;
+      st.x = mx - (st.pts.mx - st.pts.x) * ratio;
+      st.y = my - (st.pts.my - st.pts.y) * ratio;
+      clamp(); apply();
+    } else if (e.touches.length === 1 && st.pts.pan) {
+      st.x = st.pts.x + (e.touches[0].clientX - st.pts.tx);
+      st.y = st.pts.y + (e.touches[0].clientY - st.pts.ty);
+      clamp(); apply();
+    }
+  }, { passive: false });
+
+  host.addEventListener("touchend", e => {
+    if (e.touches.length < 2) st.pts = null;
+    if (e.touches.length === 0) {
+      const now = Date.now();
+      if (now - st.lastTap < 280) {
+        st.scale = 1; st.x = 0; st.y = 0; apply();
+      }
+      st.lastTap = now;
+    }
+  });
+}
+
+function wireChartZoomHosts(){
+  if (!MOBILE_MQ.matches) return;
+  document.querySelectorAll(".zoom-host").forEach(host => {
+    // Re-wrap after innerHTML rewrites; clear the wired flag when empty of layer.
+    if (!host.querySelector(":scope > .zoom-layer")) host.dataset.zoomWired = "";
+    if (host.children.length) attachTransformZoom(host);
+  });
+}
 
 /** Ticks between two values. niceTicks() starts at zero, which is right for a
     bar chart and wrong for a price axis: a stock between 160 and 240 would
@@ -2648,7 +2967,11 @@ function compact(v){
 
 async function loadPrices(){
   const sym = S.company && S.company.ticker;
-  if (!sym || !HOSTED) return;              // the local server has no prices
+  if (!sym) return;
+  // The local server has no price feed — keep the Chart tab honest instead of blank.
+  if (!HOSTED) {
+    return priceState("Market prices load from the hosted data feed (not available on the local server).");
+  }
 
   // Re-rendering the report for another quarter must not refetch.
   if (PRICE.symbol === sym && PRICE.bars.length) return paintPrices();
@@ -2660,6 +2983,7 @@ async function loadPrices(){
   PRICE.symbol = sym;
   PRICE.bars = d.bars || [];
   PRICE.quote = d.quote || null;
+  PRICE.view = null;
 
   if (!PRICE.bars.length || d.stale) {
     // Nobody has opened this company before, or the bars are yesterday's.
@@ -2719,10 +3043,54 @@ function restorePriceRow(){
       <div class="phead"><div>
         <h2>Price</h2>
         <p id="price-sub"></p>
-      </div><div class="ranges" id="price-ranges"></div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <div class="ranges" id="price-ranges"></div>
+        <button type="button" class="chart-fs-btn" id="price-fs" aria-label="Expand chart"
+          title="Full screen">
+          <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+            stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+          </svg>
+        </button>
+      </div></div>
       <div id="price-chart"><div class="ptip" id="ptip" hidden></div></div>
     </section>
     <aside class="card pricestats" id="price-stats"></aside>`;
+}
+
+function wirePriceFullscreen(){
+  const btn = document.getElementById("price-fs");
+  if (!btn || btn.dataset.wired === "1") return;
+  btn.dataset.wired = "1";
+  const icon = (full) => {
+    btn.setAttribute("aria-label", full ? "Exit full screen" : "Expand chart");
+    btn.title = full ? "Exit full screen" : "Full screen";
+    btn.innerHTML = full
+      ? `<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+           <path d="M6 2H2v4M10 2h4v4M14 10v4h-4M6 14H2v-4M2 2l4 4M14 2l-4 4M2 14l4-4M14 14l-4-4"/>
+         </svg>`
+      : `<svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+           stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+           <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+         </svg>`;
+  };
+  const setFs = on => {
+    document.body.classList.toggle("chart-fs-open", on);
+    icon(on);
+    drawCandles();
+  };
+  btn.onclick = () => setFs(!document.body.classList.contains("chart-fs-open"));
+  if (!wirePriceFullscreen._esc) {
+    wirePriceFullscreen._esc = true;
+    addEventListener("keydown", e => {
+      if (e.key !== "Escape" || !document.body.classList.contains("chart-fs-open")) return;
+      const b = document.getElementById("price-fs");
+      if (b && b.onclick) b.onclick();
+      else setFs(false);
+    });
+  }
 }
 
 function paintPrices(){
@@ -2735,10 +3103,11 @@ function paintPrices(){
 
   const ranges = document.getElementById("price-ranges");
   ranges.innerHTML = RANGES.map(([lab, n]) =>
-    `<button data-n="${n}" aria-pressed="${PRICE.range === n}">${lab}</button>`).join("");
+    `<button data-n="${n}" aria-pressed="${PRICE.range === n && !PRICE.view}">${lab}</button>`).join("");
   ranges.querySelectorAll("button").forEach(b =>
-    b.onclick = () => { PRICE.range = +b.dataset.n; paintPrices(); });
+    b.onclick = () => { PRICE.range = +b.dataset.n; PRICE.view = null; paintPrices(); });
 
+  wirePriceFullscreen();
   drawPriceStats();          // sets the caption the crosshair restores
   drawCandles();
 
@@ -2756,20 +3125,142 @@ function marketPanels(){
   drawPE();
   drawBollinger();
   wireHelp();
+  wireChartZoomHosts();
+}
+
+/** Index window over PRICE.bars for the active range button. */
+function baseWindow(){
+  const n = PRICE.range, len = PRICE.bars.length;
+  if (n > 0 && len > n) return { a: len - n, b: len };
+  return { a: 0, b: len };
 }
 
 function visibleBars(){
+  if (PRICE.view) {
+    const a = Math.max(0, Math.min(PRICE.view.a, PRICE.bars.length - 2));
+    const b = Math.max(a + 5, Math.min(PRICE.view.b, PRICE.bars.length));
+    return PRICE.bars.slice(a, b);
+  }
   const n = PRICE.range;
   return n > 0 ? PRICE.bars.slice(-n) : PRICE.bars;
 }
 
-function drawCandles(){
-  const bars = visibleBars();
-  const host = document.getElementById("price-chart");
-  if (!bars.length) { host.innerHTML = ""; return; }
+/** Pinch/pan state lives outside drawCandles so a redraw mid-gesture does not
+    drop the fingers that are still on the screen. */
+const PZOOM = { pinch: null, pan: null, lastTap: 0, timer: 0, gesturing: false, geom: null };
 
-  const W = 900, H = 330, VH = 58;          // of which VH is the volume band
-  const ml = 8, mr = 56, mt = 10, mb = 22;
+function setPriceView(a, b){
+  const len = PRICE.bars.length;
+  a = Math.max(0, Math.min(a, len - 5));
+  b = Math.max(a + 5, Math.min(b, len));
+  const base = baseWindow();
+  PRICE.view = (a <= base.a && b >= base.b) ? null : { a, b };
+  const ranges = document.getElementById("price-ranges");
+  if (ranges) ranges.querySelectorAll("button").forEach(btn => {
+    btn.setAttribute("aria-pressed",
+      PRICE.view ? "false" : String(+btn.dataset.n === PRICE.range));
+  });
+  clearTimeout(PZOOM.timer);
+  PZOOM.timer = setTimeout(() => drawCandles(), 16);
+}
+
+function wirePriceGestures(host){
+  if (host.dataset.gestures === "1") return;
+  host.dataset.gestures = "1";
+
+  const win = () => PRICE.view ? { ...PRICE.view } : baseWindow();
+
+  host.addEventListener("touchstart", e => {
+    if (!PZOOM.geom || !PRICE.bars.length) return;
+    const { svg, tip, cross } = PZOOM.geom;
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      PZOOM.gesturing = true;
+      if (tip) tip.hidden = true;
+      if (cross) cross.style.display = "none";
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY);
+      const r = svg.getBoundingClientRect();
+      const midX = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left) / r.width;
+      PZOOM.pinch = { d, midX, ...win() };
+      PZOOM.pan = null;
+    } else if (e.touches.length === 1) {
+      const now = Date.now();
+      if (now - PZOOM.lastTap < 280) {
+        PRICE.view = null;
+        const ranges = document.getElementById("price-ranges");
+        if (ranges) ranges.querySelectorAll("button").forEach(btn => {
+          btn.setAttribute("aria-pressed", String(+btn.dataset.n === PRICE.range));
+        });
+        drawCandles();
+        PZOOM.lastTap = 0;
+        return;
+      }
+      PZOOM.lastTap = now;
+      const cur = win();
+      const base = baseWindow();
+      if (cur.b - cur.a < base.b - base.a) {
+        PZOOM.pan = { x: e.touches[0].clientX, ...cur };
+        PZOOM.gesturing = true;
+      } else {
+        PZOOM.gesturing = false;
+        if (PZOOM.geom.showAt) PZOOM.geom.showAt(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }
+  }, { passive: false });
+
+  host.addEventListener("touchmove", e => {
+    if (!PZOOM.geom || !PRICE.bars.length) return;
+    const { svg } = PZOOM.geom;
+    if (e.touches.length === 2 && PZOOM.pinch) {
+      e.preventDefault();
+      PZOOM.gesturing = true;
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY);
+      const scale = PZOOM.pinch.d / Math.max(24, d);
+      const span0 = PZOOM.pinch.b - PZOOM.pinch.a;
+      const maxSpan = baseWindow().b - baseWindow().a;
+      const span = Math.max(5, Math.min(maxSpan, Math.round(span0 * scale)));
+      const focus = PZOOM.pinch.a + PZOOM.pinch.midX * span0;
+      setPriceView(Math.round(focus - span * PZOOM.pinch.midX),
+                   Math.round(focus - span * PZOOM.pinch.midX + span));
+    } else if (e.touches.length === 1 && PZOOM.pan) {
+      e.preventDefault();
+      PZOOM.gesturing = true;
+      const r = svg.getBoundingClientRect();
+      const span = PZOOM.pan.b - PZOOM.pan.a;
+      const dx = (e.touches[0].clientX - PZOOM.pan.x) / r.width * span;
+      setPriceView(Math.round(PZOOM.pan.a - dx), Math.round(PZOOM.pan.b - dx));
+    } else if (e.touches.length === 1 && !PZOOM.gesturing && PZOOM.geom.showAt) {
+      PZOOM.geom.showAt(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: false });
+
+  host.addEventListener("touchend", e => {
+    if (e.touches.length < 2) PZOOM.pinch = null;
+    if (e.touches.length === 0) {
+      PZOOM.pan = null;
+      PZOOM.gesturing = false;
+      if (PZOOM.geom && PZOOM.geom.tip) PZOOM.geom.tip.hidden = true;
+      if (PZOOM.geom && PZOOM.geom.cross) PZOOM.geom.cross.style.display = "none";
+    }
+  });
+}
+
+function drawCandles(){
+  const host = document.getElementById("price-chart");
+  if (!host) return;
+  const bars = visibleBars();
+  if (!bars.length) { host.innerHTML = ""; PZOOM.geom = null; return; }
+
+  const mobile = MOBILE_MQ.matches || document.body.classList.contains("chart-fs-open");
+  const W = 900;
+  const H = document.body.classList.contains("chart-fs-open") ? 640
+          : mobile ? 520 : 330;
+  const VH = mobile ? 78 : 58;          // of which VH is the volume band
+  const ml = 8, mr = mobile ? 48 : 56, mt = 10, mb = 22;
   const pw = W - ml - mr, ph = H - mt - mb - VH - 12;
 
   const lo = Math.min(...bars.map(b => b.l ?? b.c));
@@ -2824,7 +3315,8 @@ function drawCandles(){
   const keptTip = document.getElementById("ptip");
   host.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="pchart" role="img"
-         aria-label="Daily prices for ${esc(PRICE.symbol)}">
+         aria-label="Daily prices for ${esc(PRICE.symbol)}"
+         preserveAspectRatio="${mobile ? "none" : "xMidYMid meet"}">
       ${grid}${vols}${candles}
       ${maPts.length ? `<polyline points="${maPts.join(" ")}" fill="none"
         stroke="var(--accent)" stroke-width="1.4" opacity=".85"/>` : ""}
@@ -2837,8 +3329,10 @@ function drawCandles(){
       </g>
       <rect x="${ml}" y="0" width="${pw}" height="${H}" fill="transparent" id="phit"/>
     </svg>`;
-  keptTip.hidden = true;
-  host.appendChild(keptTip);
+  if (keptTip) {
+    keptTip.hidden = true;
+    host.appendChild(keptTip);
+  }
 
   // Crosshair, with the day's numbers in a box at the crossing point. The box
   // is placed on whichever side of the pointer has room, so it never runs off
@@ -2849,9 +3343,10 @@ function drawCandles(){
   const tip = document.getElementById("ptip");
   const hit = host.querySelector("#phit");
 
-  hit.addEventListener("pointermove", e => {
+  const showAt = (clientX, clientY) => {
+    if (!tip) return;
     const r = svg.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width * W;
+    const px = (clientX - r.left) / r.width * W;
     const i = Math.max(0, Math.min(bars.length - 1, Math.round((px - ml) / step - 0.5)));
     const b = bars[i];
 
@@ -2878,11 +3373,21 @@ function drawCandles(){
     const tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = (left + 14 + tw > hostBox.width ? left - tw - 14 : left + 14) + "px";
     tip.style.top = Math.max(0, Math.min(hostBox.height - th, top - th / 2)) + "px";
+  };
+
+  PZOOM.geom = { svg, tip, cross, showAt };
+
+  hit.addEventListener("pointermove", e => {
+    if (PZOOM.gesturing || e.pointerType === "touch") return;
+    showAt(e.clientX, e.clientY);
   });
   hit.addEventListener("pointerleave", () => {
+    if (PZOOM.gesturing) return;
     cross.style.display = "none";
-    tip.hidden = true;
+    if (tip) tip.hidden = true;
   });
+
+  wirePriceGestures(host);
 }
 
 function drawPriceStats(){
@@ -2941,6 +3446,7 @@ function drawPriceStats(){
 function showHero(){
   document.getElementById("hero").hidden = false;
   main.hidden = true;
+  document.body.classList.remove("mreport", "chart-fs-open");
   hqEl.value = "";
   hqEl.focus({ preventScroll: true });
 }

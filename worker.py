@@ -277,6 +277,15 @@ def refresh_market() -> bool:
         except market.MarketError:
             continue
 
+    # Fear & Greed is not an FMP field — see market.fear_greed.
+    try:
+        fg = market.fear_greed()
+        store.upsert_sentiment("fear_greed", fg["score"], fg.get("rating"),
+                               fg.get("previous"), fg.get("source"))
+        log(f"  fear&greed: {fg['score']:.0f} ({fg.get('rating')})")
+    except (market.MarketError, store.StoreError) as exc:
+        log(f"  fear&greed: {exc}")
+
     log(f"market: {len(sectors)} sectors, {len(quotes)} quotes, "
         f"{len(chart_syms)} charts, as of {as_of}, {time.time()-started:.1f}s")
     return True
