@@ -911,10 +911,11 @@ const SEASON_RAMP = {
   down: [[0xfb, 0xe2, 0xdf], [0xe2, 0x63, 0x59]],
   // How often a month closes positive is a different quantity from a return,
   // so it gets its own hue rather than a third shade of green.
-  // Lemon rather than mustard, and starting almost white so a month that
-  // finishes up a quarter of the time is visibly paler than one that manages
-  // it three quarters of the time.
-  pos:  [[0xff, 0xfd, 0xe8], [0xf2, 0xdc, 0x2e]],
+  // Lemon, from white to fully saturated. Yellow occupies a narrow band of
+  // lightness, so a ramp between two yellows has little to separate its ends;
+  // starting at white and driving blue to zero roughly doubles the range the
+  // row can use while keeping the hue where it should be.
+  pos:  [[0xff, 0xff, 0xff], [0xd9, 0xb7, 0x00]],
 };
 
 const mixRamp = (ramp, t) => {
