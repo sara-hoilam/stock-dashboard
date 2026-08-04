@@ -240,11 +240,13 @@ svg{display:block;max-width:100%}
 .pulse .chg.up{color:var(--up)} .pulse .chg.down{color:var(--down)}
 .pulse .scale{margin-top:10px;height:6px;border-radius:99px;position:relative;
   background:linear-gradient(90deg,#c0392e 0%,#eda100 45%,#2a78d6 100%)}
+/* Fear runs red to green; breadth runs red to blue. Same shape, different
+   quantity, so the ramps differ deliberately. */
+.pulse .scale.fg{background:linear-gradient(90deg,#c0392e 0%,#e67e22 25%,#eda100 50%,#27ae60 75%,#0b7a4b 100%)}
+.pulse .chg.mut{color:var(--ink-3);font-weight:500;text-transform:capitalize}
 .pulse .scale i{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
   background:var(--card);border:2px solid var(--ink);transform:translate(-50%,-50%);
   box-shadow:0 0 0 2px var(--card)}
-.pulse .gauge{display:flex;align-items:flex-end;gap:8px;margin-top:2px}
-.pulse .gauge-wrap{position:relative;display:inline-block;line-height:0}
 .pulse .gauge-wrap .score{
   position:absolute;left:0;right:0;bottom:1px;text-align:center;
   font-size:18px;font-weight:700;letter-spacing:-.02em;line-height:1;
@@ -514,42 +516,6 @@ function showTip(ev, title, rows){
 const hideTip = () => tipEl.classList.remove("on");
 
 /* ---- market pulse + news strip ------------------------------------------ */
-function fearColour(score){
-  if (score == null) return "var(--ink-3)";
-  if (score < 25) return "#c0392e";
-  if (score < 45) return "#e67e22";
-  if (score < 55) return "#eda100";
-  if (score < 75) return "#27ae60";
-  return "#0b7a4b";
-}
-
-function fearGauge(score){
-  // Semi-circle gauge: score 0..100 → angle on the arc.
-  const s = Math.max(0, Math.min(100, Number(score) || 0));
-  const W = 64, H = 36, cx = 32, cy = 32, r = 26;
-  const start = Math.PI, end = 0; // left → right through the top
-  const ang = start + (end - start) * (s / 100);
-  const nx = cx + r * Math.cos(ang), ny = cy + r * Math.sin(ang);
-  const stops = [
-    [0, "#c0392e"], [0.25, "#e67e22"], [0.5, "#eda100"],
-    [0.75, "#27ae60"], [1, "#0b7a4b"],
-  ];
-  // Approximate the arc with a thick stroked path coloured in segments.
-  const segs = [];
-  for (let i = 0; i < stops.length - 1; i++) {
-    const a0 = start + (end - start) * stops[i][0];
-    const a1 = start + (end - start) * stops[i + 1][0];
-    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
-    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-    const large = (a1 - a0) > Math.PI ? 1 : 0;
-    segs.push(`<path d="M${x0} ${y0} A${r} ${r} 0 ${large} 1 ${x1} ${y1}"
-      fill="none" stroke="${stops[i][1]}" stroke-width="5" stroke-linecap="butt"/>`);
-  }
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
-    ${segs.join("")}
-    <circle cx="${nx}" cy="${ny}" r="3.5" fill="var(--card)" stroke="var(--ink)" stroke-width="1.5"/>
-  </svg>`;
-}
 
 async function assemblePulseFallback(){
   // Used until migration 0015 is applied and get_market_pulse exists.
@@ -614,14 +580,18 @@ function renderPulse(p){
       ${br ? `<div class="scale" title="${br.up}/${br.total} advancing">
         <i style="left:${br.score}%"></i></div>` : ""}
     </div>`,
+    // Same shape as Breadth beside it: a score out of 100 over a scale with a
+    // marker. Two readings of the same market are easier to compare when they
+    // are drawn the same way, and the arc was the odd one out.
     `<div class="cell">
-      <div class="k">Fear &amp; Greed${fg && fg.source === "breadth" ? " *" : ""}</div>
-      ${fg ? `<div class="gauge">
-        <div class="gauge-wrap">${fearGauge(fg.score)}
-          <div class="score" style="color:${fearColour(fg.score)}">${esc(String(Math.round(fg.score)))}</div>
-        </div>
-        <div class="rating">${esc(fg.rating || "")}</div>
-      </div>` : `<div class="v">—</div>`}
+      <div class="k">Fear &amp; Greed</div>
+      <div class="v">${fg ? `${esc(String(Math.round(fg.score)))}<span class="dim"> /100</span>`
+                          : "—"}</div>
+      ${fg ? `<div class="scale fg" title="${esc(fg.rating || "")}${
+                fg.source && fg.source !== "cnn" ? " · own composite" : " · CNN"}">
+        <i style="left:${Math.max(0, Math.min(100, fg.score))}%"></i></div>
+      <div class="chg mut">${esc(fg.rating || "")}${
+        fg.source && fg.source !== "cnn" ? " · composite" : ""}</div>` : ""}
     </div>`,
   ];
   host.innerHTML = cells.join("");

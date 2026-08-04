@@ -601,6 +601,59 @@ tbody tr:hover td{background:var(--sunk)}
   body.chart-fs-open .pchart{flex:1;width:100%!important;height:100%!important;min-height:0;max-width:none}
 }
 
+
+/* ---- analyst rating ------------------------------------------------------ */
+.apad{padding:4px 16px 16px}
+.rbar{display:flex;height:10px;border-radius:6px;overflow:hidden;margin:6px 0 10px}
+.rbar span{display:block}
+.rkey{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--ink-3)}
+.rkey i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;
+  vertical-align:-1px}
+.rkey b{font-family:"IBM Plex Mono",monospace;color:var(--ink-2);font-weight:600}
+
+.trange{margin-top:18px}
+.tbar{position:relative;height:8px;border-radius:99px;
+  background:linear-gradient(90deg,var(--down) 0%,var(--ink-3) 50%,var(--up) 100%);
+  opacity:.9}
+.tbar i{position:absolute;top:50%;transform:translate(-50%,-50%);border-radius:50%}
+.tbar i.spot{width:13px;height:13px;background:var(--card);border:3px solid var(--ink)}
+.tbar i.mid{width:9px;height:9px;background:var(--accent);border:2px solid var(--card)}
+.tends{display:flex;justify-content:space-between;gap:10px;margin-top:8px;
+  font-size:11.5px;color:var(--ink-3)}
+.tends b{font-family:"IBM Plex Mono",monospace;color:var(--ink);font-weight:600}
+.tends .mutc{text-align:center}
+.tnote{margin-top:9px;font-size:12px;color:var(--ink-2)}
+.tnote.mutc{color:var(--ink-3);font-size:11.5px}
+.tnote b{font-family:"IBM Plex Mono",monospace}
+
+.ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
+  scrollbar-color:var(--rule) transparent}
+.atable{width:100%;border-collapse:collapse;font-size:12.5px}
+.atable th{position:sticky;top:0;background:var(--card);z-index:1;text-align:left;
+  font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;padding:8px 14px;border-bottom:1px solid var(--rule)}
+.atable td{padding:9px 14px;border-bottom:1px solid var(--rule-2)}
+.atable tr:last-child td{border-bottom:0}
+.atable td:nth-child(2){font-family:"IBM Plex Mono",monospace;color:var(--ink-3);
+  font-size:11.5px;white-space:nowrap}
+.grade{font-weight:600}
+.grade.g-buy{color:var(--up)} .grade.g-hold{color:var(--ink-2)} .grade.g-sell{color:var(--down)}
+.act{font-size:11.5px;color:var(--ink-3);text-transform:capitalize}
+.act.up{color:var(--up)} .act.down{color:var(--down)}
+
+.asrcs{padding:2px 4px 4px}
+.asrc{display:block;text-decoration:none;padding:11px 14px;border-bottom:1px solid var(--rule-2)}
+.asrc:last-child{border-bottom:0}
+.asrc:hover{background:var(--sunk)}
+.asrc .when{font-size:11px;color:var(--ink-3);margin-bottom:3px}
+.asrc .atitle{font-size:13.5px;font-weight:600;line-height:1.35}
+.asrc .atgt{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3);
+  margin-top:3px}
+.asrc .atgt b{color:var(--ink-2)}
+.afoot{padding:11px 16px 14px;font-size:11.5px;color:var(--ink-3);
+  border-top:1px solid var(--rule-2)}
+.afoot a{color:var(--accent)}
+
 @media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} .mtabs{display:none!important} }
 </style>
 </head>
@@ -924,6 +977,9 @@ const HELP = {
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
   bollinger: "The twenty-day average with bands two standard deviations either side. The bands widen when the stock is moving around more than usual and narrow when it is quiet; price outside a band is unusual rather than necessarily wrong.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
+  consensus: "How the analysts covering this company are split, and where they think the price is going. The bar shows the low, consensus and high targets, with the last close marked on it.",
+  houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
+  asrc:      "The wire story behind each target change, so any figure above can be traced to the note that reported it.",
 };
 
 const helpIcon = k => HELP[k]
@@ -1441,6 +1497,171 @@ function driftNews(wrap){
   requestAnimationFrame(frame);
 }
 
+
+/* ===========================================================================
+   Analyst rating
+
+   Where the houses covering this company think it is going, and what they
+   said. Every figure here is Financial Modeling Prep's -- consensus targets,
+   the rating tally, each firm's latest action, and the wire story behind each
+   target change -- so each number can be followed back to its note.
+=========================================================================== */
+const ANALYST = { symbol: null, data: null };
+
+async function loadAnalyst(){
+  const sym = S.company && S.company.ticker;
+  if (!sym || !HOSTED) return;
+  const host = document.getElementById("analyst");
+  if (!host) return;
+
+  if (ANALYST.symbol !== sym) {
+    ANALYST.symbol = sym;
+    ANALYST.data = null;
+    try { ANALYST.data = await rpc("get_analyst", { p_symbol: sym }); }
+    catch { host.innerHTML = `<div class="note">Analyst coverage unavailable.</div>`; return; }
+  }
+  const d = ANALYST.data || {};
+  if (!d.consensus && !d.target) {
+    // Filled on the same visit as prices, so it arrives a moment later.
+    host.innerHTML = `<div class="note"><span class="load"></span> &nbsp;`
+      + `Fetching analyst coverage for ${esc(sym)}…</div>`;
+    if (!ANALYST.polling) {
+      ANALYST.polling = true;
+      setTimeout(() => { ANALYST.symbol = null; ANALYST.polling = false; loadAnalyst(); }, 6000);
+    }
+    return;
+  }
+  drawAnalyst(d);
+  wireHelp();
+}
+
+/** Buy through sell as one stacked bar — the split is the point, not the
+    individual counts, which the row beneath spells out anyway. */
+function ratingBar(c){
+  const parts = [
+    ["Strong buy", c.strongBuy || 0, "#0b7a4b"],
+    ["Buy",        c.buy || 0,       "#16c784"],
+    ["Hold",       c.hold || 0,      "#a0a7b4"],
+    ["Sell",       c.sell || 0,      "#ea3943"],
+    ["Strong sell",c.strongSell || 0,"#8f2018"],
+  ];
+  const total = parts.reduce((a, p) => a + p[1], 0);
+  if (!total) return "";
+  return `<div class="rbar">${parts.filter(p => p[1]).map(([k, v, col]) =>
+      `<span style="width:${(v / total * 100).toFixed(1)}%;background:${col}"
+             title="${esc(k)}: ${v}"></span>`).join("")}</div>
+    <div class="rkey">${parts.map(([k, v, col]) =>
+      `<span><i style="background:${col}"></i>${esc(k)} <b>${v}</b></span>`).join("")}
+    </div>`;
+}
+
+/** Price now against the low, consensus and high targets. A cone would imply
+    a path through time that nobody forecast; this is a range on one axis. */
+function targetRange(t, spot){
+  const lo = t.low, hi = t.high, mid = t.consensus ?? t.median;
+  if (lo == null || hi == null || hi <= lo) return "";
+  const at = v => ((v - lo) / (hi - lo) * 100);
+  const marks = [];
+  if (spot != null && spot >= lo && spot <= hi)
+    marks.push(`<i class="spot" style="left:${at(spot).toFixed(1)}%"
+      title="Now ${spot.toFixed(2)}"></i>`);
+  if (mid != null)
+    marks.push(`<i class="mid" style="left:${at(mid).toFixed(1)}%"
+      title="Consensus ${mid.toFixed(2)}"></i>`);
+  const pctTo = mid != null && spot ? ((mid / spot - 1) * 100) : null;
+  return `
+    <div class="trange">
+      <div class="tbar">${marks.join("")}</div>
+      <div class="tends">
+        <span>Low <b>${lo.toFixed(2)}</b></span>
+        <span class="mutc">${mid != null ? `Consensus <b>${mid.toFixed(2)}</b>` : ""}</span>
+        <span>High <b>${hi.toFixed(2)}</b></span>
+      </div>
+      ${pctTo === null ? "" : `<div class="tnote">Consensus is
+        <b class="${pctTo >= 0 ? "up" : "down"}">${pctTo >= 0 ? "+" : ""}${pctTo.toFixed(1)}%</b>
+        against the last close of ${spot.toFixed(2)}.</div>`}
+    </div>`;
+}
+
+const GRADE_TONE = g => {
+  const s = (g || "").toLowerCase();
+  if (/strong buy|outperform|overweight|positive/.test(s)) return "g-buy";
+  if (/buy|accumulate/.test(s)) return "g-buy";
+  if (/hold|neutral|market perform|equal ?weight|in ?line/.test(s)) return "g-hold";
+  if (/sell|underperform|underweight|reduce|negative/.test(s)) return "g-sell";
+  return "";
+};
+
+const ACTION_TONE = a => ({ upgrade: "up", downgrade: "down" }[(a || "").toLowerCase()] || "");
+
+function drawAnalyst(d){
+  const host = document.getElementById("analyst");
+  const c = d.consensus, t = d.target, counts = d.targetCounts;
+  const spot = PRICE.quote && PRICE.quote.price !== undefined
+    ? PRICE.quote.price
+    : (PRICE.bars && PRICE.bars.length ? PRICE.bars[PRICE.bars.length - 1].c : null);
+  const total = c ? (c.strongBuy||0)+(c.buy||0)+(c.hold||0)+(c.sell||0)+(c.strongSell||0) : 0;
+
+  const houses = (d.grades || []).map(g => `
+    <tr>
+      <td>${esc(g.house)}</td>
+      <td>${esc(shortDate(g.date))}</td>
+      <td><span class="grade ${GRADE_TONE(g.to)}">${esc(g.to || "—")}</span></td>
+      <td class="act ${ACTION_TONE(g.action)}">${esc(g.action || "")}</td>
+    </tr>`).join("");
+
+  const stories = (d.news || []).map(n => `
+    <a class="asrc" href="${esc(n.url)}" target="_blank" rel="noopener">
+      <div class="when">${esc(ago(n.published))}${n.house ? ` · ${esc(n.house)}` : ""}</div>
+      <div class="atitle">${esc(n.title || "")}</div>
+      ${n.target != null ? `<div class="atgt">Target <b>${Number(n.target).toFixed(2)}</b>${
+        n.priceWhenPosted != null ? ` · price then ${Number(n.priceWhenPosted).toFixed(2)}` : ""}</div>` : ""}
+    </a>`).join("");
+
+  host.innerHTML = `
+    <div class="pairrow">
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Consensus ${helpIcon("consensus")}</h2>
+          <p>${total ? `${total} analyst${total === 1 ? "" : "s"} covering` : "Coverage"}${
+            c && c.rating ? ` · <b>${esc(c.rating)}</b>` : ""}</p>
+        </div></div>
+        <div class="apad">
+          ${c ? ratingBar(c) : `<div class="note">No rating tally published.</div>`}
+          ${t ? targetRange(t, spot) : ""}
+          ${counts && counts.year ? `<div class="tnote mutc">${counts.month || 0} targets in the
+            last month, ${counts.year} in the last year${
+            counts.yearAvg ? `, averaging ${Number(counts.yearAvg).toFixed(2)}` : ""}.</div>` : ""}
+        </div>
+      </section>
+
+      <section class="card panel">
+        <div class="phead"><div>
+          <h2>Latest by institution ${helpIcon("houses")}</h2>
+          <p>Most recent action from each firm.</p>
+        </div></div>
+        <div class="ascroll">
+          ${houses ? `<table class="atable">
+            <thead><tr><th>Institution</th><th>Date</th><th>Rating</th><th>Action</th></tr></thead>
+            <tbody>${houses}</tbody></table>`
+            : `<div class="note">No house ratings published.</div>`}
+        </div>
+      </section>
+    </div>
+
+    <section class="card panel">
+      <div class="phead"><div>
+        <h2>Where these came from ${helpIcon("asrc")}</h2>
+        <p>Each target change links to the note that reported it.</p>
+      </div></div>
+      <div class="asrcs">${stories || `<div class="note">No target-change stories.</div>`}</div>
+      <div class="afoot">Analyst data from
+        <a href="https://site.financialmodelingprep.com/" target="_blank" rel="noopener">Financial
+        Modeling Prep</a>${d.updatedAt ? ` · updated ${esc(ago(d.updatedAt))}` : ""}.
+        Ratings are the analysts' own opinions, not a recommendation from this site.</div>
+    </section>`;
+}
+
 /** A company with no US quarterly filings -- a foreign private issuer, or one
     that has simply not filed yet. There is no income statement to draw, but
     there is a price, so show that rather than an error and nothing else. */
@@ -1480,6 +1701,7 @@ function marketOnly(ticker, company, why){
   document.getElementById("pricerow").classList.add("waiting");
   PRICE.symbol = null; PRICE.bars = []; PRICE.view = null;
   loadPrices();
+  loadAnalyst();          // coverage exists even where filings do not
   wireMobileTabs();
 }
 
@@ -1710,6 +1932,7 @@ function render(){
       <button type="button" role="tab" data-mtab="filing" aria-selected="false">Filing</button>
       <button type="button" role="tab" data-mtab="market" aria-selected="false">Market</button>
       <button type="button" role="tab" data-mtab="news" aria-selected="false">News</button>
+      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Rating</button>
       <button type="button" role="tab" data-mtab="custom" aria-selected="false">Custom</button>
     </nav>
 
@@ -1855,6 +2078,10 @@ function render(){
       </section>
     </div>
 
+    <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
+      <div id="analyst"><div class="note"><span class="load"></span> &nbsp;Loading analyst coverage…</div></div>
+    </div>
+
     <div class="mtab-panel" data-mtab="custom" id="mtab-custom" role="tabpanel">
       <section class="card panel" id="builder">
         <div class="phead"><div>
@@ -1912,6 +2139,7 @@ function render(){
   renderKPIs();
   loadPrices();
   loadExtras();
+  loadAnalyst();
   renderSankey();
   renderMix();
   renderRevTrend();
@@ -2944,6 +3172,7 @@ function wireMobileTabs(){
       renderMargins(); renderCostStack();
     }
     if (id === "market") marketPanels();
+    if (id === "analyst") loadAnalyst();
     if (id === "custom") { try { renderBuilder(); } catch {} }
     scrollTo({ top: 0, behavior: "auto" });
   };
@@ -3260,6 +3489,9 @@ function paintPrices(){
   // Three of the panels below are drawn from these bars. Prices arrive after
   // the first render, so whichever of the two finishes last does the drawing.
   marketPanels();
+  // The target range marks the last close on it, which is not known until the
+  // prices land; redraw so the marker is not silently missing.
+  if (ANALYST.data && document.getElementById("analyst")) drawAnalyst(ANALYST.data);
 }
 
 /** The panels that need both the extras payload and the price bars. */
