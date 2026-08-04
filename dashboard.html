@@ -321,6 +321,28 @@ tbody tr:hover td{background:var(--sunk)}
 .pnote{margin-top:11px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--ink-3)}
 
+/* Where the houses think the price is going, under the price it is measured
+   against. Same shape as the quote above it: a heading, a figure, the spread. */
+.wst{margin-top:15px;padding-top:14px;border-top:1px solid var(--rule)}
+.wst-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;
+  color:var(--ink-2)}
+.wst-h span{font-weight:500;color:var(--ink-3);white-space:nowrap}
+.wst-t{display:flex;align-items:baseline;gap:10px;margin-top:6px}
+.wst-t b{font-family:"IBM Plex Mono",monospace;font-size:22px;font-weight:600;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.wst-t span{font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600}
+.wst-t span.up{color:var(--up)} .wst-t span.down{color:var(--down)}
+.wst-r{margin-top:3px;font-size:11.5px;color:var(--ink-3)}
+.wst-bar{display:flex;gap:2px;height:9px;border-radius:5px;overflow:hidden;
+  margin:11px 0 8px}
+.wst-bar span{display:block}
+.wst-bar span.buy{background:var(--up)}
+.wst-bar span.hold{background:var(--c-grey)}
+.wst-bar span.sell{background:var(--down)}
+.wst-k{font-size:11.5px;color:var(--ink-3)}
+.wst-k b{font-family:"IBM Plex Mono",monospace;color:var(--ink-2);font-weight:600}
+
 @media (max-width:1080px){
   .pricerow{grid-template-columns:1fr}
   .pstats{grid-template-columns:1fr 1fr 1fr}
@@ -610,29 +632,14 @@ tbody tr:hover td{background:var(--sunk)}
 
 
 /* ---- analyst rating ------------------------------------------------------ */
-.apad{padding:4px 16px 16px}
-.rbar{display:flex;height:10px;border-radius:6px;overflow:hidden;margin:6px 0 10px}
-.rbar span{display:block}
-.rkey{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--ink-3)}
-.rkey i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;
-  vertical-align:-1px}
-.rkey b{font-family:"IBM Plex Mono",monospace;color:var(--ink-2);font-weight:600}
-
-.trange{margin-top:18px}
-.tbar{position:relative;height:8px;border-radius:99px;
-  background:linear-gradient(90deg,var(--down) 0%,var(--ink-3) 50%,var(--up) 100%);
-  opacity:.9}
-.tbar i{position:absolute;top:50%;transform:translate(-50%,-50%);border-radius:50%}
-.tbar i.spot{width:13px;height:13px;background:var(--card);border:3px solid var(--ink)}
-.tbar i.mid{width:9px;height:9px;background:var(--accent);border:2px solid var(--card)}
-.tends{display:flex;justify-content:space-between;gap:10px;margin-top:8px;
-  font-size:11.5px;color:var(--ink-3)}
-.tends b{font-family:"IBM Plex Mono",monospace;color:var(--ink);font-weight:600}
-.tends .mutc{text-align:center}
-.tnote{margin-top:9px;font-size:12px;color:var(--ink-2)}
-.tnote.mutc{color:var(--ink-3);font-size:11.5px}
-.tnote b{font-family:"IBM Plex Mono",monospace}
-
+/* The coverage column: one card, with the source note under it rather than
+   inside it, so the note is not scrolled away with the table. */
+.acol{display:flex;flex-direction:column;min-width:0;margin-bottom:16px}
+.acol>.panel{margin-bottom:0}
+/* Half the page wide, the longer of the two subtitles wraps -- and without
+   this it pushes the view switch onto its own line, so the control moves when
+   you use it. The text gives way instead. */
+.acol .phead>div:first-child{flex:1;min-width:0}
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
 .atable{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -1026,9 +1033,8 @@ const HELP = {
   pe:        "Price divided by trailing-twelve-month diluted earnings per share, computed from the filed quarters rather than taken from a data vendor. The dashed line is the current average for this company's industry; its history is not available, so it is a reference level rather than a series.",
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
-  consensus: "How the analysts covering this company are split, and where they think the price is going. The bar shows the low, consensus and high targets, with the last close marked on it.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
-  asrc:      "The wire story behind each target change, so any figure above can be traced to the note that reported it.",
+  asrc:      "The wire story behind each target change, so the consensus target shown beside the price can be traced back to the notes that set it.",
 };
 
 const helpIcon = k => HELP[k]
@@ -1442,7 +1448,8 @@ function driftNews(wrap){
    the rating tally, each firm's latest action, and the wire story behind each
    target change -- so each number can be followed back to its note.
 =========================================================================== */
-const ANALYST = { symbol: null, data: null, tries: 0, asked: false, queued: true, poll: null };
+const ANALYST = { symbol: null, data: null, view: "houses",
+                  tries: 0, asked: false, queued: true, poll: null };
 
 async function loadAnalyst(){
   const sym = S.company && S.company.ticker;
@@ -1521,54 +1528,6 @@ async function awaitAnalyst(sym){
   }, 6000);
 }
 
-/** Buy through sell as one stacked bar — the split is the point, not the
-    individual counts, which the row beneath spells out anyway. */
-function ratingBar(c){
-  const parts = [
-    ["Strong buy", c.strongBuy || 0, "#0b7a4b"],
-    ["Buy",        c.buy || 0,       "#16c784"],
-    ["Hold",       c.hold || 0,      "#a0a7b4"],
-    ["Sell",       c.sell || 0,      "#ea3943"],
-    ["Strong sell",c.strongSell || 0,"#8f2018"],
-  ];
-  const total = parts.reduce((a, p) => a + p[1], 0);
-  if (!total) return "";
-  return `<div class="rbar">${parts.filter(p => p[1]).map(([k, v, col]) =>
-      `<span style="width:${(v / total * 100).toFixed(1)}%;background:${col}"
-             title="${esc(k)}: ${v}"></span>`).join("")}</div>
-    <div class="rkey">${parts.map(([k, v, col]) =>
-      `<span><i style="background:${col}"></i>${esc(k)} <b>${v}</b></span>`).join("")}
-    </div>`;
-}
-
-/** Price now against the low, consensus and high targets. A cone would imply
-    a path through time that nobody forecast; this is a range on one axis. */
-function targetRange(t, spot){
-  const lo = t.low, hi = t.high, mid = t.consensus ?? t.median;
-  if (lo == null || hi == null || hi <= lo) return "";
-  const at = v => ((v - lo) / (hi - lo) * 100);
-  const marks = [];
-  if (spot != null && spot >= lo && spot <= hi)
-    marks.push(`<i class="spot" style="left:${at(spot).toFixed(1)}%"
-      title="Now ${spot.toFixed(2)}"></i>`);
-  if (mid != null)
-    marks.push(`<i class="mid" style="left:${at(mid).toFixed(1)}%"
-      title="Consensus ${mid.toFixed(2)}"></i>`);
-  const pctTo = mid != null && spot ? ((mid / spot - 1) * 100) : null;
-  return `
-    <div class="trange">
-      <div class="tbar">${marks.join("")}</div>
-      <div class="tends">
-        <span>Low <b>${lo.toFixed(2)}</b></span>
-        <span class="mutc">${mid != null ? `Consensus <b>${mid.toFixed(2)}</b>` : ""}</span>
-        <span>High <b>${hi.toFixed(2)}</b></span>
-      </div>
-      ${pctTo === null ? "" : `<div class="tnote">Consensus is
-        <b class="${pctTo >= 0 ? "up" : "down"}">${pctTo >= 0 ? "+" : ""}${pctTo.toFixed(1)}%</b>
-        against the last close of ${spot.toFixed(2)}.</div>`}
-    </div>`;
-}
-
 const GRADE_TONE = g => {
   const s = (g || "").toLowerCase();
   if (/strong buy|outperform|overweight|positive/.test(s)) return "g-buy";
@@ -1583,7 +1542,9 @@ const ACTION_TONE = a => ({ upgrade: "up", downgrade: "down" }[(a || "").toLower
 /** The tally as one word and the ratings behind it. FMP publishes a consensus
     string of its own, but a word and a count shown together have to come from
     the same five numbers or they contradict each other -- so the word is the
-    largest of the three groups, and FMP's only breaks a tie. */
+    largest of the three groups, and FMP's only breaks a tie. Strong buy counts
+    as a buy and strong sell as a sell: five degrees is more than a summary
+    line can carry, and the section below keeps every one of them. */
 function consensusCall(c){
   if (!c) return null;
   const groups = [
@@ -1596,75 +1557,117 @@ function consensusCall(c){
   const most = Math.max(...groups.map(g => g.n));
   const tied = groups.filter(g => g.n === most);
   const said = (c.rating || "").toLowerCase();
-  return { ...(tied.find(g => said.includes(g.tone)) || tied[0]), total };
+  return { ...(tied.find(g => said.includes(g.tone)) || tied[0]), total, groups };
 }
 
+/** Where the houses think the price is going, under the price it is measured
+    against: the consensus target and what it implies, the range around it,
+    and the split that produced it. */
+function consensusSummary(spot){
+  const d = ANALYST.data;
+  if (!d) return "";
+  const t = d.target || {};
+  const call = consensusCall(d.consensus);
+  const mid = t.consensus ?? t.median ?? null;
+  if (!call && mid == null) return "";
+
+  const to = mid != null && spot ? (mid / spot - 1) * 100 : null;
+  const bar = !call ? "" : `
+    <div class="wst-bar">${call.groups.filter(g => g.n).map(g =>
+      `<span class="${g.tone}" style="width:${(g.n / call.total * 100).toFixed(1)}%"
+             title="${g.n} ${g.word.toLowerCase()}"></span>`).join("")}</div>
+    <div class="wst-k">${call.groups.map(g =>
+      `<b>${g.n}</b> ${g.word}`).join(" · ")}</div>`;
+
+  return `
+    <div class="wst">
+      <div class="wst-h">Wall Street consensus${call
+        ? `<span>${call.total} analyst${call.total === 1 ? "" : "s"}</span>` : ""}</div>
+      ${mid == null ? "" : `<div class="wst-t"><b>$${mid.toFixed(2)}</b>${to === null ? ""
+        : `<span class="${to >= 0 ? "up" : "down"}">${to >= 0 ? "+" : ""}${to.toFixed(1)}%</span>`}
+      </div>`}
+      ${t.low == null || t.high == null ? ""
+        : `<div class="wst-r">Range $${t.low.toFixed(2)}–$${t.high.toFixed(2)}</div>`}
+      ${bar}
+    </div>`;
+}
+
+/** One card, two readings of the same coverage: where each house stands now,
+    and the notes that moved the targets. They answer different questions
+    about one subject, so they share a panel rather than competing for the
+    width beside the news. */
 function drawAnalyst(d){
   const host = document.getElementById("analyst");
-  const c = d.consensus, t = d.target, counts = d.targetCounts;
-  const spot = PRICE.quote && PRICE.quote.price !== undefined
-    ? PRICE.quote.price
-    : (PRICE.bars && PRICE.bars.length ? PRICE.bars[PRICE.bars.length - 1].c : null);
-  const total = c ? (c.strongBuy||0)+(c.buy||0)+(c.hold||0)+(c.sell||0)+(c.strongSell||0) : 0;
-
-  const houses = (d.grades || []).map(g => `
-    <tr>
-      <td>${esc(g.house)}</td>
-      <td>${esc(shortDate(g.date))}</td>
-      <td><span class="grade ${GRADE_TONE(g.to)}">${esc(g.to || "—")}</span></td>
-      <td class="act ${ACTION_TONE(g.action)}">${esc(g.action || "")}</td>
-    </tr>`).join("");
-
-  const stories = (d.news || []).map(n => `
-    <a class="asrc" href="${esc(n.url)}" target="_blank" rel="noopener">
-      <div class="when">${esc(ago(n.published))}${n.house ? ` · ${esc(n.house)}` : ""}</div>
-      <div class="atitle">${esc(n.title || "")}</div>
-      ${n.target != null ? `<div class="atgt">Target <b>${Number(n.target).toFixed(2)}</b>${
-        n.priceWhenPosted != null ? ` · price then ${Number(n.priceWhenPosted).toFixed(2)}` : ""}</div>` : ""}
-    </a>`).join("");
 
   host.innerHTML = `
-    <div class="pairrow">
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Consensus ${helpIcon("consensus")}</h2>
-          <p>${total ? `${total} analyst${total === 1 ? "" : "s"} covering` : "Coverage"}${
-            c && c.rating ? ` · <b>${esc(c.rating)}</b>` : ""}</p>
-        </div></div>
-        <div class="apad">
-          ${c ? ratingBar(c) : `<div class="note">No rating tally published.</div>`}
-          ${t ? targetRange(t, spot) : ""}
-          ${counts && counts.year ? `<div class="tnote mutc">${counts.month || 0} targets in the
-            last month, ${counts.year} in the last year${
-            counts.yearAvg ? `, averaging ${Number(counts.yearAvg).toFixed(2)}` : ""}.</div>` : ""}
-        </div>
-      </section>
-
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>Latest by institution ${helpIcon("houses")}</h2>
-          <p>Most recent action from each firm.</p>
-        </div></div>
-        <div class="ascroll">
-          ${houses ? `<table class="atable">
-            <thead><tr><th>Institution</th><th>Date</th><th>Rating</th><th>Action</th></tr></thead>
-            <tbody>${houses}</tbody></table>`
-            : `<div class="note">No house ratings published.</div>`}
-        </div>
-      </section>
-    </div>
-
     <section class="card panel">
-      <div class="phead"><div>
-        <h2>Where these came from ${helpIcon("asrc")}</h2>
-        <p>Each target change links to the note that reported it.</p>
-      </div></div>
-      <div class="asrcs">${stories || `<div class="note">No target-change stories.</div>`}</div>
-      <div class="afoot">Analyst data from
-        <a href="https://site.financialmodelingprep.com/" target="_blank" rel="noopener">Financial
-        Modeling Prep</a>${d.updatedAt ? ` · updated ${esc(ago(d.updatedAt))}` : ""}.
-        Ratings are the analysts' own opinions, not a recommendation from this site.</div>
-    </section>`;
+      <div class="phead">
+        <div>
+          <h2>Analyst Ratings <span id="arat-help"></span></h2>
+          <p id="arat-sub"></p>
+        </div>
+        <div class="seg" id="arat-views">
+          <button type="button" data-v="houses">By institution</button>
+          <button type="button" data-v="news">News</button>
+        </div>
+      </div>
+      <div id="arat-body"></div>
+    </section>
+
+    <div class="afoot">Analyst data from
+      <a href="https://site.financialmodelingprep.com/" target="_blank" rel="noopener">Financial
+      Modeling Prep</a>${d.updatedAt ? ` · updated ${esc(ago(d.updatedAt))}` : ""}.
+      Ratings are the analysts' own opinions, not a recommendation from this site.</div>`;
+
+  host.querySelectorAll("#arat-views button").forEach(b =>
+    b.onclick = () => { ANALYST.view = b.dataset.v; paintAnalyst(); });
+  paintAnalyst();
+}
+
+function paintAnalyst(){
+  const d = ANALYST.data || {};
+  const body = document.getElementById("arat-body");
+  if (!body) return;
+  const view = ANALYST.view === "news" ? "news" : "houses";
+  const counts = d.targetCounts;
+
+  document.querySelectorAll("#arat-views button").forEach(b =>
+    b.setAttribute("aria-pressed", b.dataset.v === view));
+
+  if (view === "houses") {
+    const rows = (d.grades || []).map(g => `
+      <tr>
+        <td>${esc(g.house)}</td>
+        <td>${esc(shortDate(g.date))}</td>
+        <td><span class="grade ${GRADE_TONE(g.to)}">${esc(g.to || "—")}</span></td>
+        <td class="act ${ACTION_TONE(g.action)}">${esc(g.action || "")}</td>
+      </tr>`).join("");
+    document.getElementById("arat-sub").textContent = "Most recent action from each firm.";
+    body.className = "ascroll";
+    body.innerHTML = rows ? `<table class="atable">
+      <thead><tr><th>Institution</th><th>Date</th><th>Rating</th><th>Action</th></tr></thead>
+      <tbody>${rows}</tbody></table>`
+      : `<div class="note">No house ratings published.</div>`;
+  } else {
+    const stories = (d.news || []).map(n => `
+      <a class="asrc" href="${esc(n.url)}" target="_blank" rel="noopener">
+        <div class="when">${esc(ago(n.published))}${n.house ? ` · ${esc(n.house)}` : ""}</div>
+        <div class="atitle">${esc(n.title || "")}</div>
+        ${n.target != null ? `<div class="atgt">Target <b>${Number(n.target).toFixed(2)}</b>${
+          n.priceWhenPosted != null ? ` · price then ${Number(n.priceWhenPosted).toFixed(2)}` : ""}</div>` : ""}
+      </a>`).join("");
+    document.getElementById("arat-sub").textContent =
+      (counts && counts.year
+        ? `${counts.month || 0} targets in the last month, ${counts.year} in the last year${
+            counts.yearAvg ? `, averaging ${Number(counts.yearAvg).toFixed(2)}` : ""}. `
+        : "") + "Each target change links to the note that reported it.";
+    body.className = "ascroll asrcs";
+    body.innerHTML = stories || `<div class="note">No target-change stories.</div>`;
+  }
+
+  const help = document.getElementById("arat-help");
+  if (help) help.innerHTML = helpIcon(view === "houses" ? "houses" : "asrc");
+  wireHelp();
 }
 
 /** A company with no US quarterly filings -- a foreign private issuer, or one
@@ -1691,7 +1694,7 @@ function marketOnly(ticker, company, why){
 
     <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
       <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
-      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Rating</button>
+      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Ratings</button>
     </nav>
 
     <div class="mtab-panel on" data-mtab="chart" id="mtab-chart" role="tabpanel">
@@ -1702,8 +1705,8 @@ function marketOnly(ticker, company, why){
     </div>
 
     <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
-      <h3 class="grouphead">Analyst rating</h3>
-      <div id="analyst"><section class="card panel"><div class="note">
+      <h3 class="grouphead">Analyst ratings</h3>
+      <div class="acol" id="analyst"><section class="card panel"><div class="note">
         <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
     </div>`;
 
@@ -1943,7 +1946,6 @@ function render(){
       <button type="button" role="tab" data-mtab="chart" aria-selected="true">Chart</button>
       <button type="button" role="tab" data-mtab="filing" aria-selected="false">Filing</button>
       <button type="button" role="tab" data-mtab="market" aria-selected="false">Market</button>
-      <button type="button" role="tab" data-mtab="analyst" aria-selected="false">Analyst Rating</button>
       <button type="button" role="tab" data-mtab="news" aria-selected="false">News</button>
       <button type="button" role="tab" data-mtab="custom" aria-selected="false">Custom</button>
     </nav>
@@ -2074,20 +2076,20 @@ function render(){
       </div>
     </div>
 
-    <div class="mtab-panel" data-mtab="analyst" id="mtab-analyst" role="tabpanel">
-      <h3 class="grouphead">Analyst rating</h3>
-      <div id="analyst"><section class="card panel"><div class="note">
-        <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
-    </div>
-
     <div class="mtab-panel" data-mtab="news" id="mtab-news" role="tabpanel">
-      <section class="card panel">
-        <div class="phead"><div>
-          <h2>News ${helpIcon("news")}</h2>
-          <p id="news-scope">Recent stories.</p>
-        </div></div>
-        <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
-      </section>
+      <h3 class="grouphead">News</h3>
+      <div class="pairrow">
+        <div class="acol" id="analyst"><section class="card panel"><div class="note">
+          <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
+
+        <section class="card panel">
+          <div class="phead"><div>
+            <h2>News ${helpIcon("news")}</h2>
+            <p id="news-scope">Recent stories.</p>
+          </div></div>
+          <div class="newswrap" id="co-news"><div class="note">Loading news…</div></div>
+        </section>
+      </div>
     </div>
 
     <div class="mtab-panel" data-mtab="custom" id="mtab-custom" role="tabpanel">
@@ -3180,7 +3182,9 @@ function wireMobileTabs(){
       renderMargins(); renderCostStack();
     }
     if (id === "market") marketPanels();
-    if (id === "analyst") loadAnalyst();
+    // The report keeps coverage in its News tab; the market-only view, which
+    // has no news to keep it company, gives it a tab of its own.
+    if (id === "news" || id === "analyst") loadAnalyst();
     if (id === "custom") { try { renderBuilder(); } catch {} }
     scrollTo({ top: 0, behavior: "auto" });
   };
@@ -3504,11 +3508,6 @@ function paintPrices(){
   // Three of the panels below are drawn from these bars. Prices arrive after
   // the first render, so whichever of the two finishes last does the drawing.
   marketPanels();
-  // The target range marks the last close on it, which is not known until the
-  // prices land; redraw so the marker is not silently missing. Through
-  // showAnalyst, because a payload can be present and still hold no coverage.
-  if (ANALYST.data && ANALYST.symbol && document.getElementById("analyst"))
-    showAnalyst(ANALYST.symbol);
 }
 
 /** The panels that need both the extras payload and the price bars. */
@@ -4165,7 +4164,8 @@ function drawPriceStats(){
     <dl class="pstats">
       ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
     </dl>
-    <p class="pnote">Last trading day${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>`;
+    <p class="pnote">Last trading day${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>
+    ${consensusSummary(price)}`;
 }
 
 /** No ticker in the URL means the visitor arrived from the nav rather than
