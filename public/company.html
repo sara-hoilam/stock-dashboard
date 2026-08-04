@@ -838,7 +838,14 @@ async function rpc(fn, args){
     headers: { apikey: CFG.supabaseAnonKey, "Content-Type": "application/json" },
     body: JSON.stringify(args || {}),
   });
-  if (!r.ok) throw new Error(`${fn} failed (${r.status})`);
+  if (!r.ok) {
+    // The status is carried, not just printed: a function the database does
+    // not have is a deployment that is behind, and a caller may want to say
+    // something different about that than about a network failure.
+    const err = new Error(`${fn} failed (${r.status})`);
+    err.status = r.status;
+    throw err;
+  }
   return r.json();
 }
 const asJson = r => r.json();
@@ -1435,7 +1442,7 @@ function driftNews(wrap){
    the rating tally, each firm's latest action, and the wire story behind each
    target change -- so each number can be followed back to its note.
 =========================================================================== */
-const ANALYST = { symbol: null, data: null, tries: 0, poll: null };
+const ANALYST = { symbol: null, data: null, tries: 0, asked: false, queued: true, poll: null };
 
 async function loadAnalyst(){
   const sym = S.company && S.company.ticker;
@@ -1448,6 +1455,7 @@ async function loadAnalyst(){
     ANALYST.symbol = sym;
     ANALYST.data = null;
     ANALYST.tries = 0;
+    ANALYST.asked = false;
     try { ANALYST.data = await API.analyst(sym); }
     catch { return analystState(`Analyst coverage for ${sym} is unavailable.`); }
     if (ANALYST.symbol !== sym) return;        // another company was opened
@@ -1481,10 +1489,24 @@ function analystState(msg, busy){
 
 /** Coverage is fetched on demand, like prices: the page asks, the worker
     answers within a few seconds. Say so while waiting, and say plainly when
-    it has not arrived rather than spinning forever. */
-function awaitAnalyst(sym){
+    it has not arrived rather than spinning forever.
+
+    Where the request function is not deployed there is nothing to wait for,
+    so the wait is skipped entirely. Coverage still reaches that company with
+    its next price fetch, which is how it worked before it had a queue. */
+async function awaitAnalyst(sym){
   clearTimeout(ANALYST.poll);
-  if (ANALYST.tries === 0) API.requestAnalyst(sym).catch(() => {});
+  if (!ANALYST.asked) {
+    ANALYST.asked = true;
+    ANALYST.queued = true;
+    try { await API.requestAnalyst(sym); }
+    catch (e) { if (e && e.status === 404) ANALYST.queued = false; }
+    if (ANALYST.symbol !== sym) return;
+  }
+  if (!ANALYST.queued) {
+    return analystState(`Analyst coverage for ${sym} has not been fetched yet. `
+      + `It arrives with the next refresh of this company's prices.`);
+  }
   if (ANALYST.tries++ > 20) {                    // ~2 minutes, as for prices
     return analystState(`Coverage for ${sym} is still being fetched. Reload in a minute.`);
   }
