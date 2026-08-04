@@ -1399,7 +1399,7 @@ async function loadTickerNews(){
       </a>`;
     // Desktop: render twice so the drift below can wrap without a seam.
     // Mobile: no auto-scroll — one list, manual scroll only.
-    const mobile = matchMedia("(max-width:720px)").matches;
+    const mobile = MOBILE_MQ.matches;
     host.innerHTML = `<div id="conews-a">${arts.map(item).join("")}</div>` +
       (mobile ? "" : `<div aria-hidden="true">${arts.map(item).join("")}</div>`);
     if (!mobile) requestAnimationFrame(() => driftNews(host));
@@ -1414,7 +1414,7 @@ async function loadTickerNews(){
     cursor, and treating that as intent would stop the feed for good.
     Mobile never calls this — news stays still for thumb scrolling. */
 function driftNews(wrap){
-  if (matchMedia("(max-width:720px)").matches) return;
+  if (MOBILE_MQ.matches) return;
   const copy = document.getElementById("conews-a");
   if (!copy || wrap.dataset.drifting) return;
   wrap.dataset.drifting = "1";
