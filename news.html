@@ -39,14 +39,14 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:var(--ground);
   color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-main{max-width:1360px;margin:0 auto;padding:20px 24px 72px}
+main{max-width:var(--page,1680px);margin:0 auto;padding:20px 28px 72px}
 a{color:inherit}
 .up{color:var(--up)} .down{color:var(--down)}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
   box-shadow:var(--shadow);overflow:hidden}
 h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
 
-.cols{display:grid;grid-template-columns:250px minmax(0,1fr) 300px;gap:18px;align-items:start}
+.cols{display:grid;grid-template-columns:270px minmax(0,1fr) 320px;gap:20px;align-items:start}
 
 /* ---- left: the market summary list, same component as Markets Today ------ */
 /* The panel is as tall as its rows. A scrollbar inside a column that has room
@@ -94,7 +94,10 @@ tbody tr:hover td{background:var(--sunk)}
 .newsscroll::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
 .newsscroll::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
 .newsscroll{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+/* Three abreast on a wide screen, two when the centre column narrows, one on
+   a phone. Cards, not a fixed count: the breakpoints follow the space the
+   column actually has rather than the size of the window. */
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .story{display:flex;flex-direction:column;text-decoration:none}
 .story .thumb{width:100%;aspect-ratio:16/9;border-radius:9px;overflow:hidden;
   background:var(--sunk);margin-bottom:11px;flex-shrink:0}
@@ -163,6 +166,9 @@ tbody tr:hover td{background:var(--sunk)}
   vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+@media (max-width:1500px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 @media (max-width:1180px){
   .cols{grid-template-columns:minmax(0,1fr) 300px}
   .side{display:none}
