@@ -598,7 +598,8 @@ const avatarColour = s => {
   return c.startsWith("--") ? `var(${c})` : c;
 };
 
-const S = { view: "market_cap", rows: [], symbol: null, overview: null, movement: null };
+const S = { view: "market_cap", rows: [], symbol: null, overview: null, movement: null,
+            pricePoll: null };
 
 /* ---- shared tooltip ------------------------------------------------------ */
 const tipEl = document.getElementById("tip");
@@ -1062,6 +1063,7 @@ function promptSaveWatchlist(n){
 /* ---- chart --------------------------------------------------------------- */
 async function selectSymbol(sym){
   S.symbol = sym;
+  clearTimeout(S.pricePoll);            // stop waiting on the previous company
   // Move the highlight rather than rebuilding the table. Re-rendering here
   // tore down whatever surrounded the rows -- the watchlist's search bar --
   // and could hand the chart a different company than the one clicked.
@@ -1078,27 +1080,106 @@ async function selectSymbol(sym){
   const row = S.rows.find(r => r.symbol === sym);
   const q = (d && d.quote) || row || null;
 
-  if (q) {
-    document.getElementById("c-price").textContent = price(q.price);
-    const cp = q.changePct ?? q.change_pct;
-    document.getElementById("c-meta").innerHTML =
-      `${esc(q.name || "")} ${cp !== undefined && cp !== null
-        ? `· <b class="${dir(cp)}">${pct(cp)}</b>` : ""}
-       · <a href="company.html?t=${encodeURIComponent(sym)}"
-            style="color:var(--accent);text-decoration:none">view financials →</a>`;
+  if (q) fillQuoteHead(sym, q);
+
+  if (d && d.points && d.points.length) return drawChart(d.points);
+
+  // The worker only keeps a minute-by-minute series for the names it already
+  // tracks, so anything just added to a watchlist has none. Fall back to the
+  // daily closes, which are fetched on demand for any company -- a six-month
+  // line is a better answer than telling someone their new ticker has no chart.
+  return dailyFallback(sym);
+}
+
+/** Price, name and change above the chart. */
+function fillQuoteHead(sym, q){
+  document.getElementById("c-price").textContent = price(q.price);
+  const cp = q.changePct ?? q.change_pct;
+  document.getElementById("c-meta").innerHTML =
+    `${esc(q.name || "")} ${cp !== undefined && cp !== null
+      ? `· <b class="${dir(cp)}">${pct(cp)}</b>` : ""}
+     · <a href="company.html?t=${encodeURIComponent(sym)}"
+          style="color:var(--accent);text-decoration:none">view financials →</a>`;
+}
+
+/** Daily closes for a symbol with no intraday series, fetching them if this
+    is the first time anyone has asked for this company. */
+async function dailyFallback(sym){
+  const chart = document.getElementById("chart");
+  let d = null;
+  try { d = await rpc("get_prices", { p_symbol: sym }); } catch {}
+  if (S.symbol !== sym) return;                 // another row was clicked
+
+  // A ticker reached from the search box is not in the table, so the header
+  // may still be blank. get_prices carries a quote of its own.
+  if (d && d.quote && !document.getElementById("c-price").textContent) fillQuoteHead(sym, d.quote);
+
+  const bars = (d && d.bars) || [];
+  if (bars.length) {
+    drawDaily(sym, bars);
+    // Stale bars still draw; the refresh lands on the next visit.
+    if (d.stale) { try { rpc("request_prices", { p_symbol: sym }); } catch {} }
+    return;
   }
 
-  if (!d || !d.points || !d.points.length) {
+  try { await rpc("request_prices", { p_symbol: sym }); } catch {}
+  chart.innerHTML = `<div class="note"><span class="load"></span> &nbsp;Fetching prices for ${esc(sym)}…</div>`;
+  pollDaily(sym);
+}
+
+/** The worker fills a request in seconds when it is idle and a minute or two
+    when it is behind on filings. Wait the longer of the two, then say so
+    rather than leaving a space that never fills. */
+function pollDaily(sym){
+  clearTimeout(S.pricePoll);
+  let tries = 0;
+  const tick = async () => {
+    if (S.symbol !== sym) return;
+    if (tries++ > 40) {                          // ~2 minutes
+      document.getElementById("chart").innerHTML =
+        `<div class="note">Prices for ${esc(sym)} are still being fetched. Check back in a minute.<br>
+         <a href="company.html?t=${encodeURIComponent(sym)}"
+            style="color:var(--accent)">Open its filed financials →</a></div>`;
+      return;
+    }
+    let d = null;
+    try { d = await rpc("get_prices", { p_symbol: sym }); } catch {}
+    if (S.symbol !== sym) return;
+    if (d && (d.bars || []).length) return drawDaily(sym, d.bars);
+    S.pricePoll = setTimeout(tick, 3000);
+  };
+  S.pricePoll = setTimeout(tick, 2000);
+}
+
+/** Six months of closes, shaped like the intraday points so one drawing
+    routine serves both. */
+function drawDaily(sym, bars){
+  const points = bars.slice(-130)
+    .filter(b => b && b.d && b.c != null)
+    .map(b => ({ t: b.d, c: b.c }));
+  if (points.length < 2) {
     document.getElementById("chart").innerHTML =
-      `<div class="note">No intraday series stored for ${esc(sym)} yet.<br>
+      `<div class="note">No price history for ${esc(sym)}.<br>
        <a href="company.html?t=${encodeURIComponent(sym)}"
           style="color:var(--accent)">Open its filed financials instead →</a></div>`;
     return;
   }
-  drawChart(d.points);
+  drawChart(points, true);
+
+  // Say which series this is. Without it a six-month line sits under a
+  // "today" price and reads as an intraday collapse.
+  const meta = document.getElementById("c-meta");
+  if (meta && !meta.querySelector(".rangelab")) {
+    const from = points[0].t;
+    meta.insertAdjacentHTML("beforeend",
+      `${meta.textContent.trim() ? " · " : ""}<span class="rangelab" style="color:var(--ink-3)">daily closes since ${
+        +from.slice(8,10)} ${MONTHS[+from.slice(5,7)-1]} ${from.slice(0,4)}</span>`);
+  }
 }
 
-function drawChart(points){
+/** `daily` switches the time axis from clock times to dates. The geometry is
+    the same either way; only what a point is called changes. */
+function drawChart(points, daily){
   const W = 900, H = 380, ml = 8, mr = 62, mt = 16, mb = 34;
   const pw = W - ml - mr, ph = H - mt - mb;
   const vals = points.map(p => p.c);
@@ -1116,14 +1197,18 @@ function drawChart(points){
       <text x="${W-mr+8}" y="${y(v)+4}" font-size="10.5" class="tnum" fill="var(--ink-3)">${v.toFixed(2)}</text>`);
   }
 
-  // Session boundaries, so a two-day series reads as two days.
-  let prevDay = points[0].t.slice(0,10);
+  // Boundaries: sessions on an intraday series, months on a daily one. Every
+  // daily bar starts a new day, so dividing on days there would put a rule
+  // between every pair of points.
+  const unit = p => daily ? p.t.slice(0,7) : p.t.slice(0,10);
+  let prev = unit(points[0]);
   points.forEach((p,i) => {
-    const day = p.t.slice(0,10);
-    if (day !== prevDay) {
+    const u = unit(p);
+    if (u !== prev) {
       parts.push(`<line x1="${x(i)}" y1="${mt}" x2="${x(i)}" y2="${mt+ph}" stroke="var(--rule)"></line>
-        <text x="${x(i)+5}" y="${H-mb+16}" font-size="10.5" fill="var(--ink-2)" font-weight="600">${day.slice(8,10)}</text>`);
-      prevDay = day;
+        <text x="${x(i)+5}" y="${H-mb+16}" font-size="10.5" fill="var(--ink-2)" font-weight="600">${
+          daily ? MONTHS[+u.slice(5,7)-1] : u.slice(8,10)}</text>`);
+      prev = u;
     }
   });
 
@@ -1142,10 +1227,14 @@ function drawChart(points){
     <text x="${W-mr+30}" y="${y(last)+4}" text-anchor="middle" font-size="11"
       class="tnum" fill="#fff" font-weight="600">${last.toFixed(2)}</text>`);
 
-  // Time labels at the ends and middle -- enough to orient without clutter.
-  [0, Math.floor(points.length/2), points.length-1].forEach(i => {
+  // Time labels -- enough to orient without clutter. A daily series is already
+  // labelled at every month, so it only needs its two ends.
+  const axisAt = daily ? [0, points.length-1] : [0, Math.floor(points.length/2), points.length-1];
+  axisAt.forEach(i => {
+    const t = points[i].t;
+    const lab = daily ? `${+t.slice(8,10)} ${MONTHS[+t.slice(5,7)-1]}` : t.slice(11,16);
     parts.push(`<text x="${Math.min(Math.max(x(i),ml+16), W-mr-16)}" y="${H-mb+16}"
-      text-anchor="middle" font-size="10.5" class="tnum" fill="var(--ink-3)">${points[i].t.slice(11,16)}</text>`);
+      text-anchor="middle" font-size="10.5" class="tnum" fill="var(--ink-3)">${lab}</text>`);
   });
 
   // Crosshair, hidden until the pointer is actually over the plot.
@@ -1169,9 +1258,9 @@ function drawChart(points){
 
   document.getElementById("chart").innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
-       aria-label="Intraday price">${parts.join("")}</svg>`;
+       aria-label="${daily ? "Daily closing price" : "Intraday price"}">${parts.join("")}</svg>`;
 
-  wireCrosshair({points, x, y, W, H, ml, mr, mt, mb, ph});
+  wireCrosshair({points, x, y, W, H, ml, mr, mt, mb, ph, daily});
 }
 
 /** Follow the pointer along the series, snapping to the nearest bar. */
@@ -1203,8 +1292,10 @@ function wireCrosshair(g){
     pText.setAttribute("y", Y + 4);
     pText.textContent = p.c.toFixed(2);
 
-    // Date and time, clamped so the label never runs off either end.
-    const label = `${p.t.slice(8,10)} ${MONTHS[+p.t.slice(5,7)-1]} '${p.t.slice(2,4)}  ${p.t.slice(11,16)}`;
+    // Date, and the time too where there is one, clamped so the label never
+    // runs off either end.
+    const label = `${p.t.slice(8,10)} ${MONTHS[+p.t.slice(5,7)-1]} '${p.t.slice(2,4)}`
+                + (g.daily ? "" : `  ${p.t.slice(11,16)}`);
     const w = Math.max(96, label.length * 6.2);
     const lx = Math.min(Math.max(X - w/2, g.ml), g.W - g.mr - w);
     tRect.setAttribute("x", lx); tRect.setAttribute("width", w);
