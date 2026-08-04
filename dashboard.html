@@ -389,11 +389,14 @@ tbody tr:hover td{background:var(--sunk)}
 
 @media (max-width:720px){
   main{padding:12px 0 72px}
-  .ident{padding:0 14px;margin-bottom:10px;align-items:flex-start}
-  .ident h1{font-size:22px}
+  .ident{padding:0 14px;margin-bottom:8px;align-items:flex-start;gap:10px}
+  .ident h1{font-size:20px}
   .ident .period{text-align:left;width:100%}
   .qpick{justify-content:flex-start}
   .period .small{font-size:11px}
+  /* Chart tab: keep the ticker strip short so the plot owns the screen. */
+  body.mtab-chart .ident .period .small{display:none}
+  body.mtab-chart .ident{margin-bottom:4px}
 
   .mtabs{
     display:flex;gap:0;overflow-x:auto;scrollbar-width:none;
@@ -443,17 +446,23 @@ tbody tr:hover td{background:var(--sunk)}
   .phead p{max-width:none;font-size:11.5px}
   .scroll{padding:4px 0 14px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .scroll svg,.lwrap svg,.swrap svg{max-width:none}
-  /* Wide diagrams fill the phone width; pinch-zoom recovers detail. */
-  .scroll svg[width],.zoom-host svg{width:100%!important;height:auto!important;max-width:none}
+  /* Narrow charts stretch to the phone; wide ones keep a readable height and
+     spill horizontally so labels stay legible before pinch-zoom. */
+  .zoom-host svg:not(.schart){width:100%!important;height:auto!important;max-width:none}
+  .zoom-host svg.schart{
+    width:auto!important;height:min(56vh,520px)!important;max-width:none;
+  }
   .lwrap{padding:2px 0 12px}
   .lchart{height:min(42vh,380px);max-width:none}
+  .foot{display:none}
+  #mtab-filing .mfoot{display:block;padding:18px 14px 0;margin:18px 14px 0;
+    border-top:1px solid var(--rule);font-size:12px;color:var(--ink-3);line-height:1.7}
   .legend{padding:0 14px 14px}
   .bpad{padding:14px}
   .grouphead{padding:0 14px;margin:18px 0 10px;font-size:17px}
   .pairrow{gap:12px;margin:0}
   .swrap{padding:0 8px 14px}
   .newswrap{height:min(70vh,640px);padding:0}
-  .foot{padding:18px 14px 0;margin:18px 14px 0}
 
   .zoom-host{
     overflow:hidden;touch-action:none;
@@ -470,20 +479,25 @@ tbody tr:hover td{background:var(--sunk)}
 
   /* Full-screen chart overlay — trading-app density on a phone. */
   body.chart-fs-open{overflow:hidden}
-  body.chart-fs-open .nav,body.chart-fs-open .nav-strip,body.chart-fs-open .mtabs,
-  body.chart-fs-open .ident,body.chart-fs-open .mtab-panel{visibility:hidden}
-  body.chart-fs-open #mtab-chart,
-  body.chart-fs-open #mtab-chart .pricechart,
-  body.chart-fs-open #mtab-chart #price-chart{visibility:visible}
+  body.chart-fs-open .nav,
+  body.chart-fs-open .nav-strip,
+  body.chart-fs-open .mtabs,
+  body.chart-fs-open .ident,
+  body.chart-fs-open .pricestats,
+  body.chart-fs-open .foot,
+  body.chart-fs-open .mfoot{display:none!important}
+  body.chart-fs-open #mtab-chart{display:block!important}
+  body.chart-fs-open .pricerow{margin:0}
   body.chart-fs-open .pricechart{
-    position:fixed;inset:0;z-index:200;margin:0;border:0;border-radius:0;
-    background:var(--ground);display:flex;flex-direction:column;
+    position:fixed!important;inset:0;z-index:250;margin:0;border:0!important;
+    border-radius:0!important;box-shadow:none!important;
+    background:var(--card);display:flex;flex-direction:column;
     padding-top:env(safe-area-inset-top,0);
+    width:100vw;height:100vh;max-width:none;
   }
-  body.chart-fs-open .pricechart .phead{padding-top:10px}
-  body.chart-fs-open #price-chart{flex:1;min-height:0;display:flex;flex-direction:column}
-  body.chart-fs-open .pchart{flex:1;height:100%!important;min-height:0}
-  body.chart-fs-open .pricestats{display:none}
+  body.chart-fs-open .pricechart .phead{padding:10px 12px 0}
+  body.chart-fs-open #price-chart{flex:1;min-height:0;display:flex;flex-direction:column;padding:0}
+  body.chart-fs-open .pchart{flex:1;width:100%!important;height:100%!important;min-height:0;max-width:none}
 }
 
 @media print{ .qpick{display:none} .card{box-shadow:none} body{background:#fff} .mtabs{display:none!important} }
@@ -1676,6 +1690,7 @@ function render(){
         </div></div>
         <div class="scroll" id="istmt"></div>
       </section>
+      <div class="foot mfoot" id="foot-mobile"></div>
     </div>
 
     <div class="mtab-panel" data-mtab="market" id="mtab-market" role="tabpanel">
@@ -2730,7 +2745,7 @@ function renderFoot(){
   const c = S.company, q = S.quarter;
   const cut = S.breakdowns && S.breakdowns.length ? S.breakdowns[S.cut] : null;
   const fyeName = MONTHS[(c.fiscalYearEndMonth||12)-1];
-  document.getElementById("foot").innerHTML = `
+  const html = `
     <strong>Source.</strong> Every figure is from the company's own filings with the
     U.S. Securities and Exchange Commission — the
     <a href="${esc(c.source.facts)}" target="_blank" rel="noopener">XBRL company-facts API</a>
@@ -2754,6 +2769,10 @@ function renderFoot(){
     <strong>Caching.</strong> Responses are cached on disk. Delete <code>.cache</code>
     to force a refresh after a new filing.
   `;
+  const foot = document.getElementById("foot");
+  if (foot) foot.innerHTML = html;
+  const mobile = document.getElementById("foot-mobile");
+  if (mobile) mobile.innerHTML = html;
 }
 
 /* ===========================================================================
@@ -2945,7 +2964,11 @@ function compact(v){
 
 async function loadPrices(){
   const sym = S.company && S.company.ticker;
-  if (!sym || !HOSTED) return;              // the local server has no prices
+  if (!sym) return;
+  // The local server has no price feed — keep the Chart tab honest instead of blank.
+  if (!HOSTED) {
+    return priceState("Market prices load from the hosted data feed (not available on the local server).");
+  }
 
   // Re-rendering the report for another quarter must not refetch.
   if (PRICE.symbol === sym && PRICE.bars.length) return paintPrices();
