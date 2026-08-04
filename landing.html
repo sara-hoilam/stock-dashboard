@@ -240,16 +240,10 @@ svg{display:block;max-width:100%}
   }
   .foot{margin:18px 14px 0;padding-top:14px}
 
-  /* Market Summary: keep the list; drop the intraday price plot. */
+  /* Market Summary: keep the list; drop the chart panel (ticker header,
+     search, and intraday plot) — on a phone the list is enough. */
   .split{min-height:0}
-  .chartwrap #chart{display:none!important}
-  #chart{min-height:0}
-  .chartwrap{padding:12px 14px 14px;border-top:1px solid var(--rule)}
-  .chead .price b{font-size:22px}
-  .chead .price span{font-size:18px}
-  .chead .meta{font-size:11.5px}
-  .search{width:100%}
-  .search input{width:100%}
+  .chartwrap{display:none!important}
   .rows{max-height:min(52vh,420px);border-bottom:0}
 
   /* Heatmap: edge-to-edge, compact chrome, taller plot. */

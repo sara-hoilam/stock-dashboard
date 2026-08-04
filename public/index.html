@@ -225,6 +225,39 @@ svg{display:block;max-width:100%}
 @media (max-width:1180px){ .cards{grid-template-columns:repeat(3,minmax(0,1fr))} .split{grid-template-columns:1fr} .rows{border-right:0;border-bottom:1px solid var(--rule)} }
 @media (max-width:900px){ .grid2, .grid2.wide{grid-template-columns:1fr} }
 @media (max-width:640px){ .cards{grid-template-columns:repeat(2,minmax(0,1fr))} .top h1{font-size:26px} main{padding:18px 14px 60px} .search input{width:160px} }
+
+/* Mobile: charts use the full card width instead of a letterboxed fixed SVG. */
+@media (max-width:720px){
+  main{padding:14px 0 60px}
+  .top{padding:0 14px;margin-bottom:14px}
+  h2{padding:0 14px}
+  .cards{padding:0 14px;gap:10px;margin-bottom:18px}
+  .panel{border-radius:0;border-left:0;border-right:0;box-shadow:none}
+  .panel .phead{padding-left:14px;padding-right:14px}
+  .scroll{padding-left:8px;padding-right:8px}
+  .scroll svg,.panel svg.fullchart{
+    width:100%!important;height:auto!important;max-width:none;display:block;
+  }
+  .foot{margin:18px 14px 0;padding-top:14px}
+
+  /* Market Summary: keep the list; drop the chart panel (ticker header,
+     search, and intraday plot) — on a phone the list is enough. */
+  .split{min-height:0}
+  .chartwrap{display:none!important}
+  .rows{max-height:min(52vh,420px);border-bottom:0}
+
+  /* Heatmap: edge-to-edge, compact chrome, taller plot. */
+  #heatmap{padding:0;overflow:hidden}
+  .hmhead{padding:14px 14px 6px;gap:8px}
+  .hmhead p{font-size:11.5px;max-width:none}
+  #hm-legend.legend{
+    padding:0;gap:5px 9px;font-size:11px;width:100%;
+  }
+  #hm-legend.legend i{width:9px;height:9px;margin-right:4px}
+  .sectorbox>h4{font-size:12px;margin-bottom:2px}
+  .tile{border-radius:2px}
+  .grid2,.grid2.wide{gap:12px}
+}
 </style>
 </head>
 <body>
@@ -564,7 +597,7 @@ function drawChart(points){
       fill="transparent" style="cursor:crosshair"></rect>`);
 
   document.getElementById("chart").innerHTML =
-    `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+    `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
        aria-label="Intraday price">${parts.join("")}</svg>`;
 
   wireCrosshair({points, x, y, W, H, ml, mr, mt, mb, ph});
@@ -659,14 +692,30 @@ function treemap(items, x, y, w, h, valueOf){
   return out;
 }
 
+const HEAT = { sectors: null };
+const MOBILE_MQ = matchMedia("(max-width:720px)");
+
+function heatmapSize(host){
+  // Phone: fill the screen width and use a taller canvas so tiles stay
+  // tappable. Desktop keeps the wide dashboard frame.
+  if (MOBILE_MQ.matches) {
+    const w = Math.max(300, Math.floor(host.clientWidth || innerWidth));
+    return { W: w, H: Math.round(Math.min(innerHeight * 0.72, Math.max(420, w * 1.25))),
+             GAP: 5, HEAD: 18, minW: 40, minH: 24 };
+  }
+  return { W: 1180, H: 380, GAP: 8, HEAD: 22, minW: 30, minH: 15 };
+}
+
 function renderHeatmap(sectors){
   const host = document.getElementById("heatmap");
+  if (sectors) HEAT.sectors = sectors;
+  sectors = HEAT.sectors;
   if (!sectors || !sectors.length){
     host.innerHTML = `<div class="note">No heatmap data yet.</div>`;
     document.getElementById("hm-legend").innerHTML = "";
     return;
   }
-  const W = 1180, H = 380, GAP = 8, HEAD = 22;
+  const { W, H, GAP, HEAD, minW, minH } = heatmapSize(host);
   const blocks = treemap(sectors, 0, 0, W, H, s => s.marketCap);
 
   const html = blocks.map(({it: sec, x, y, w, h}) => {
@@ -678,7 +727,7 @@ function renderHeatmap(sectors){
     let items = sec.items.slice();
     let laid = treemap(items, 0, 0, iw, ih, c => c.marketCap);
     while (items.length > 1 &&
-           laid.some(t => t.w < 30 || t.h < 15)) {
+           laid.some(t => t.w < minW || t.h < minH)) {
       items = items.slice(0, -1);
       laid = treemap(items, 0, 0, iw, ih, c => c.marketCap);
     }
@@ -686,9 +735,9 @@ function renderHeatmap(sectors){
 
     const tiles = laid.map(({it: c, x: tx, y: ty, w: tw, h: th}) => {
       // Type scales with the tile: big names read as headlines, small ones
-      // still name themselves.
-      const fs = Math.max(8, Math.min(26, Math.sqrt(tw * th) / 4.6));
-      const showPct = th > 34 && tw > 52;
+      // still name themselves. Mobile starts a notch larger for thumb text.
+      const fs = Math.max(MOBILE_MQ.matches ? 10 : 8, Math.min(26, Math.sqrt(tw * th) / 4.6));
+      const showPct = th > (MOBILE_MQ.matches ? 28 : 34) && tw > (MOBILE_MQ.matches ? 44 : 52);
       const colour = heatColour(c.changePct);
       return `<a class="tile" href="company.html?t=${encodeURIComponent(c.symbol)}"
                  style="left:${tx}px;top:${ty}px;width:${Math.max(0,tw-2)}px;height:${Math.max(0,th-2)}px;
@@ -725,6 +774,13 @@ function renderHeatmap(sectors){
     el.addEventListener("mouseleave", hideTip);
   });
 }
+
+// Rebuild when the phone rotates or the card width changes.
+addEventListener("resize", () => {
+  if (!HEAT.sectors || !MOBILE_MQ.matches) return;
+  clearTimeout(renderHeatmap._rz);
+  renderHeatmap._rz = setTimeout(() => renderHeatmap(), 120);
+});
 
 /* ===========================================================================
    Sector movement
@@ -797,7 +853,7 @@ function renderRotation(history){
   parts.push(`<rect id="rhit" x="${ml}" y="${mt}" width="${pw}" height="${ph}"
       fill="transparent" style="cursor:crosshair"></rect>`);
 
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
     aria-label="Cumulative sector performance">${parts.join("")}</svg>`;
 
   document.getElementById("rot-legend").innerHTML = series.map(s =>
@@ -869,7 +925,7 @@ function renderSectorPerf(rows){
         text-anchor="${up ? "start" : "end"}" font-size="12.5" class="tnum"
         fill="var(${up ? "--up" : "--down"})" font-weight="600">${esc(pct(r.changePct))}</text>`);
   });
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
     aria-label="Sector performance">${parts.join("")}</svg>`;
 
   const asOf = (S.movement && S.movement.asOf) || "";
