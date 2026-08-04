@@ -311,7 +311,53 @@ def fetch_prices(symbol: str) -> bool:
         store.upsert_prices(sym, [], None, None)
         return False
     store.upsert_prices(sym, bars, q, bars[-1]["d"] if bars else None)
-    log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}")
+
+    # The report also plots this company against its sector and over ten years
+    # of months. Both come off the same visit, so they are fetched here rather
+    # than through a second queue.
+    extras = ""
+    try:
+        prof = market.profile(sym) or {}
+        monthly = market.monthly_closes(sym, 11)
+        store.upsert_company_extras(sym, monthly, prof.get("sector"),
+                                    prof.get("industry"))
+        extras = f", {len(monthly)} months, {prof.get('sector') or 'no sector'}"
+        etf = market.SECTOR_ETF.get(prof.get("sector") or "")
+        if etf:
+            fetch_benchmark(etf)
+    except market.MarketError as exc:
+        log(f"  extras {sym}: {exc}")
+
+    log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
+    return True
+
+
+# One series per sector rather than per company, refreshed at most daily.
+_benchmark_seen: dict[str, float] = {}
+
+
+def fetch_benchmark(etf: str, ttl: int = 20 * 3600) -> bool:
+    """The sector SPDR a company is plotted against."""
+    if time.time() - _benchmark_seen.get(etf, 0) < ttl:
+        return False
+    rows = market.closes(etf, 11)
+    if not rows:
+        return False
+    store.upsert_benchmark(etf, rows)
+    _benchmark_seen[etf] = time.time()
+    log(f"benchmark {etf}: {len(rows)} closes")
+    return True
+
+
+def refresh_industry_pe() -> bool:
+    """Price/earnings by industry and sector, for the whole market at once."""
+    if not market.configured():
+        return False
+    rows, as_of = market.industry_pe()
+    if not rows:
+        return False
+    n = store.replace_industry_pe(rows, as_of)
+    log(f"industry PE: {n} rows as of {as_of}")
     return True
 
 
@@ -433,6 +479,10 @@ def run() -> None:
 
             if now - last_sections > sections_every:
                 try:
+                    refresh_industry_pe()
+                except market.MarketError as exc:
+                    log(f"industry PE failed (continuing): {exc}")
+                try:
                     refresh_sections()
                 except market.MarketError as exc:
                     log(f"sections refresh failed (continuing): {exc}")
@@ -494,6 +544,10 @@ def main(argv: list[str]) -> int:
                 fetch_prices(sym)
         else:
             log(f"filled {drain_prices(25)} price request(s)")
+
+    elif cmd == "industry-pe":
+        log("industry PE refreshed" if refresh_industry_pe()
+            else "industry PE unavailable")
 
     elif cmd == "market":
         log("market refreshed" if refresh_market()

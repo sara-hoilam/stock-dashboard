@@ -184,3 +184,18 @@ def upsert_prices(symbol: str, bars: list[dict], quote: dict | None,
 
 def pending_prices(limit: int = 5) -> list[str]:
     return rpc("pending_prices", {"p_limit": limit}) or []
+
+
+def upsert_company_extras(symbol: str, monthly: list[dict] | None,
+                          sector: str | None, industry: str | None) -> int:
+    return rpc("upsert_company_extras",
+               {"p_symbol": symbol, "p_monthly": monthly,
+                "p_sector": sector, "p_industry": industry}) or 0
+
+
+def upsert_benchmark(symbol: str, closes: list[dict]) -> int:
+    return rpc("upsert_benchmark", {"p_symbol": symbol, "p_closes": closes}) or 0
+
+
+def replace_industry_pe(rows: list[dict], as_of: str | None) -> int:
+    return rpc("replace_industry_pe", {"p_rows": rows, "p_as_of": as_of}) or 0

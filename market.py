@@ -569,3 +569,94 @@ def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
     except MarketError:
         companies = []
     return uniq[:limit * 2], _topics(companies)
+
+
+# ---------------------------------------------------------------------------
+# Company report: benchmark, seasonality, industry valuation
+# ---------------------------------------------------------------------------
+
+# FMP sells no per-industry price index, so the benchmark is the sector SPDR.
+# Eleven ETFs cover every US listing, and because they are shared by every
+# company in the sector they cost one fetch each rather than one per company.
+SECTOR_ETF = {
+    "Technology": "XLK",
+    "Financial Services": "XLF",
+    "Healthcare": "XLV",
+    "Consumer Cyclical": "XLY",
+    "Consumer Defensive": "XLP",
+    "Industrials": "XLI",
+    "Energy": "XLE",
+    "Utilities": "XLU",
+    "Real Estate": "XLRE",
+    "Basic Materials": "XLB",
+    "Communication Services": "XLC",
+}
+
+
+def profile(symbol: str) -> dict | None:
+    """Sector and industry, which decide the benchmark and the peer PE."""
+    rows = _get("profile", symbol=symbol) or []
+    if not rows:
+        return None
+    r = rows[0]
+    return {
+        "symbol": r.get("symbol"),
+        "name": r.get("companyName"),
+        "sector": r.get("sector"),
+        "industry": r.get("industry"),
+        "exchange": r.get("exchangeShortName") or r.get("exchange"),
+    }
+
+
+def closes(symbol: str, years: int = 11) -> list[dict]:
+    """Daily closes over several years, oldest first.
+
+    The `light` series carries date, close and volume only, which is all the
+    seasonality and benchmark charts need and a fraction of the payload of the
+    full OHLC series.
+    """
+    end = dt.date.today()
+    start = end - dt.timedelta(days=int(365.25 * max(1, years)))
+    rows = _get("historical-price-eod/light", symbol=symbol,
+                **{"from": start.isoformat(), "to": end.isoformat()}) or []
+    out = [{"d": r["date"], "c": r.get("price")}
+           for r in rows if r.get("date") and r.get("price") is not None]
+    out.sort(key=lambda b: b["d"])
+    return out
+
+
+def monthly_closes(symbol: str, years: int = 11) -> list[dict]:
+    """The last close of each month, which is what monthly returns are built
+    from. Ten years of months is 120 numbers; ten years of days is 2,600."""
+    last: dict[str, dict] = {}
+    for b in closes(symbol, years):
+        last[b["d"][:7]] = b            # ascending, so the last write wins
+    return [last[k] for k in sorted(last)]
+
+
+def industry_pe(day: dt.date | None = None, look_back: int = 6) -> tuple[list[dict], str | None]:
+    """Price/earnings by industry and by sector, for the most recent day FMP
+    has. Only recent dates are served on this plan, so there is no history to
+    draw -- these are reference values, not a series."""
+    start = day or dt.date.today()
+    for back in range(look_back):
+        d = (start - dt.timedelta(days=back)).isoformat()
+        rows: list[dict] = []
+        for path, field in (("industry-pe-snapshot", "industry"),
+                            ("sector-pe-snapshot", "sector")):
+            try:
+                got = _get(path, date=d) or []
+            except MarketError:
+                continue
+            # One row per exchange; a company is not tied to an exchange's
+            # valuation, so the exchanges are averaged.
+            agg: dict[str, list[float]] = {}
+            for r in got:
+                name, pe = r.get(field), r.get("pe")
+                if name and pe is not None:
+                    agg.setdefault(name, []).append(float(pe))
+            rows += [{"kind": field, "name": n, "pe": sum(v) / len(v)}
+                     for n, v in agg.items()]
+        if rows:
+            return rows, d
+    return [], None
