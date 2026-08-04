@@ -479,7 +479,16 @@ tbody tr:hover td{background:var(--sunk)}
   .bpad{padding:14px}
   .grouphead{padding:0 14px;margin:18px 0 10px;font-size:17px}
   .pairrow{gap:12px;margin:0}
-  .swrap{padding:0 8px 14px}
+  .swrap{padding:0 6px 12px;overflow-x:hidden}
+  .season{
+    font-size:7.5px;border-spacing:1px;table-layout:fixed;width:100%;
+  }
+  .season th{font-size:7px;padding:2px 0;letter-spacing:0}
+  .season tbody th,.season tfoot th{
+    font-size:7px;padding:2px 2px 2px 0;text-align:left;
+    max-width:28px;overflow:hidden;text-overflow:ellipsis;
+  }
+  .season td{padding:2px 0;font-size:7px;border-radius:2px}
   .newswrap{height:min(70vh,640px);padding:0}
 
   /* Zoom hosts no longer trap the page scroll; pinch still works via JS. */
@@ -496,7 +505,8 @@ tbody tr:hover td{background:var(--sunk)}
     pointer-events:none;
   }
 
-  /* Full-screen Sankey — full landscape diagram, nothing cropped. */
+  /* Full-screen Sankey — rotate into landscape on a portrait phone so the
+     wide left→right flow fits without cropping. */
   body.sankey-fs-open{overflow:hidden}
   body.sankey-fs-open .nav,
   body.sankey-fs-open .nav-strip,
@@ -504,41 +514,36 @@ tbody tr:hover td{background:var(--sunk)}
   body.sankey-fs-open .ident,
   body.sankey-fs-open .kpis,
   body.sankey-fs-open .grid2,
+  body.sankey-fs-open .grouphead,
+  body.sankey-fs-open .pairrow,
   body.sankey-fs-open .mfoot,
   body.sankey-fs-open .foot{display:none!important}
   body.sankey-fs-open #mtab-filing{display:block!important}
   body.sankey-fs-open #sankey-panel{
-    position:fixed!important;inset:0;z-index:260;margin:0;border:0!important;
+    position:fixed!important;z-index:260;margin:0!important;border:0!important;
     border-radius:0!important;box-shadow:none!important;
-    background:var(--card);display:flex;flex-direction:column;
-    padding-top:env(safe-area-inset-top,0);
-    width:100vw;height:100dvh;max-width:none;
+    top:50%;left:50%;
+    width:100dvh;height:100dvw;max-width:none;
+    transform:translate(-50%,-50%) rotate(90deg);
+    background:var(--card);display:flex;flex-direction:column;padding:0;
   }
-  body.sankey-fs-open #sankey-panel .phead{padding:10px 12px 6px;flex-shrink:0}
+  body.sankey-fs-open #sankey-panel .phead{padding:8px 14px 4px;flex-shrink:0}
   body.sankey-fs-open #sankey-panel .phead p{display:none}
   body.sankey-fs-open #sankey{
-    flex:1;min-height:0;overflow:auto;touch-action:pan-x pan-y pinch-zoom;
-    padding:0;-webkit-overflow-scrolling:touch;
+    flex:1;min-height:0;overflow:hidden;padding:4px 10px 10px;
+    display:flex;align-items:center;justify-content:center;touch-action:none;
     background:var(--card);
   }
-  /* Readable height; swipe sideways to follow the full left→right flow. */
   body.sankey-fs-open #sankey svg.schart,
   body.sankey-fs-open #sankey .zoom-layer,
   body.sankey-fs-open #sankey .zoom-layer svg.schart{
-    width:auto!important;height:calc(100dvh - 56px)!important;
-    max-width:none!important;max-height:none!important;display:block;
-  }
-  body.sankey-fs-open #sankey .zoom-layer{
-    height:calc(100dvh - 56px)!important;width:max-content!important;
+    width:100%!important;height:100%!important;
+    max-width:none!important;max-height:100%!important;display:block;
   }
   @media (orientation: landscape){
-    body.sankey-fs-open #sankey svg.schart,
-    body.sankey-fs-open #sankey .zoom-layer svg.schart{
-      width:100vw!important;height:auto!important;
-      max-height:calc(100dvh - 48px)!important;
-    }
-    body.sankey-fs-open #sankey .zoom-layer{
-      width:100vw!important;height:auto!important;
+    body.sankey-fs-open #sankey-panel{
+      inset:0;top:auto;left:auto;width:100vw;height:100dvh;
+      transform:none;padding-top:env(safe-area-inset-top,0);
     }
   }
 
@@ -1162,7 +1167,12 @@ function drawSeasonality(){
     (ret[y] = ret[y] || {})[+mo] = (cur / prev - 1) * 100;
   }
   const years = Object.keys(ret).sort((a, b) => b - a).slice(0, 11);
-  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const mobile = matchMedia("(max-width:720px)").matches;
+  const MON = mobile
+    ? ["J","F","M","A","M","J","J","A","S","O","N","D"]
+    : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const avgLab = mobile ? "Avg" : "Average";
+  const hitLab = mobile ? "Hit %" : "Positive return";
 
   const cell = v => v === undefined || v === null
     ? `<td class="sc empty"></td>`
@@ -1178,16 +1188,16 @@ function drawSeasonality(){
   };
 
   host.innerHTML = `<table class="season">
-    <thead><tr><th>Year</th>${MON.map(x => `<th>${x}</th>`).join("")}</tr></thead>
+    <thead><tr><th>${mobile ? "" : "Year"}</th>${MON.map(x => `<th>${x}</th>`).join("")}</tr></thead>
     <tbody>${years.map(y =>
-      `<tr><th>${y}</th>${MON.map((_, i) => cell(ret[y][i + 1])).join("")}</tr>`).join("")}
+      `<tr><th>${mobile ? String(y).slice(2) : y}</th>${MON.map((_, i) => cell(ret[y][i + 1])).join("")}</tr>`).join("")}
     </tbody>
     <tfoot>
-      <tr><th>Average</th>${MON.map((_, i) => {
+      <tr><th>${avgLab}</th>${MON.map((_, i) => {
         const v = avg(i + 1);
         return `<td class="sf">${v === null ? "" : (v >= 0 ? "+" : "") + v.toFixed(1) + "%"}</td>`;
       }).join("")}</tr>
-      <tr><th>Positive return</th>${MON.map((_, i) => {
+      <tr><th>${hitLab}</th>${MON.map((_, i) => {
         const v = green(i + 1);
         return v === null ? `<td class="sf"></td>`
           : `<td class="sf tint" style="${positiveStyle(v)}">${v.toFixed(0)}%</td>`;
@@ -3025,10 +3035,11 @@ function wireSankeyFullscreen(){
     document.body.classList.toggle("sankey-fs-open", on);
     document.body.classList.remove("chart-fs-open");
     icon(on);
-    const host = document.getElementById("sankey");
-    if (on && host) {
-      host.dataset.zoomWired = "";
-      attachTransformZoom(host);
+    btn.title = on ? "Exit full screen" : "Full screen (landscape)";
+    renderSankey();
+    if (!on) {
+      const host = document.getElementById("sankey");
+      if (host) { host.dataset.zoomWired = ""; attachTransformZoom(host); }
     }
   };
   btn.onclick = () => setFs(!document.body.classList.contains("sankey-fs-open"));
