@@ -625,10 +625,6 @@ tbody tr:hover td{background:var(--sunk)}
    so the grid cell is a wrapper the redraw cannot take with it. */
 .acol{display:flex;flex-direction:column;min-width:0;margin-bottom:16px}
 .acol>.panel{margin-bottom:0}
-/* Half the page wide, the longer of the two subtitles wraps -- and without
-   this it pushes the view switch onto its own line, so the control moves when
-   you use it. The text gives way instead. */
-.acol .phead>div:first-child{flex:1;min-width:0}
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
 .atable{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -643,16 +639,6 @@ tbody tr:hover td{background:var(--sunk)}
 .grade.g-buy{color:var(--up)} .grade.g-hold{color:var(--ink-2)} .grade.g-sell{color:var(--down)}
 .act{font-size:11.5px;color:var(--ink-3);text-transform:capitalize}
 .act.up{color:var(--up)} .act.down{color:var(--down)}
-
-.asrcs{padding:2px 4px 4px}
-.asrc{display:block;text-decoration:none;padding:11px 14px;border-bottom:1px solid var(--rule-2)}
-.asrc:last-child{border-bottom:0}
-.asrc:hover{background:var(--sunk)}
-.asrc .when{font-size:11px;color:var(--ink-3);margin-bottom:3px}
-.asrc .atitle{font-size:13.5px;font-weight:600;line-height:1.35}
-.asrc .atgt{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3);
-  margin-top:3px}
-.asrc .atgt b{color:var(--ink-2)}
 
 
 /* ---- chart toolbar ------------------------------------------------------- */
@@ -1020,7 +1006,6 @@ const HELP = {
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
-  asrc:      "The wire story behind each target change, so the consensus target shown beside the price can be traced back to the notes that set it.",
 };
 
 const helpIcon = k => HELP[k]
@@ -1434,7 +1419,7 @@ function driftNews(wrap){
    the rating tally, each firm's latest action, and the wire story behind each
    target change -- so each number can be followed back to its note.
 =========================================================================== */
-const ANALYST = { symbol: null, data: null, view: "houses",
+const ANALYST = { symbol: null, data: null,
                   tries: 0, asked: false, queued: true, poll: null };
 
 async function loadAnalyst(){
@@ -1578,77 +1563,29 @@ function consensusSummary(spot){
     </div>`;
 }
 
-/** One card, two readings of the same coverage: where each house stands now,
-    and the notes that moved the targets. They answer different questions
-    about one subject, so they share a panel rather than competing for the
-    width beside the news. */
+/** Where each house covering the company stands now: one row per firm, its
+    latest grade, and what it did to arrive at it. */
 function drawAnalyst(){
   const host = document.getElementById("analyst");
+  const rows = ((ANALYST.data || {}).grades || []).map(g => `
+    <tr>
+      <td>${esc(g.house)}</td>
+      <td>${esc(shortDate(g.date))}</td>
+      <td><span class="grade ${GRADE_TONE(g.to)}">${esc(g.to || "—")}</span></td>
+      <td class="act ${ACTION_TONE(g.action)}">${esc(g.action || "")}</td>
+    </tr>`).join("");
 
   host.innerHTML = `
     <section class="card panel">
-      <div class="phead">
-        <div>
-          <h2>Analyst Ratings <span id="arat-help"></span></h2>
-          <p id="arat-sub"></p>
-        </div>
-        <div class="seg" id="arat-views">
-          <button type="button" data-v="houses">By institution</button>
-          <button type="button" data-v="news">News</button>
-        </div>
-      </div>
-      <div id="arat-body"></div>
+      <div class="phead"><div>
+        <h2>Analyst Ratings ${helpIcon("houses")}</h2>
+        <p>Most recent action from each firm.</p>
+      </div></div>
+      <div class="ascroll">${rows ? `<table class="atable">
+        <thead><tr><th>Institution</th><th>Date</th><th>Rating</th><th>Action</th></tr></thead>
+        <tbody>${rows}</tbody></table>`
+        : `<div class="note">No house ratings published.</div>`}</div>
     </section>`;
-
-  host.querySelectorAll("#arat-views button").forEach(b =>
-    b.onclick = () => { ANALYST.view = b.dataset.v; paintAnalyst(); });
-  paintAnalyst();
-}
-
-function paintAnalyst(){
-  const d = ANALYST.data || {};
-  const body = document.getElementById("arat-body");
-  if (!body) return;
-  const view = ANALYST.view === "news" ? "news" : "houses";
-  const counts = d.targetCounts;
-
-  document.querySelectorAll("#arat-views button").forEach(b =>
-    b.setAttribute("aria-pressed", b.dataset.v === view));
-
-  if (view === "houses") {
-    const rows = (d.grades || []).map(g => `
-      <tr>
-        <td>${esc(g.house)}</td>
-        <td>${esc(shortDate(g.date))}</td>
-        <td><span class="grade ${GRADE_TONE(g.to)}">${esc(g.to || "—")}</span></td>
-        <td class="act ${ACTION_TONE(g.action)}">${esc(g.action || "")}</td>
-      </tr>`).join("");
-    document.getElementById("arat-sub").textContent = "Most recent action from each firm.";
-    body.className = "ascroll";
-    body.innerHTML = rows ? `<table class="atable">
-      <thead><tr><th>Institution</th><th>Date</th><th>Rating</th><th>Action</th></tr></thead>
-      <tbody>${rows}</tbody></table>`
-      : `<div class="note">No house ratings published.</div>`;
-  } else {
-    const stories = (d.news || []).map(n => `
-      <a class="asrc" href="${esc(n.url)}" target="_blank" rel="noopener">
-        <div class="when">${esc(ago(n.published))}${n.house ? ` · ${esc(n.house)}` : ""}</div>
-        <div class="atitle">${esc(n.title || "")}</div>
-        ${n.target != null ? `<div class="atgt">Target <b>${Number(n.target).toFixed(2)}</b>${
-          n.priceWhenPosted != null ? ` · price then ${Number(n.priceWhenPosted).toFixed(2)}` : ""}</div>` : ""}
-      </a>`).join("");
-    document.getElementById("arat-sub").textContent =
-      (counts && counts.year
-        ? `${counts.month || 0} targets in the last month, ${counts.year} in the last year${
-            counts.yearAvg ? `, averaging ${Number(counts.yearAvg).toFixed(2)}` : ""}. `
-        : "") + "Each target change links to the note that reported it.";
-    body.className = "ascroll asrcs";
-    body.innerHTML = stories || `<div class="note">No target-change stories.</div>`;
-  }
-
-  const help = document.getElementById("arat-help");
-  if (help) help.innerHTML = helpIcon(view === "houses" ? "houses" : "asrc");
-  wireHelp();
 }
 
 /** A company with no US quarterly filings -- a foreign private issuer, or one
