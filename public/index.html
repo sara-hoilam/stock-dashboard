@@ -229,9 +229,7 @@ svg{display:block;max-width:100%}
 /* Mobile: charts use the full card width instead of a letterboxed fixed SVG. */
 @media (max-width:720px){
   main{padding:14px 0 60px}
-  .top{padding:0 14px;margin-bottom:14px}
   h2{padding:0 14px}
-  .cards{padding:0 14px;gap:10px;margin-bottom:18px}
   .panel{border-radius:0;border-left:0;border-right:0;box-shadow:none}
   .panel .phead{padding-left:14px;padding-right:14px}
   .scroll{padding-left:8px;padding-right:8px}
@@ -239,6 +237,10 @@ svg{display:block;max-width:100%}
     width:100%!important;height:auto!important;max-width:none;display:block;
   }
   .foot{margin:18px 14px 0;padding-top:14px}
+
+  /* Drop the Markets Today masthead and the six overview cards — on a phone
+     Market Summary is the first useful block. */
+  .top,.cards{display:none!important}
 
   /* Market Summary: keep the list; drop the chart panel (ticker header,
      search, and intraday plot) — on a phone the list is enough. */
