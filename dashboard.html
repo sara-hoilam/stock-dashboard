@@ -438,29 +438,31 @@ tbody tr:hover td{background:var(--sunk)}
   .ranges button{padding:6px 11px;font-size:12px}
 
   .kpis{
-    display:grid;grid-template-columns:repeat(3,1fr);gap:0;
-    padding:0;margin:0 0 10px;background:var(--card);
+    display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:0;
+    padding:0;margin:0 0 8px;background:var(--card);
     border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
   }
   .kpi{
-    padding:8px 10px 9px;border:0;border-radius:0;box-shadow:none;
+    padding:6px 8px 7px;border:0;border-radius:0;box-shadow:none;
     background:transparent;border-right:1px solid var(--rule-2);
     border-bottom:1px solid var(--rule-2);
   }
   .kpi:nth-child(3n){border-right:0}
   .kpi:nth-last-child(-n+3){border-bottom:0}
-  .kpi .k{font-size:9px;letter-spacing:.08em;margin:0}
-  .kpi .v{font-size:13px;margin-top:3px;letter-spacing:-.02em;line-height:1.2}
-  .kpi .d{font-size:10px;margin-top:2px;flex-wrap:wrap;gap:2px 4px;line-height:1.25}
+  .kpi .k{font-size:8.5px;letter-spacing:.07em;margin:0}
+  .kpi .v{font-size:12px;margin-top:2px;letter-spacing:-.02em;line-height:1.15}
+  .kpi .d{font-size:9.5px;margin-top:1px;flex-wrap:wrap;gap:1px 3px;line-height:1.2}
   .kpi .h{display:none}
 
-  .panel{margin-bottom:12px;border-radius:0;border-left:0;border-right:0;box-shadow:none}
-  .phead{padding:12px 14px 0;gap:10px}
+  .panel{margin-bottom:10px;border-radius:0;border-left:0;border-right:0;box-shadow:none}
+  .phead{padding:10px 14px 0;gap:10px}
   .phead p{max-width:none;font-size:11px;line-height:1.35}
-  .scroll{padding:4px 0 12px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #sankey-panel .phead p{display:none} /* keep Filing dense; expand for the diagram */
+  .scroll{padding:4px 0 10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .scroll svg,.lwrap svg,.swrap svg{max-width:none}
   /* Fit the whole diagram to the phone width — never crop the right edge. */
-  #sankey{overflow:visible;min-height:0;touch-action:pan-y;padding:4px 0 8px}
+  #sankey{overflow-x:auto;overflow-y:visible;min-height:0;touch-action:pan-y;
+    padding:2px 0 6px;-webkit-overflow-scrolling:touch}
   #sankey svg.schart{
     width:100%!important;height:auto!important;max-width:none;display:block;
   }
@@ -517,18 +519,26 @@ tbody tr:hover td{background:var(--sunk)}
   body.sankey-fs-open #sankey{
     flex:1;min-height:0;overflow:auto;touch-action:pan-x pan-y pinch-zoom;
     padding:0;-webkit-overflow-scrolling:touch;
+    background:var(--card);
   }
   /* Readable height; swipe sideways to follow the full left→right flow. */
   body.sankey-fs-open #sankey svg.schart,
+  body.sankey-fs-open #sankey .zoom-layer,
   body.sankey-fs-open #sankey .zoom-layer svg.schart{
     width:auto!important;height:calc(100dvh - 56px)!important;
     max-width:none!important;max-height:none!important;display:block;
+  }
+  body.sankey-fs-open #sankey .zoom-layer{
+    height:calc(100dvh - 56px)!important;width:max-content!important;
   }
   @media (orientation: landscape){
     body.sankey-fs-open #sankey svg.schart,
     body.sankey-fs-open #sankey .zoom-layer svg.schart{
       width:100vw!important;height:auto!important;
       max-height:calc(100dvh - 48px)!important;
+    }
+    body.sankey-fs-open #sankey .zoom-layer{
+      width:100vw!important;height:auto!important;
     }
   }
 
