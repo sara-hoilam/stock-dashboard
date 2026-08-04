@@ -625,14 +625,13 @@ tbody tr:hover td{background:var(--sunk)}
    so the grid cell is a wrapper the redraw cannot take with it. */
 .acol{display:flex;flex-direction:column;min-width:0;margin-bottom:16px}
 .acol>.panel{margin-bottom:0}
-/* The targets, repeated above the ratings for phones only -- see drawAnalyst.
-   As a card of its own it needs none of the rule that separates it from the
-   quote when it sits under one. */
-.mtargets{display:none}
-.mtargets .wst{margin-top:0;padding-top:0;border-top:0}
 @media (max-width:720px){
-  .mtargets{display:block;padding:15px 16px 17px}
-  .acol>.mtargets{margin-bottom:10px}
+  /* Moved under the price panel -- see placeAnalyst. It follows a card with
+     no bottom edge, so it brings its own gap. */
+  #mtab-chart>.acol{margin:10px 0 0}
+  /* Alone in its tab, the feed is titled twice over by the tab itself. */
+  #mtab-news .grouphead,
+  #conews-panel .phead{display:none}
 }
 .ascroll{max-height:330px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--rule) transparent}
@@ -1685,8 +1684,7 @@ function consensusCall(c){
 }
 
 /** The last traded price: the quote where there is one, the final bar's close
-    otherwise. Both panels that measure a target against it need the same
-    number, or the same target implies two different changes. */
+    otherwise. What the consensus target is measured against. */
 function lastPrice(){
   const q = PRICE.quote;
   if (q && q.price !== null && q.price !== undefined) return q.price;
@@ -1726,16 +1724,29 @@ function consensusSummary(spot){
     </div>`;
 }
 
-/** Where each house covering the company stands now: one row per firm, its
-    latest grade, and what it did to arrive at it.
+/** The ratings belong beside the consensus they add up to. On one scroll that
+    is the same section as the news; behind tabs it is the chart tab, under
+    the price panel that carries the consensus.
 
-    The targets lead on a phone. They belong to the price panel and are drawn
-    there, but that panel is a tab away here, and a page of ratings that never
-    says what they are ratings toward is half the story. Above 720px the
-    repeat is hidden, because there the two sit on one scroll. */
+    The card is moved rather than drawn twice, so there is only ever one of
+    it, and moved rather than restyled, because the two homes are different
+    tabs and no rule can put an element in another panel. */
+function placeAnalyst(){
+  const card = document.getElementById("analyst");
+  const home = document.getElementById("analyst-home");
+  const chart = document.getElementById("mtab-chart");
+  if (!card || !home || !chart) return;      // market-only: it has its own tab
+  const wanted = MOBILE_MQ.matches ? chart : home;
+  if (card.parentElement === wanted) return;
+  if (wanted === home) home.prepend(card); else chart.append(card);
+}
+
+MOBILE_MQ.addEventListener("change", placeAnalyst);
+
+/** Where each house covering the company stands now: one row per firm, its
+    latest grade, and what it did to arrive at it. */
 function drawAnalyst(){
   const host = document.getElementById("analyst");
-  const targets = consensusSummary(lastPrice());
   const rows = ((ANALYST.data || {}).grades || []).map(g => `
     <tr>
       <td>${esc(g.house)}</td>
@@ -1745,7 +1756,6 @@ function drawAnalyst(){
     </tr>`).join("");
 
   host.innerHTML = `
-    ${targets ? `<section class="card panel mtargets">${targets}</section>` : ""}
     <section class="card panel">
       <div class="phead"><div>
         <h2>Analyst Ratings ${helpIcon("houses")}</h2>
@@ -2174,11 +2184,11 @@ function render(){
 
     <div class="mtab-panel" data-mtab="news" id="mtab-news" role="tabpanel">
       <h3 class="grouphead">News</h3>
-      <div class="pairrow">
+      <div class="pairrow" id="analyst-home">
         <div class="acol" id="analyst"><section class="card panel"><div class="note">
           <span class="load"></span> &nbsp;Loading analyst coverage…</div></section></div>
 
-        <section class="card panel">
+        <section class="card panel" id="conews-panel">
           <div class="phead"><div>
             <h2>News ${helpIcon("news")}</h2>
             <p id="news-scope">Recent stories.</p>
@@ -3243,7 +3253,9 @@ function wireMobileTabs(){
     if (id === "market") marketPanels();
     // The report keeps coverage in its News tab; the market-only view, which
     // has no news to keep it company, gives it a tab of its own.
-    if (id === "news" || id === "analyst") loadAnalyst();
+    // Coverage sits in the chart tab on a phone, beside the news on a desktop,
+    // and in a tab of its own where there are no filings to report.
+    if (id === "chart" || id === "news" || id === "analyst") loadAnalyst();
     if (id === "custom") { try { renderBuilder(); } catch {} }
     scrollTo({ top: 0, behavior: "auto" });
   };
@@ -3567,10 +3579,6 @@ function paintPrices(){
   // Three of the panels below are drawn from these bars. Prices arrive after
   // the first render, so whichever of the two finishes last does the drawing.
   marketPanels();
-  // The coverage card repeats the targets on a phone, and a target is only
-  // worth a percentage against a price. Coverage often lands first.
-  if (ANALYST.data && ANALYST.symbol && document.getElementById("analyst"))
-    showAnalyst(ANALYST.symbol);
 }
 
 /** The panels that need both the extras payload and the price bars. */
