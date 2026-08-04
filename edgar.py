@@ -1162,8 +1162,16 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
         elif line.get("noninterestExpense") is not None:
             opex = line["noninterestExpense"]
             prov["opex"] = "reported"
-        elif series.get("CostsAndExpenses", {}).get(end) and line.get("cogs") is not None:
-            opex = series["CostsAndExpenses"][end]["value"] - line["cogs"]
+        elif series.get("CostsAndExpenses", {}).get(end):
+            # Total costs less cost of sales, where cost of sales is known.
+            # Where it is not, the total stands as the cost base and the
+            # residual below carries the unnamed part. Requiring cogs here
+            # instead meant a quarter that never tagged it fell through to the
+            # sum of the named categories alone, which understates the cost
+            # base by everything it does not name: McDonald's tags cost of
+            # sales in its 10-Qs and never in the 10-K, so every derived Q4
+            # counted only its overheads.
+            opex = series["CostsAndExpenses"][end]["value"] - (line.get("cogs") or 0)
             prov["opex"] = "computed"
         elif opex_sum is not None:
             opex = opex_sum
@@ -1172,8 +1180,10 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
 
         # Whatever the named categories don't account for, shown as its own
         # line rather than silently dropped from the expense breakdown.
-        if opex is not None and opex_sum is not None:
-            residual = opex - opex_sum
+        if opex is not None:
+            # A period that names no category at all still spent the money;
+            # the residual is then the whole of it rather than nothing.
+            residual = opex - (opex_sum or 0)
             line["opexOther"] = residual if abs(residual) > abs(opex) * 0.01 else None
         else:
             line["opexOther"] = None
