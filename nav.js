@@ -198,6 +198,18 @@
             : localStorage.removeItem(TOKEN_KEY); } catch {}
   };
 
+  // The pages need to know who is signed in and be told when that changes.
+  // Without this the session is trapped in this closure and every page invents
+  // its own copy, which is how two of them end up disagreeing.
+  window.TA = {
+    session,
+    token: () => (session() || {}).access_token || null,
+    signedIn: () => !!(session() && session().user),
+    signIn,
+    onAuthChange(fn){ addEventListener("ta-auth", () => fn(window.TA.signedIn())); },
+  };
+  const announce = () => dispatchEvent(new CustomEvent("ta-auth"));
+
   function renderAuth() {
     const s = session();
     if (s && s.user) {
@@ -253,6 +265,7 @@
     }
     saveSession(null);
     renderAuth();
+    announce();
   }
 
   function signIn() {
@@ -306,6 +319,8 @@
     } catch {}
     saveSession({ access_token: tok, refresh_token: p.get("refresh_token"), user });
     history.replaceState(null, "", location.pathname + location.search);
+    // A page that was rendered signed-out needs to hear about this.
+    setTimeout(announce, 0);
   })();
 
   renderAuth();
@@ -329,6 +344,7 @@
       user: { email: u.email, name: m.full_name || m.name, picture: m.avatar_url || m.picture },
     });
     renderAuth();
+    announce();
   }
 
   if (CFG.googleClientId && !session()) {
