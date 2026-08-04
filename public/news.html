@@ -49,10 +49,15 @@ h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
 .cols{display:grid;grid-template-columns:270px minmax(0,1fr) 320px;gap:20px;align-items:start}
 
 /* ---- left: the market summary list, same component as Markets Today ------ */
-/* The panel is as tall as its rows. A scrollbar inside a column that has room
-   to grow is friction for nothing. */
+/* Eight rows, then scroll. The column now carries Topics beneath it, so an
+   unbounded list would push them off the screen. */
 .side h3{padding:13px 15px 9px}
-.rows{overflow:visible}
+.rows{max-height:340px;overflow-y:auto;scrollbar-width:thin;
+  scrollbar-color:var(--rule) transparent}
+.rows::-webkit-scrollbar{width:8px}
+.rows::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+
+.side-l{display:flex;flex-direction:column;gap:18px;align-items:stretch}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{position:sticky;top:0;background:var(--card);z-index:1;
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
@@ -147,7 +152,8 @@ tbody tr:hover td{background:var(--sunk)}
 /* The feed drifts by moving its own scroll position rather than by a CSS
    transform, so a reader can grab it and scroll back to a story that has
    already gone past. It picks the drift back up once they stop. */
-.feedwrap{height:430px;overflow-y:auto;position:relative;
+.feedwrap{height:calc(100vh - var(--nav-h,56px) - 210px);min-height:520px;
+  overflow-y:auto;position:relative;
   scrollbar-width:thin;scrollbar-color:var(--rule) transparent;overscroll-behavior:contain}
 .feedwrap::-webkit-scrollbar{width:8px}
 .feedwrap::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
@@ -184,14 +190,28 @@ tbody tr:hover td{background:var(--sunk)}
 <main>
   <div class="cols">
     <!-- left ------------------------------------------------------------- -->
-    <aside class="panel side">
-      <h3>Market Summary</h3>
-      <div class="seg" id="views">
-        <button data-v="market_cap" aria-pressed="true">Mkt cap</button>
-        <button data-v="gainers" aria-pressed="false">Gainers</button>
-        <button data-v="losers" aria-pressed="false">Losers</button>
+    <aside class="side-l">
+      <div class="panel side">
+        <h3>Market Summary</h3>
+        <div class="seg" id="views">
+          <button data-v="market_cap" aria-pressed="true">Mkt cap</button>
+          <button data-v="gainers" aria-pressed="false">Gainers</button>
+          <button data-v="losers" aria-pressed="false">Losers</button>
+        </div>
+        <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
       </div>
-      <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
+
+      <div class="panel">
+        <h3 style="padding:13px 15px 9px">Topics</h3>
+        <form class="tsearch" id="tsearch">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+            stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="search" id="tq" placeholder="Search the news" autocomplete="off"
+                 aria-label="Search the news">
+        </form>
+        <div class="chips" id="chips"><span class="note" style="padding:0 0 12px">…</span></div>
+      </div>
     </aside>
 
     <!-- centre ----------------------------------------------------------- -->
@@ -211,18 +231,6 @@ tbody tr:hover td{background:var(--sunk)}
 
     <!-- right ------------------------------------------------------------ -->
     <aside class="side-r">
-      <div class="panel">
-        <h3 style="padding:13px 15px 9px">Topics</h3>
-        <form class="tsearch" id="tsearch">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
-            stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round"/></svg>
-          <input type="search" id="tq" placeholder="Search the news" autocomplete="off"
-                 aria-label="Search the news">
-        </form>
-        <div class="chips" id="chips"><span class="note" style="padding:0 0 12px">…</span></div>
-      </div>
-
       <div class="panel">
         <div class="feedhead"><span class="bolt">⚡</span><h3>The Feed</h3></div>
         <div class="feedwrap" id="feedwrap">
@@ -290,6 +298,8 @@ async function setView(v){
   const host = document.getElementById("rows");
   host.innerHTML = `<div class="note"><span class="load"></span></div>`;
   let rows = [];
+  // Twenty fetched, eight visible: the cap is on the panel's height, not on
+  // the data, so the rest are a scroll away rather than absent.
   try { rows = await rpc("get_market_summary", { p_view: v, p_limit: 20 }) || []; } catch {}
   if (!rows.length){ host.innerHTML = `<div class="note">No data.</div>`; return; }
   host.innerHTML = `<table><thead><tr><th>Token</th><th>Price</th><th>Change</th></tr></thead>
@@ -362,7 +372,12 @@ function renderChips(){
   const host = document.getElementById("chips");
   if (!S.keywords.length){ host.innerHTML = `<span class="note" style="padding:0">No topics yet.</span>`; return; }
 
-  const group = kind => S.keywords.filter(k => k.kind === kind);
+  // Half as many as before. The column is narrower here than the old right-hand
+  // one, and the chips are ranked by how much news is behind them, so the tail
+  // was the part nobody clicked. Every subject is still reachable through the
+  // search above them.
+  const HALF = arr => arr.slice(0, Math.max(4, Math.ceil(arr.length / 2)));
+  const group = kind => HALF(S.keywords.filter(k => k.kind === kind));
   const chip = k =>
     `<button data-q="${esc(k.query || k.word)}" data-l="${esc(k.word)}"
        class="${k.kind === "company" ? "co" : ""}"
@@ -373,7 +388,7 @@ function renderChips(){
   host.innerHTML =
     group("topic").map(chip).join("") +
     // Anything the worker did not label stays visible rather than vanishing.
-    S.keywords.filter(k => k.kind !== "topic" && k.kind !== "company").map(chip).join("") +
+    HALF(S.keywords.filter(k => k.kind !== "topic" && k.kind !== "company")).map(chip).join("") +
     (companies.length
       ? `<div class="grouplabel">Most valuable companies</div>` + companies.map(chip).join("")
       : "");

@@ -1267,8 +1267,19 @@ function heatmapSize(host){
     return { W: w, H: Math.round(Math.min(innerHeight * 0.72, Math.max(420, w * 1.25))),
              GAP: 5, HEAD: 18, minW: 40, minH: 24 };
   }
-  return { W: 1180, H: 380, GAP: 8, HEAD: 22, minW: 30, minH: 15 };
+  // Desktop: fill whatever the panel actually is. A fixed 1180 left a stripe
+  // of empty ground on the right the moment the page grew wider than that.
+  const w = Math.max(900, Math.floor(host.clientWidth || 1180));
+  return { W: w, H: Math.round(Math.min(460, Math.max(380, w * 0.26))),
+           GAP: 8, HEAD: 22, minW: 30, minH: 15 };
 }
+
+// The treemap is laid out in pixels, so a resized window needs it recomputed
+// rather than stretched.
+addEventListener("resize", () => {
+  clearTimeout(renderHeatmap._t);
+  renderHeatmap._t = setTimeout(() => { if (HEAT.sectors) renderHeatmap(); }, 180);
+}, { passive: true });
 
 function renderHeatmap(sectors){
   const host = document.getElementById("heatmap");
