@@ -345,9 +345,11 @@ tbody tr:hover td{background:var(--sunk)}
 .season td{text-align:center;padding:5px 3px;border-radius:4px;white-space:nowrap}
 /* Opacity carries magnitude, so a strong month reads as strong without a
    second colour scale to learn. */
-/* The same scale as the market heatmap, so the colours mean one thing across
-   the site. It is a dark ramp, so the text on it is always light. */
+/* Green up, red down, nothing in between -- the two ends of the market
+   heatmap's ramp, so the colours still mean the same thing site-wide. */
 .season .sc{color:#f2f4f7}
+.season .sc.up{background:#2c8a4e}
+.season .sc.down{background:#c9342c}
 .season .sc.empty{background:var(--sunk)}
 .season tfoot th{color:var(--ink-2)}
 .season .sf{background:var(--sunk);color:var(--ink-2);font-weight:500}
@@ -680,22 +682,6 @@ function ago(iso){
   return `${d} day${d === 1 ? "" : "s"} ago`;
 }
 
-// The same scale the market heatmap uses, so a red month here and a red tile
-// there mean the same thing. Monthly moves are wider than daily ones, so the
-// thresholds are scaled up rather than reinvented.
-const HEAT_SCALE = [
-  [-18, "#e8433a"], [-9,   "#c9342c"], [-4.5, "#8f3029"],
-  [-1.5,"#5c2b28"], [-0.15,"#3b2f2e"],
-  [0.15,"#2c3a30"], [1.5,  "#26543a"], [4.5,  "#2c8a4e"],
-  [9,   "#39b862"], [18,   "#5fe083"],
-];
-function heatColour(p){
-  if (p === null || p === undefined) return "var(--rule)";
-  let c = HEAT_SCALE[0][1];
-  for (const [t, col] of HEAT_SCALE) if (p >= t) c = col;
-  return c;
-}
-
 /** Explanations for the little (i) beside every chart title. */
 const HELP = {
   sankey:    "Every dollar of revenue for the selected quarter, followed left to right as it splits between costs and what survives as profit. Widths are proportional to dollars, so a wide red band is a large cost.",
@@ -927,9 +913,12 @@ function drawSeasonality(){
   const years = Object.keys(ret).sort((a, b) => b - a).slice(0, 11);
   const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
+  // Two tones, not ten. The question this grid answers is whether a month was
+  // up or down; the size is already written in the cell, so shading it as well
+  // made a wall of colour that was harder to scan, not easier.
   const cell = v => v === undefined || v === null
     ? `<td class="sc empty"></td>`
-    : `<td class="sc" style="background:${heatColour(v)}">${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
+    : `<td class="sc ${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${v.toFixed(1)}%</td>`;
 
   const avg = mo => {
     const vs = years.map(y => ret[y][mo]).filter(v => v !== undefined);
