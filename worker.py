@@ -267,10 +267,6 @@ def refresh_market() -> bool:
         except market.MarketError as exc:
             log(f"  movers {kind}: {exc}")
 
-    quotes = market.quotes(WATCHLIST)
-    if quotes:
-        store.upsert_quotes(quotes)
-
     # Chart series for the watchlist and for the top few movers, so every
     # view of the summary list has something to draw when it is opened --
     # and for what people actually follow, which is the only part of this
@@ -282,6 +278,21 @@ def refresh_market() -> bool:
         # 0020 not applied yet. Followed companies still get a series from the
         # request queue when someone opens one; they just are not pre-fetched.
         log(f"  followed symbols unavailable (apply 0020_intraday_requests.sql): {exc}")
+
+    pending: list[str] = []
+    try:
+        pending = store.pending_prices(FOLLOWED_CHARTS)
+    except store.StoreError as exc:
+        log(f"  pending prices unavailable: {exc}")
+
+    # Quotes feed the watchlist price column and the tape. The hardcoded
+    # WATCHLIST alone left followed names (AZN, HOOD, …) with a chart but
+    # "—" for the price, so anything people follow or have asked about is
+    # quoted here too.
+    quote_syms = list(dict.fromkeys(WATCHLIST + followed + pending))
+    quotes = market.quotes(quote_syms)
+    if quotes:
+        store.upsert_quotes(quotes)
 
     chart_syms = list(dict.fromkeys(
         WATCHLIST
@@ -342,6 +353,24 @@ def fetch_prices(symbol: str) -> bool:
         return False
     store.upsert_prices(sym, bars, q, bars[-1]["d"] if bars else None)
 
+    # Keep the summary quote in sync too. fetch_prices writes quote_detail for
+    # the company page; without this, a watchlisted symbol that was never on
+    # the hardcoded WATCHLIST still shows "—" on Markets Today.
+    if q and q.get("price") is not None:
+        try:
+            store.upsert_quotes([{
+                "symbol": q.get("symbol") or sym,
+                "name": q.get("name"),
+                "price": q.get("price"),
+                "change": q.get("change"),
+                "change_pct": q.get("change_pct"),
+                "volume": q.get("volume"),
+                "market_cap": q.get("market_cap"),
+                "exchange": q.get("exchange"),
+            }])
+        except store.StoreError as exc:
+            log(f"  quote {sym}: {exc}")
+
     # The report also plots this company against its sector and over ten years
     # of months. Both come off the same visit, so they are fetched here rather
     # than through a second queue.
@@ -349,13 +378,27 @@ def fetch_prices(symbol: str) -> bool:
     try:
         prof = market.profile(sym) or {}
         monthly = market.monthly_closes(sym, 11)
-        store.upsert_company_extras(sym, monthly, prof.get("sector"),
-                                    prof.get("industry"))
+        pe_hist: list[dict] = []
+        try:
+            pe_hist = market.pe_history(sym)
+        except market.MarketError as exc:
+            log(f"  pe history {sym}: {exc}")
+        try:
+            store.upsert_company_extras(sym, monthly, prof.get("sector"),
+                                        prof.get("industry"), pe_hist or None)
+        except store.StoreError:
+            # 0021 not applied yet — write the rest without the PE series.
+            store.upsert_company_extras(sym, monthly, prof.get("sector"),
+                                        prof.get("industry"))
         extras = f", {len(monthly)} months, {prof.get('sector') or 'no sector'}"
+        if pe_hist:
+            extras += f", {len(pe_hist)} pe"
         etf = market.SECTOR_ETF.get(prof.get("sector") or "")
         if etf:
             fetch_benchmark(etf)
     except market.MarketError as exc:
+        log(f"  extras {sym}: {exc}")
+    except store.StoreError as exc:
         log(f"  extras {sym}: {exc}")
 
     # Analyst coverage rides along with the same visit.

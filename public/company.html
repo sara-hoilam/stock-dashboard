@@ -1046,7 +1046,7 @@ const HELP = {
   builder:   "Plot any line the company reports, on your own choice of chart. Only lines present in this company's filings are offered.",
   price:     "Daily open, high, low and close, with volume beneath and a fifty-day average through the middle. Market data from Financial Modeling Prep, not from the filings.",
   bench:     "This company against its sector, both rebased to 100 at the start of the window, so the lines show relative performance rather than price. The sector is represented by its SPDR sector fund, because no per-industry price index is published.",
-  pe:        "Price divided by trailing-twelve-month diluted earnings per share, computed from the filed quarters rather than taken from a data vendor. The dashed line is the current average for this company's industry; its history is not available, so it is a reference level rather than a series.",
+  pe:        "Price to earnings from Financial Modeling Prep (the same source as the P/E in the price panel). The solid line is the company's quarterly P/E; when history has not been fetched yet, the chart follows the share price against today's trailing P/E. The dashed line is the current average for this company's industry — a reference level, not a series.",
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
@@ -1213,39 +1213,51 @@ function drawBenchmark(){
 function drawPE(){
   const host = document.getElementById("pe-chart");
   const bars = PRICE.bars || [];
-  const qs = (S.company.quarters || []).filter(q => q.lines && q.lines.epsDiluted !== null
-                                                 && q.lines.epsDiluted !== undefined);
-  if (bars.length < 2 || qs.length < 4) {
-    host.innerHTML = `<div class="note">Needs four quarters of diluted EPS on file; ` +
-      `${qs.length} available.</div>`;
-    return;
-  }
-  // Trailing twelve months of EPS as at each date: the four most recent
-  // quarters whose period had already ended.
-  const asc = [...qs].sort((a, b) => a.end < b.end ? -1 : 1);
-  const ttmAt = d => {
-    const done = asc.filter(q => q.end <= d);
-    if (done.length < 4) return null;
-    const last4 = done.slice(-4).map(q => q.lines.epsDiluted);
-    const sum = last4.reduce((a, v) => a + v, 0);
-    return sum > 0 ? sum : null;      // a loss-making year has no meaningful PE
-  };
-  const pts = bars.map(b => {
-    const e = ttmAt(b.d);
-    return { v: e ? b.c / e : null, label: shortDate(b.d), full: longDate(b.d) };
-  });
-  if (!pts.some(p => p.v !== null)) {
-    host.innerHTML = `<div class="note">No positive trailing earnings in this window.</div>`;
-    return;
-  }
+  const peNow = PRICE.quote && PRICE.quote.pe;
+  const hist = (EXTRA.data.peHistory || []).filter(p => p && p.d && p.pe > 0);
   const ind = EXTRA.data.industryPe;
+
+  // Prefer FMP's quarterly key-metrics series. Fall back to today's FMP TTM
+  // P/E scaled along the price path when history has not been stored yet —
+  // never rebuild from sparse filing EPS, which inflates FPIs that only tag
+  // some quarters.
+  let pts = [];
+  let idle = "From Financial Modeling Prep.";
+  if (hist.length >= 2) {
+    const byDate = [...hist].sort((a, b) => a.d < b.d ? -1 : 1);
+    // Align to daily bars: carry each quarter's P/E forward until the next.
+    let i = 0;
+    pts = bars.map(b => {
+      while (i + 1 < byDate.length && byDate[i + 1].d <= b.d) i++;
+      const pe = byDate[i].d <= b.d ? byDate[i].pe : null;
+      return { v: pe, label: shortDate(b.d), full: longDate(b.d) };
+    });
+    idle = "Quarterly P/E from Financial Modeling Prep.";
+  } else if (peNow && peNow > 0 && bars.length >= 2) {
+    const spot = lastPrice();
+    if (spot) {
+      const ttmEps = spot / peNow;
+      pts = bars.map(b => ({
+        v: ttmEps > 0 ? b.c / ttmEps : null,
+        label: shortDate(b.d), full: longDate(b.d),
+      }));
+      idle = "FMP trailing P/E; history follows the share price until quarterly series arrives.";
+    }
+  }
+
+  if (!pts.some(p => p.v !== null)) {
+    host.innerHTML = peNow != null && peNow <= 0
+      ? `<div class="note">No P/E — the company is loss-making on a trailing basis.</div>`
+      : `<div class="note">P/E from market data is not available yet.</div>`;
+    return;
+  }
   linePlot(host, [{ name: `${S.company.ticker} P/E`, colour: "var(--c-blue)", pts }], {
     id: "pe", zero: false,
     fmtY: v => v.toFixed(0), fmtV: v => v.toFixed(1),
     refs: ind ? [{ v: ind, colour: "var(--warn, #eda100)",
                    name: `${EXTRA.data.industry || "Industry"} today ${ind.toFixed(1)}` }] : [],
     alt: "Price to earnings against the industry",
-    idle: "From filed diluted EPS, trailing twelve months.",
+    idle,
   });
 }
 

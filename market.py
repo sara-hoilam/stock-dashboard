@@ -634,6 +634,31 @@ def monthly_closes(symbol: str, years: int = 11) -> list[dict]:
     return [last[k] for k in sorted(last)]
 
 
+def pe_history(symbol: str, limit: int = 40) -> list[dict]:
+    """Historical price/earnings from FMP key-metrics, oldest first.
+
+    The company page's P/E chart uses this rather than reconstructing TTM from
+    sparse filing EPS (which misleads on FPIs that only tag some quarters).
+    The price panel's current P/E still comes from ratios-ttm via quote_detail.
+    """
+    rows = _get("key-metrics", symbol=symbol, period="quarter", limit=limit) or []
+    out = []
+    for r in rows:
+        pe = r.get("peRatio")
+        if pe is None:
+            pe = r.get("priceToEarningsRatio")
+        d = r.get("date")
+        if d and pe is not None:
+            try:
+                pe_f = float(pe)
+            except (TypeError, ValueError):
+                continue
+            if pe_f > 0:
+                out.append({"d": d, "pe": pe_f})
+    out.sort(key=lambda p: p["d"])
+    return out
+
+
 def industry_pe(day: dt.date | None = None, look_back: int = 6) -> tuple[list[dict], str | None]:
     """Price/earnings by industry and by sector, for the most recent day FMP
     has. Only recent dates are served on this plan, so there is no history to
