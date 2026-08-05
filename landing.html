@@ -85,6 +85,23 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;line-height:1.3}
 .ppl-t{font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:12.5px;
   color:var(--ink);line-height:1.25}
+.ghost{
+  background:transparent;border:1px solid var(--rule);border-radius:7px;
+  padding:8px 13px;cursor:pointer;color:var(--ink-2);font:inherit;font-size:12.5px;
+}
+.ghost:hover{border-color:var(--accent);color:var(--accent)}
+.ghost:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.card{
+  background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+  padding:15px 16px;box-shadow:var(--shadow);min-height:104px;
+  display:flex;flex-direction:column;
+}
+.card .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.card .v{font-family:"IBM Plex Serif",Georgia,serif;font-size:23px;font-weight:600;
+  letter-spacing:-.015em;margin-top:8px;line-height:1.15;overflow-wrap:break-word;
+  hyphens:none}
+.card .d{font-size:12px;margin-top:auto;padding-top:6px;color:var(--ink-3)}
+.card .d b{font-family:"IBM Plex Mono",monospace;font-weight:600}
 
 .listhead{display:flex;justify-content:space-between;align-items:center;gap:10px;
   padding:14px 18px 10px;flex-wrap:wrap}
@@ -153,10 +170,38 @@ svg{display:block;max-width:100%}
 /* The rotation chart carries twelve series and a date axis; the bar
    chart beside it is eleven short rows and needs much less. */
 .grid2.wide{grid-template-columns:1.7fr 1fr}
-.hmhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+.hmhead{display:flex;justify-content:space-between;align-items:center;gap:16px;
   padding:15px 18px 4px;flex-wrap:wrap}
-.hmhead p{font-size:12px;color:var(--ink-3);max-width:64ch;margin:0}
-.hmhead h3{font-size:14.5px;font-weight:600;letter-spacing:-.005em;margin:0 0 3px}
+.hmhead h3{font-size:14.5px;font-weight:600;letter-spacing:-.005em;margin:0}
+.htitle{display:inline-flex;align-items:center;gap:7px;min-width:0}
+.info-i{
+  position:relative; flex-shrink:0;
+  width:18px; height:18px; border-radius:50%;
+  border:1px solid var(--rule); background:var(--sunk);
+  color:var(--ink-3); cursor:help; padding:0;
+  display:inline-grid; place-items:center;
+  font:inherit; font-size:11px; font-weight:700; line-height:1;
+}
+.info-i:hover, .info-i:focus-visible{
+  color:var(--accent); border-color:var(--accent); outline:none;
+}
+.info-i .info-tip{
+  position:absolute; z-index:80; left:0; top:calc(100% + 8px);
+  width:min(300px, 72vw); padding:9px 11px;
+  background:var(--card); color:var(--ink-2); border:1px solid var(--rule);
+  border-radius:8px; box-shadow:var(--shadow);
+  font-size:12px; font-weight:400; line-height:1.45; text-align:left;
+  opacity:0; visibility:hidden; pointer-events:none;
+  transform:translateY(-3px); transition:opacity .12s ease, transform .12s ease;
+}
+.info-i:hover .info-tip, .info-i:focus-visible .info-tip{
+  opacity:1; visibility:visible; transform:none;
+}
+/* Keep tips readable near the right edge of a panel. */
+.hmhead .htitle:last-child .info-i .info-tip,
+.grid2 .panel:last-child .info-i .info-tip{
+  left:auto; right:0;
+}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
 /* Congress & Insiders: fixed-height panes with a real scrollbar and sticky
    headers so scrolling past the first screenful stays readable. */
@@ -396,7 +441,7 @@ svg{display:block;max-width:100%}
   /* Heatmap: edge-to-edge, compact chrome, taller plot. */
   #heatmap{padding:0;overflow:hidden}
   .hmhead{padding:14px 14px 6px;gap:8px}
-  .hmhead p{font-size:11.5px;max-width:none}
+  .info-i .info-tip{width:min(260px, 78vw); font-size:11.5px}
   #hm-legend.legend{
     padding:0;gap:5px 9px;font-size:11px;width:100%;
   }
@@ -528,9 +573,13 @@ svg{display:block;max-width:100%}
 
   <section class="panel" style="margin-top:26px">
     <div class="hmhead">
-      <div><h3>Market Heatmap</h3>
-      <p>Every tile is a company, sized by market capitalisation and coloured by
-         today's move. Click one to open its filed financials.</p></div>
+      <div class="htitle">
+        <h3>Market Heatmap</h3>
+        <button type="button" class="info-i" aria-label="About Market Heatmap">
+          <span aria-hidden="true">i</span>
+          <span class="info-tip">Every tile is a company, sized by market capitalisation and coloured by today's move. Click one to open its filed financials.</span>
+        </button>
+      </div>
       <div class="legend" id="hm-legend"></div>
     </div>
     <div class="scroll" id="heatmap"><div class="note"><span class="load"></span></div></div>
@@ -540,8 +589,13 @@ svg{display:block;max-width:100%}
   <div class="grid2 wide">
     <section class="panel">
       <div class="hmhead">
-        <div><h3>Sector Rotations</h3>
-          <p id="rot-sub">Cumulative performance per sector.</p></div>
+        <div class="htitle">
+          <h3>Sector Rotations</h3>
+          <button type="button" class="info-i" aria-label="About Sector Rotations">
+            <span aria-hidden="true">i</span>
+            <span class="info-tip" id="rot-sub">Cumulative performance per sector.</span>
+          </button>
+        </div>
         <div class="seg" id="rot-range">
           <button data-d="7"   aria-pressed="false">7d</button>
           <button data-d="15"  aria-pressed="false">15d</button>
@@ -554,8 +608,15 @@ svg{display:block;max-width:100%}
       <div class="legend" id="rot-legend"></div>
     </section>
     <section class="panel">
-      <div class="hmhead"><div><h3>Sector Performance</h3>
-        <p>Where each sector finished on the last trading day.</p></div></div>
+      <div class="hmhead">
+        <div class="htitle">
+          <h3>Sector Performance</h3>
+          <button type="button" class="info-i" aria-label="About Sector Performance">
+            <span aria-hidden="true">i</span>
+            <span class="info-tip">Where each sector finished on the last trading day.</span>
+          </button>
+        </div>
+      </div>
       <div class="scroll" id="sectorperf"><div class="note"><span class="load"></span></div></div>
     </section>
   </div>
@@ -586,19 +647,28 @@ svg{display:block;max-width:100%}
   <h2 style="margin-top:26px">Congress &amp; Insiders</h2>
   <div class="grid2">
     <section class="panel">
-      <div class="hmhead"><div><h3>Insider Transactions</h3>
-        <p>Officers and directors buying or selling their own company's stock,
-           as disclosed on Form 4 over the last 7 days. Shown when the trade is
-           above $1M or at least 1% of shares outstanding; largest transaction
-           per company. Scroll for more.</p></div></div>
+      <div class="hmhead">
+        <div class="htitle">
+          <h3>Insider Transactions</h3>
+          <button type="button" class="info-i" aria-label="About Insider Transactions">
+            <span aria-hidden="true">i</span>
+            <span class="info-tip">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding; largest transaction per company. Scroll for more.</span>
+          </button>
+        </div>
+      </div>
       <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
         <div class="note"><span class="load"></span></div></div>
     </section>
     <section class="panel">
-      <div class="hmhead"><div><h3>Congress Trades</h3>
-        <p>Trades disclosed by members of the House and Senate over the last
-           14 days, above $0.5M. Amounts are the ranges they are required to
-           report, not exact figures. Scroll for more.</p></div></div>
+      <div class="hmhead">
+        <div class="htitle">
+          <h3>Congress Trades</h3>
+          <button type="button" class="info-i" aria-label="About Congress Trades">
+            <span aria-hidden="true">i</span>
+            <span class="info-tip">Trades disclosed by members of the House and Senate over the last 14 days, above $0.5M. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
+          </button>
+        </div>
+      </div>
       <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
         <div class="note"><span class="load"></span></div></div>
     </section>
