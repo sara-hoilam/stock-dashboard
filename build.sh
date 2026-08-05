@@ -8,6 +8,7 @@
 # Pages plus the shared navigation, no bundler:
 #   index.html    Markets Today — the landing page
 #   news.html     market news
+#   earnings.html earnings calendar
 #   company.html  the filed-financials dashboard
 #   privacy.html  privacy policy
 #   nav.js/.css   the top bar every page injects
@@ -30,6 +31,7 @@ mkdir -p public/vendor/clarity/src
 cp landing.html   public/index.html
 cp dashboard.html public/company.html
 cp news.html      public/news.html
+cp earnings.html  public/earnings.html
 cp privacy.html   public/privacy.html
 cp nav.js nav.css public/
 cp analytics.js public/

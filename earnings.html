@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticker Alpha — Earnings</title>
+<script src="config.js"></script>
+<script src="analytics.js"></script>
+<script type="module" src="clarity-init.js"></script>
+<link rel="stylesheet" href="nav.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --ground:#eef0f3; --card:#ffffff; --sunk:#f6f7f9;
+  --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
+  --rule:#dde2e8; --rule-2:#eaeef2;
+  --accent:#1e4fbf; --accent-soft:#e6ecfb;
+  --up:#0b7a4b; --down:#c0392e;
+  --up-soft:#e3f4ec; --down-soft:#fbe9e7;
+  --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
+  --r:10px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:#0d1219; --card:#151c25; --sunk:#111821;
+  --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
+  --rule:#232d3a; --rule-2:#1c2531;
+  --accent:#6e9bff; --accent-soft:#1a2740;
+  --up:#38b37d; --down:#f0736a;
+  --up-soft:#12291f; --down-soft:#2b1614;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  background:var(--ground); color:var(--ink);
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
+.up{color:var(--up)} .down{color:var(--down)}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+  box-shadow:var(--shadow);overflow:hidden}
+.note{padding:28px 18px;color:var(--ink-3);font-size:13px;text-align:center}
+.load{display:inline-block;width:13px;height:13px;border:2px solid var(--rule);
+  border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:20px;align-items:start}
+@media (max-width:1080px){.layout{grid-template-columns:1fr}}
+
+.pagehead{display:flex;justify-content:space-between;align-items:center;gap:14px;
+  margin-bottom:14px;flex-wrap:wrap}
+.pagehead h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:26px;font-weight:600;
+  letter-spacing:-.02em;margin:0}
+.week-nav{display:flex;align-items:center;gap:8px}
+.week-nav button{
+  background:var(--card);border:1px solid var(--rule);border-radius:8px;
+  width:34px;height:34px;cursor:pointer;color:var(--ink-2);font:inherit;
+  display:grid;place-items:center;
+}
+.week-nav button:hover{border-color:var(--accent);color:var(--accent)}
+.week-nav .label{font-size:13px;font-weight:600;min-width:4.5rem;text-align:center}
+
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.daycard{
+  background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  padding:10px 8px 8px;cursor:pointer;text-align:left;min-width:0;
+  box-shadow:var(--shadow);transition:border-color .12s, background .12s;
+}
+.daycard:hover{border-color:var(--accent)}
+.daycard[aria-pressed=true]{background:var(--sunk);border-color:var(--ink-3)}
+.daycard .dow{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600}
+.daycard .dom{font-size:18px;font-weight:600;letter-spacing:-.02em;margin:2px 0 8px}
+.daycard .foot{display:flex;align-items:center;gap:4px;min-height:18px}
+.daycard .avatars{display:flex}
+.daycard .avatars span{
+  width:16px;height:16px;border-radius:50%;font-size:7px;font-weight:700;color:#fff;
+  display:grid;place-items:center;margin-left:-4px;border:1.5px solid var(--card);
+  font-family:"IBM Plex Mono",monospace;
+}
+.daycard .avatars span:first-child{margin-left:0}
+.daycard .n{font-size:10.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap}
+
+.elist{display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 280px);
+  overflow-y:auto;padding-right:2px;scrollbar-gutter:stable}
+.ecard{background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  padding:16px 18px;box-shadow:var(--shadow)}
+.ecard .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.ecard .who{display:flex;gap:10px;align-items:center;min-width:0}
+.ecard .dot{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:700;color:#fff}
+.ecard .name{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ecard .tick{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3)}
+.ecard .meta{text-align:right;font-size:12.5px;color:var(--ink-2);flex-shrink:0}
+.ecard .meta b{display:block;color:var(--ink);font-weight:600}
+.ecard ul{margin:12px 0 0;padding-left:1.1em;color:var(--ink-2);font-size:13px}
+.ecard li{margin:4px 0}
+.ecard a.more{display:inline-block;margin-top:10px;font-size:12.5px;color:var(--accent);
+  text-decoration:none}
+.ecard a.more:hover{text-decoration:underline}
+
+.side .listhead{padding:12px 12px 0}
+.seg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden}
+.seg button{flex:1;background:transparent;border:0;padding:7px 4px;font:inherit;font-size:11.5px;
+  cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule);white-space:nowrap}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
+.wl-search{margin:10px 12px 0;position:relative}
+.wl-search input{
+  width:100%;background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
+  padding:9px 12px 9px 34px;font:inherit;font-size:13px;color:var(--ink);
+}
+.wl-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;color:var(--ink-3);pointer-events:none}
+.wl-search input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;background:var(--card)}
+.wl-ac{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;background:var(--card);
+  border:1px solid var(--rule);border-radius:8px;box-shadow:var(--shadow);display:none;overflow:hidden}
+.wl-ac.open{display:block}
+.wl-ac div{padding:8px 10px;cursor:pointer;display:flex;gap:8px;border-bottom:1px solid var(--rule-2)}
+.wl-ac div:last-child{border-bottom:0}
+.wl-ac div:hover{background:var(--accent-soft)}
+.wl-ac b{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--accent);min-width:48px}
+.wl-ac span{font-size:12px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.rows{max-height:min(70vh,640px);overflow-y:auto;scrollbar-width:thin}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{position:sticky;top:0;background:var(--card);z-index:1;
+  font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;text-align:right;padding:8px 12px 8px 0;border-bottom:1px solid var(--rule)}
+thead th:first-child{text-align:left;padding-left:12px}
+tbody td{padding:8px 0;border-bottom:1px solid var(--rule-2);text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody td:first-child{text-align:left;padding-left:12px;font-family:"IBM Plex Sans",sans-serif}
+tbody td:last-child{padding-right:12px}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--sunk)}
+.sym{display:flex;align-items:center;gap:8px}
+.dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  font-family:"IBM Plex Mono",monospace;font-size:8.5px;font-weight:600;color:#fff}
+.symtext{min-width:0;display:flex;flex-direction:column;gap:1px}
+.tickline{display:flex;align-items:center;gap:5px}
+.tick{font-weight:600}
+.coname{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.rstar{border:0;background:transparent;cursor:pointer;color:var(--ink-3);font-size:13px;padding:0;line-height:1}
+.rstar.on{color:#d4a017}
+.pill{display:inline-block;min-width:58px;text-align:right;padding:2px 6px;border-radius:5px;
+  font-size:12px;font-weight:500}
+.pill.up{background:var(--up-soft)} .pill.down{background:var(--down-soft)}
+.next-earn{font-size:11.5px;color:var(--ink-2)}
+
+@media (max-width:720px){
+  main{padding:16px 12px 48px}
+  .week{gap:6px}
+  .daycard{padding:8px 6px}
+  .daycard .dom{font-size:15px}
+  .elist{max-height:none}
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="layout">
+    <div class="maincol">
+      <div class="pagehead">
+        <h1>Earnings Calendar</h1>
+        <div class="week-nav">
+          <button type="button" id="wk-prev" aria-label="Previous week">‹</button>
+          <span class="label" id="wk-label">Today</span>
+          <button type="button" id="wk-next" aria-label="Next week">›</button>
+        </div>
+      </div>
+      <div class="week" id="week" role="tablist" aria-label="Earnings week"></div>
+      <div class="elist" id="elist"><div class="note"><span class="load"></span></div></div>
+    </div>
+
+    <aside class="side panel">
+      <div class="listhead">
+        <div class="seg" id="views">
+          <button data-v="market_cap" aria-pressed="false">Market cap</button>
+          <button data-v="gainers" aria-pressed="false">Top gainers</button>
+          <button data-v="losers" aria-pressed="false">Top losers</button>
+          <button data-v="watchlist" aria-pressed="true">Watchlist</button>
+        </div>
+      </div>
+      <div class="wl-search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="text" id="wl-q" placeholder="Add a company…" autocomplete="off">
+        <div class="wl-ac" id="wl-ac"></div>
+      </div>
+      <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
+    </aside>
+  </div>
+</main>
+
+<script src="nav.js"></script>
+<script>
+"use strict";
+
+const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
+const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+const GA = window.TAnalytics || { track(){}, pageView(){} };
+const WATCH_KEY = "alphaticker-watchlist";
+const AVATAR = ["#1e4fbf","#eb2024","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+
+async function rpc(fn, args){
+  if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
+  const send = tok => fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      apikey: CFG.supabaseAnonKey,
+      "Content-Type": "application/json",
+      ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+    },
+    body: JSON.stringify(args || {}),
+  });
+  let tok = window.TA && window.TA.token();
+  let r = await send(tok);
+  if (r.status === 401 && tok && window.TA && window.TA.recover) {
+    r = await send(await window.TA.recover());
+  }
+  if (!r.ok) throw new Error(`${fn} failed (${r.status})`);
+  return r.json();
+}
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = v => v == null ? "—" : `${v >= 0 ? "+" : ""}${Number(v).toFixed(2)}%`;
+const dir = v => (v == null || v >= 0) ? "up" : "down";
+const price = v => v == null ? "—"
+  : v >= 1000 ? Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})
+  : Number(v).toFixed(2);
+const avatarColour = sym => AVATAR[Math.abs([...String(sym||"")].reduce((a,c)=>a+c.charCodeAt(0),0)) % AVATAR.length];
+const iso = d => d.toISOString().slice(0,10);
+const parseDay = s => {
+  const [y,m,d] = String(s).split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const startOfWeek = d => addDays(d, -d.getDay()); // Sunday
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const shortDay = d => `${MON[d.getMonth()]} ${d.getDate()}`;
+const money = v => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  const a = Math.abs(n);
+  if (a >= 1e9) return `$${(n/1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `$${(n/1e6).toFixed(2)}M`;
+  if (a >= 1e3) return `$${(n/1e3).toFixed(2)}K`;
+  return `$${n.toFixed(2)}`;
+};
+const reportTime = t => {
+  const s = String(t || "").toLowerCase();
+  if (s.includes("bmo") || s.includes("before")) return "Before open";
+  if (s.includes("amc") || s.includes("after")) return "After close";
+  if (s) return s.toUpperCase();
+  return "Time TBA";
+};
+
+const localWatch = {
+  read(){ try { return JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch { return []; } },
+  write(list){ try { localStorage.setItem(WATCH_KEY, JSON.stringify([...new Set(list)])); } catch {} },
+  has(sym){ return this.read().includes(sym); },
+  toggle(sym){
+    const l = this.read();
+    const i = l.indexOf(sym);
+    if (i >= 0) l.splice(i, 1); else l.push(sym);
+    this.write(l);
+    return i < 0;
+  },
+  clear(){ try { localStorage.removeItem(WATCH_KEY); } catch {} },
+};
+const signedIn = () => !!(window.TA && window.TA.signedIn());
+
+async function toggleWatch(symbol){
+  const sym = String(symbol || "").toUpperCase();
+  if (!sym) return false;
+  if (!signedIn()) {
+    const added = localWatch.toggle(sym);
+    if (added && window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+    return added;
+  }
+  try {
+    const d = await rpc("toggle_watchlist", { p_symbol: sym });
+    return !!(d && d.watching);
+  } catch { return false; }
+}
+async function watchSymbols(){
+  if (!signedIn()) return localWatch.read();
+  try {
+    const d = await rpc("get_watchlist");
+    return ((d && d.items) || []).map(i => i.symbol);
+  } catch { return []; }
+}
+async function mergeLocalWatchlist(){
+  const local = localWatch.read();
+  if (!local.length || !signedIn()) return 0;
+  try {
+    const d = await rpc("merge_watchlist", { p_symbols: local });
+    if (d && !d.error) { localWatch.clear(); return d.added || 0; }
+  } catch {}
+  return 0;
+}
+
+const S = {
+  anchor: startOfWeek(new Date()),
+  selected: iso(new Date()),
+  week: [],
+  dayRows: [],
+  view: "watchlist",
+  rows: [],
+  watched: new Set(),
+};
+
+function weekLabel(){
+  const today = iso(new Date());
+  const start = iso(S.anchor);
+  const end = iso(addDays(S.anchor, 6));
+  if (today >= start && today <= end) return "Today";
+  return `${shortDay(S.anchor)}–${shortDay(addDays(S.anchor, 6))}`;
+}
+
+function paintWeek(){
+  document.getElementById("wk-label").textContent = weekLabel();
+  const byDate = Object.fromEntries((S.week || []).map(d => [d.date, d]));
+  document.getElementById("week").innerHTML = Array.from({length:7}, (_,i) => {
+    const d = addDays(S.anchor, i);
+    const key = iso(d);
+    const info = byDate[key] || { count: 0, sample: [] };
+    const sample = info.sample || [];
+    const avatars = sample.slice(0, 3).map(s =>
+      `<span style="background:${avatarColour(s)}">${esc(String(s).slice(0,2))}</span>`).join("");
+    const n = info.count || 0;
+    return `<button type="button" class="daycard" data-day="${esc(key)}"
+              aria-pressed="${key === S.selected}" role="tab">
+      <div class="dow">${DOW[d.getDay()]}</div>
+      <div class="dom">${d.getDate()}</div>
+      <div class="foot">
+        <div class="avatars">${avatars}</div>
+        <span class="n">${n ? `${n} call${n === 1 ? "" : "s"}` : "—"}</span>
+      </div>
+    </button>`;
+  }).join("");
+  document.querySelectorAll(".daycard").forEach(btn => {
+    btn.onclick = () => { S.selected = btn.dataset.day; loadDay(); paintWeek(); };
+  });
+}
+
+function highlights(r){
+  const bullets = [];
+  const epsE = r.epsEstimated, epsA = r.epsActual;
+  if (epsA != null && epsE != null) {
+    const beat = Number(epsA) >= Number(epsE);
+    bullets.push(`EPS ${beat ? "beat" : "missed"} estimates: ${Number(epsA).toFixed(2)} vs ${Number(epsE).toFixed(2)} expected`);
+  } else if (epsE != null) {
+    bullets.push(`Consensus EPS estimate ${Number(epsE).toFixed(2)}`);
+  } else if (epsA != null) {
+    bullets.push(`Reported EPS ${Number(epsA).toFixed(2)}`);
+  }
+  const revE = money(r.revenueEstimated), revA = money(r.revenueActual);
+  if (revA && revE) bullets.push(`Revenue ${revA} vs ${revE} estimated`);
+  else if (revE) bullets.push(`Revenue estimate ${revE}`);
+  else if (revA) bullets.push(`Reported revenue ${revA}`);
+  bullets.push(`Reports ${reportTime(r.time).toLowerCase()}`);
+  if (r.fiscalDate) bullets.push(`Fiscal period ending ${r.fiscalDate}`);
+  if (r.headline) bullets.push(r.headline);
+  return bullets.slice(0, 4);
+}
+
+function paintDay(){
+  const host = document.getElementById("elist");
+  if (!S.dayRows.length) {
+    host.innerHTML = `<div class="note">No earnings calls listed for this day yet.</div>`;
+    return;
+  }
+  host.innerHTML = S.dayRows.map(r => {
+    const when = r.fiscalDate ? `FY ending ${r.fiscalDate}` : "Earnings";
+    return `<article class="ecard">
+      <div class="top">
+        <div class="who">
+          <span class="dot" style="background:${avatarColour(r.symbol)}">${esc((r.symbol||"").slice(0,2))}</span>
+          <div style="min-width:0">
+            <div class="name">${esc(r.name || r.symbol)}</div>
+            <div class="tick">${esc(r.symbol)}</div>
+          </div>
+        </div>
+        <div class="meta"><b>${esc(when)}</b>${esc(reportTime(r.time))}</div>
+      </div>
+      <ul>${highlights(r).map(b => `<li>${esc(b)}</li>`).join("")}</ul>
+      <a class="more" href="company.html?t=${encodeURIComponent(r.symbol)}&src=earnings_page">Company report →</a>
+    </article>`;
+  }).join("");
+}
+
+async function loadWeek(){
+  try {
+    S.week = await rpc("get_earnings_week", { p_date: iso(S.anchor) }) || [];
+  } catch { S.week = []; }
+  paintWeek();
+}
+
+async function loadDay(){
+  document.getElementById("elist").innerHTML = `<div class="note"><span class="load"></span></div>`;
+  try {
+    S.dayRows = await rpc("get_earnings_day", { p_date: S.selected, p_limit: 40 }) || [];
+  } catch { S.dayRows = []; }
+  paintDay();
+}
+
+async function refreshWatched(){
+  try { S.watched = new Set(await watchSymbols()); } catch { S.watched = new Set(); }
+}
+
+function paintSidebar(){
+  const host = document.getElementById("rows");
+  if (!S.rows.length) {
+    host.innerHTML = S.view === "watchlist"
+      ? `<div class="note">Add companies to your watchlist to track their next earnings date.</div>`
+      : `<div class="note">Nothing to show for this view yet.</div>`;
+    return;
+  }
+  host.innerHTML = `<table><thead><tr>
+      <th>Symbol</th><th>Price</th><th>Next earning</th><th>% Change</th>
+    </tr></thead><tbody>${S.rows.map(r => `
+      <tr data-s="${esc(r.symbol)}">
+        <td><span class="sym">
+          <span class="dot" style="background:${avatarColour(r.symbol)}">${esc((r.symbol||"").slice(0,2))}</span>
+          <span class="symtext">
+            <span class="tickline">
+              <span class="tick">${esc(r.symbol)}</span>
+              <button type="button" class="rstar${S.watched.has(r.symbol) ? " on" : ""}"
+                data-star="${esc(r.symbol)}"
+                aria-pressed="${S.watched.has(r.symbol)}"
+                title="${S.watched.has(r.symbol) ? "Remove from watchlist" : "Add to watchlist"}"
+              >${S.watched.has(r.symbol) ? "★" : "☆"}</button>
+            </span>
+            ${r.name ? `<span class="coname">${esc(r.name)}</span>` : ""}
+          </span></span></td>
+        <td>${esc(price(r.price))}</td>
+        <td class="next-earn">${r.nextEarnings ? esc(r.nextEarnings) : "—"}</td>
+        <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
+      </tr>`).join("")}</tbody></table>`;
+
+  host.querySelectorAll("[data-star]").forEach(btn => {
+    btn.onclick = async e => {
+      e.stopPropagation();
+      const now = await toggleWatch(btn.dataset.star);
+      now ? S.watched.add(btn.dataset.star) : S.watched.delete(btn.dataset.star);
+      if (S.view === "watchlist") loadSidebar();
+      else paintSidebar();
+    };
+  });
+  host.querySelectorAll("tr[data-s]").forEach(tr => {
+    tr.onclick = () => {
+      location.href = `company.html?t=${encodeURIComponent(tr.dataset.s)}&src=earnings_page`;
+    };
+  });
+}
+
+async function loadSidebar(){
+  document.getElementById("rows").innerHTML = `<div class="note"><span class="load"></span></div>`;
+  await refreshWatched();
+  const args = { p_view: S.view, p_limit: S.view === "watchlist" ? 60 : 25 };
+  if (S.view === "watchlist") args.p_symbols = [...S.watched];
+  try {
+    S.rows = await rpc("get_earnings_sidebar", args) || [];
+  } catch {
+    // Migration not applied yet — fall back to plain market summary.
+    try {
+      if (S.view === "watchlist") {
+        const syms = [...S.watched];
+        if (!syms.length) { S.rows = []; paintSidebar(); return; }
+        const all = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 50 }) || [];
+        const map = Object.fromEntries(all.map(r => [r.symbol, r]));
+        S.rows = syms.map(s => map[s] || { symbol: s }).filter(Boolean);
+      } else {
+        S.rows = await rpc("get_market_summary", { p_view: S.view, p_limit: 25 }) || [];
+      }
+    } catch { S.rows = []; }
+  }
+  paintSidebar();
+}
+
+function wireSearch(){
+  const q = document.getElementById("wl-q"), ac = document.getElementById("wl-ac");
+  let timer = null;
+  const close = () => { ac.classList.remove("open"); ac.innerHTML = ""; };
+  q.addEventListener("input", () => {
+    clearTimeout(timer);
+    const term = q.value.trim();
+    if (!term) return close();
+    timer = setTimeout(async () => {
+      let items = [];
+      try { items = await rpc("search_companies", { q: term }) || []; } catch {}
+      if (!items.length) return close();
+      ac.innerHTML = items.slice(0, 6).map(x =>
+        `<div data-s="${esc(x.ticker)}"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`).join("");
+      ac.classList.add("open");
+      ac.querySelectorAll("[data-s]").forEach(d => d.onmousedown = async e => {
+        e.preventDefault();
+        await toggleWatch(d.dataset.s);
+        q.value = "";
+        close();
+        S.view = "watchlist";
+        document.querySelectorAll("#views button").forEach(b =>
+          b.setAttribute("aria-pressed", b.dataset.v === "watchlist"));
+        loadSidebar();
+      });
+    }, 140);
+  });
+  q.addEventListener("blur", () => setTimeout(close, 150));
+}
+
+document.getElementById("wk-prev").onclick = () => {
+  S.anchor = addDays(S.anchor, -7);
+  S.selected = iso(S.anchor);
+  loadWeek().then(loadDay);
+};
+document.getElementById("wk-next").onclick = () => {
+  S.anchor = addDays(S.anchor, 7);
+  S.selected = iso(S.anchor);
+  loadWeek().then(loadDay);
+};
+document.querySelectorAll("#views button").forEach(b => b.onclick = () => {
+  S.view = b.dataset.v;
+  document.querySelectorAll("#views button").forEach(x =>
+    x.setAttribute("aria-pressed", x === b));
+  loadSidebar();
+});
+wireSearch();
+
+(async function boot(){
+  // Prefer watchlist when signed in; otherwise market cap is more useful than an empty list.
+  const ready = () => {
+    S.view = signedIn() ? "watchlist" : "market_cap";
+    document.querySelectorAll("#views button").forEach(b =>
+      b.setAttribute("aria-pressed", b.dataset.v === S.view));
+  };
+  if (window.TA) {
+    ready();
+    window.TA.onAuthChange(async () => {
+      if (signedIn()) await mergeLocalWatchlist();
+      ready();
+      loadSidebar();
+    });
+    if (signedIn()) await mergeLocalWatchlist();
+  } else {
+    S.view = "market_cap";
+    document.querySelectorAll("#views button").forEach(b =>
+      b.setAttribute("aria-pressed", b.dataset.v === S.view));
+  }
+  await Promise.all([loadWeek(), loadDay(), loadSidebar()]);
+  try { GA.pageView(); } catch {}
+})();
+</script>
+</body>
+</html>

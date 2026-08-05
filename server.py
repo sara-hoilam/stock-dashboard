@@ -92,6 +92,9 @@ class Handler(BaseHTTPRequestHandler):
             if route in ("/news.html", "/news"):
                 return self._file("news.html", "text/html; charset=utf-8")
 
+            if route in ("/earnings.html", "/earnings"):
+                return self._file("earnings.html", "text/html; charset=utf-8")
+
             if route == "/nav.js":
                 return self._file("nav.js", "application/javascript")
 

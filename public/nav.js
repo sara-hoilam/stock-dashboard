@@ -45,6 +45,7 @@
       <div class="nav-links">
         <a href="index.html"   class="${here("index.html") ? "on" : ""}">Markets</a>
         <a href="news.html"    class="${here("news.html") ? "on" : ""}">News</a>
+        <a href="earnings.html" class="${here("earnings.html") ? "on" : ""}">Earnings</a>
         <a href="company.html" class="${here("company.html") ? "on" : ""}">Company Report</a>
       </div>
 
@@ -539,6 +540,7 @@
         <span class="site-foot-links">
           <a href="privacy.html">Privacy Policy</a>
           <a href="news.html">News</a>
+          <a href="earnings.html">Earnings</a>
           <a href="company.html">Company Report</a>
         </span>
       </footer>`);

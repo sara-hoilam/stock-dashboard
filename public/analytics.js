@@ -139,6 +139,7 @@
     if (file === "" || file === "index.html")
       return /(^|&)tab=watchlist(&|$)/.test(qs) ? "Watchlist" : "Markets";
     if (file === "news.html" || file === "news") return "News";
+    if (file === "earnings.html" || file === "earnings") return "Earnings";
     if (file === "company.html" || file === "company") return "Company";
     return "Other";
   }
