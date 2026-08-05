@@ -924,6 +924,32 @@ def pe_history(symbol: str, limit: int = 40) -> list[dict]:
     return out
 
 
+def employee_history(symbol: str) -> list[dict]:
+    """Annual headcount from FMP historical-employee-count, oldest first.
+
+    Counts come from 10-K filings (periodOfReport). The revenue chart joins
+    each quarter to the latest count on or before that quarter's period end.
+    """
+    rows = _get("historical-employee-count", symbol=symbol) or []
+    out: list[dict] = []
+    for r in rows:
+        d = (r.get("periodOfReport") or r.get("filingDate") or "")[:10]
+        n = r.get("employeeCount")
+        if not d or n in (None, ""):
+            continue
+        try:
+            count = int(n)
+        except (TypeError, ValueError):
+            continue
+        if count > 0:
+            out.append({"d": d, "n": count})
+    # Prefer the later filing when the same period appears twice.
+    by_day: dict[str, int] = {}
+    for row in sorted(out, key=lambda p: p["d"]):
+        by_day[row["d"]] = row["n"]
+    return [{"d": d, "n": by_day[d]} for d in sorted(by_day)]
+
+
 def industry_pe(day: dt.date | None = None, look_back: int = 6) -> tuple[list[dict], str | None]:
     """Price/earnings by industry and by sector, for the most recent day FMP
     has. Only recent dates are served on this plan, so there is no history to

@@ -149,6 +149,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 .phead p{font-size:12px;color:var(--ink-3);margin-top:2px;max-width:62ch}
 .phead-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
 .seg{display:flex;gap:0;border:1px solid var(--rule);border-radius:7px;overflow:hidden;flex-shrink:0}
+.seg:empty{display:none}
 .seg button{background:transparent;border:0;padding:6px 11px;font-size:12px;cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule)}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--accent);color:#fff}
@@ -1089,7 +1090,7 @@ function ago(iso){
 const HELP = {
   sankey:    "Every dollar of revenue for the selected quarter, followed left to right as it splits between costs and what survives as profit. Widths are proportional to dollars, so a wide red band is a large cost.",
   mix:       "Which parts of the business produced the revenue, as reported in the filing's segment note. Companies that do not disclose a breakdown show a single bar.",
-  revTrend:  "Revenue for each of the twelve quarters ending with the one selected. Bars derived from an annual report rather than filed directly are outlined.",
+  revTrend:  "Revenue for each of the twelve quarters ending with the one selected (left axis). The line is revenue per employee on the right axis — quarterly revenue divided by the latest annual headcount from FMP on or before that quarter. Bars derived from an annual report rather than filed directly are outlined.",
   margins:   "Gross, operating and net margin over time. Margin is the share of each revenue dollar left after the costs above that line.",
   costStack: "Cost and expense structure each quarter as a share of revenue, so the bars are comparable even as the company grows.",
   statement: "The income statement for the selected quarter, against the same quarter a year earlier and the quarter immediately before it. Figures are as filed; a line marked derived was computed from the lines around it.",
@@ -1152,8 +1153,9 @@ async function loadExtras(){
   drawSeasonality();          // needs only the monthly closes
   loadTickerNews();
   marketPanels();             // the rest wait on the price bars
-  // Profile arrives with extras; redraw the metrics card so the flip side fills.
+  // Profile / headcount arrive with extras; redraw panels that use them.
   if ((PRICE.bars || []).length && document.getElementById("price-stats")) drawPriceStats();
+  if (S.company && document.getElementById("revtrend")) renderRevTrend();
   wireHelp();
   // Existing tickers often have fresh bars, so fetch_prices never re-ran after
   // the profile column shipped. Ask for a refresh and poll until About fills.
@@ -2989,12 +2991,33 @@ function renderQuarterChart(host, legendHost, opts){
 }
 
 /* ---- Revenue trend ------------------------------------------------------- */
+/** Latest annual headcount on or before a quarter's period end (FMP 10-K series). */
+function headcountFor(end, hist){
+  if (!end || !hist || !hist.length) return null;
+  let n = null;
+  for (const row of hist) {
+    if (!row || !row.d || row.n == null) continue;
+    if (row.d <= end) n = row.n;
+    else break;
+  }
+  return n;
+}
+
 function renderRevTrend(){
   const host = document.getElementById("revtrend");
+  if (!host) return;
   const qs = recentQuarters(12).filter(q => q.lines.revenue !== null);
   if (!qs.length) { host.innerHTML = `<div class="note">No history available.</div>`; return; }
 
-  const W = 560, H = 300, ml = 56, mr = 12, mt = 16, mb = 46;
+  const empHist = (EXTRA.data && EXTRA.data.employeeHistory) || [];
+  const rpe = qs.map(q => {
+    const n = headcountFor(q.end, empHist);
+    if (!n) return null;
+    return q.lines.revenue / n;
+  });
+  const hasRpe = rpe.some(v => v != null);
+
+  const W = 560, H = 300, ml = 56, mr = hasRpe ? 58 : 12, mt = 16, mb = 46;
   const pw = W - ml - mr, ph = H - mt - mb;
   const max = Math.max(...qs.map(q => q.lines.revenue));
   const ticks = niceTicks(max);
@@ -3002,10 +3025,27 @@ function renderRevTrend(){
   const y = v => mt + ph - (v / top) * ph;
   const bw = Math.min(38, pw / qs.length - 8);
 
+  const rpeVals = rpe.filter(v => v != null);
+  let rpeTop = 0, yRpe = () => mt + ph;
+  if (hasRpe) {
+    const rpeTicks = niceTicks(Math.max(...rpeVals));
+    rpeTop = rpeTicks[rpeTicks.length - 1] || Math.max(...rpeVals);
+    yRpe = v => mt + ph - (v / rpeTop) * ph;
+  }
+
   const parts = ticks.map(t => `
     <line x1="${ml}" y1="${y(t)}" x2="${W-mr}" y2="${y(t)}" stroke="var(--rule-2)"></line>
     <text x="${ml-9}" y="${y(t)+4}" text-anchor="end" font-size="10.5" class="tnum"
       fill="var(--ink-3)">${esc(money(t,0))}</text>`);
+
+  if (hasRpe && rpeTop > 0) {
+    const step = rpeTop / 4;
+    for (let i = 0; i <= 4; i++) {
+      const t = step * i;
+      parts.push(`<text x="${W-mr+9}" y="${yRpe(t)+4}" text-anchor="start" font-size="10.5"
+        class="tnum" fill="var(--s4)">${esc(money(t, t >= 1e6 ? 1 : 0))}</text>`);
+    }
+  }
 
   qs.forEach((q,i) => {
     const cx = ml + pw*(i+0.5)/qs.length;
@@ -3017,7 +3057,8 @@ function renderRevTrend(){
       fill="${derived ? "transparent" : (sel ? "var(--revenue)" : "color-mix(in srgb, var(--revenue) 42%, transparent)")}"
       stroke="var(--revenue)" stroke-width="${derived ? 1.5 : 0}"
       stroke-dasharray="${derived ? "3 2" : ""}"
-      data-n="Q${q.fq} FY${q.fy}" data-v="${v}" data-b="${q.basis}" data-q="${i}"></rect>`);
+      data-n="Q${q.fq} FY${q.fy}" data-v="${v}" data-b="${q.basis}" data-q="${i}"
+      data-rpe="${rpe[i] == null ? "" : rpe[i]}" data-emp="${headcountFor(q.end, empHist) || ""}"></rect>`);
     if (sel) parts.push(`<text x="${Math.min(Math.max(cx, ml+26), W-mr-26)}" y="${y(v)-7}" text-anchor="middle" font-size="11"
         font-weight="600" class="tnum" fill="var(--revenue)">${esc(money(v,1))}</text>`);
     parts.push(`<text x="${cx}" y="${H-mb+16}" text-anchor="middle" font-size="10.5"
@@ -3026,12 +3067,44 @@ function renderRevTrend(){
       fill="var(--ink-3)">'${String(q.fy).slice(2)}</text>`);
   });
 
+  if (hasRpe) {
+    const pts = qs.map((q,i) => rpe[i] == null ? null : {
+      i, cx: ml + pw*(i+0.5)/qs.length, v: rpe[i], q
+    }).filter(Boolean);
+    if (pts.length) {
+      const d = pts.map((p,j) => `${j?"L":"M"}${p.cx},${yRpe(p.v)}`).join(" ");
+      parts.push(`<path d="${d}" fill="none" stroke="var(--s4)" stroke-width="2"
+        stroke-linejoin="round" stroke-linecap="round"></path>`);
+      pts.forEach(p => parts.push(`<circle cx="${p.cx}" cy="${yRpe(p.v)}"
+        r="${p.q===S.quarter?4.5:3}" fill="var(--s4)" stroke="var(--card)" stroke-width="2"
+        data-rpe-n="Revenue / employee · Q${p.q.fq} FY${p.q.fy}" data-rpe-v="${p.v}"
+        data-rpe-emp="${headcountFor(p.q.end, empHist) || ""}" data-rpe-rev="${p.q.lines.revenue}"></circle>`));
+      parts.push(`<text x="${W-mr+9}" y="${mt+10}" text-anchor="start" font-size="10"
+        font-weight="600" fill="var(--s4)">$/employee</text>`);
+    }
+  }
+
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"
-    aria-label="Revenue by quarter">${parts.join("")}</svg>`;
-  host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
-    [["Revenue", money(+el.dataset.v)],
-     ...growthRows(qs[+el.dataset.q], "revenue"),
-     ["Source", el.dataset.b === "derived" ? "derived from annual report" : "as filed"]]));
+    aria-label="Revenue by quarter">${parts.join("")}</svg>
+    ${hasRpe ? `<div class="legend" style="padding-top:4px">
+      <div><i style="background:var(--revenue)"></i>Revenue</div>
+      <div><i style="background:var(--s4)"></i>Revenue / employee</div>
+    </div>` : ""}`;
+  host.querySelectorAll("rect[data-n]").forEach(el => {
+    const rows = [["Revenue", money(+el.dataset.v)],
+      ...growthRows(qs[+el.dataset.q], "revenue"),
+      ["Source", el.dataset.b === "derived" ? "derived from annual report" : "as filed"]];
+    if (el.dataset.rpe) {
+      rows.push(["Revenue / employee", money(+el.dataset.rpe, 0)],
+                ["Employees", compact(+el.dataset.emp)]);
+    }
+    hoverable(el, el.dataset.n, rows);
+  });
+  host.querySelectorAll("[data-rpe-n]").forEach(el => hoverable(el, el.dataset.rpeN,
+    [["Revenue / employee", money(+el.dataset.rpeV, 0)],
+     ["Revenue", money(+el.dataset.rpeRev)],
+     ["Employees", compact(+el.dataset.rpeEmp)],
+     ["Headcount source", "FMP annual (10-K)"]]));
 }
 
 /* ---- Margins ------------------------------------------------------------- */

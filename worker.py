@@ -379,26 +379,39 @@ def fetch_prices(symbol: str) -> bool:
         prof = market.profile(sym) or {}
         monthly = market.monthly_closes(sym, 11)
         pe_hist: list[dict] = []
+        emp_hist: list[dict] = []
         try:
             pe_hist = market.pe_history(sym)
         except market.MarketError as exc:
             log(f"  pe history {sym}: {exc}")
         try:
-            store.upsert_company_extras(sym, monthly, prof.get("sector"),
-                                        prof.get("industry"), pe_hist or None,
-                                        prof or None)
+            emp_hist = market.employee_history(sym)
+        except market.MarketError as exc:
+            log(f"  employee history {sym}: {exc}")
+        try:
+            store.upsert_company_extras(
+                sym, monthly, prof.get("sector"), prof.get("industry"),
+                pe_hist or None, prof or None, emp_hist or None)
         except store.StoreError as exc:
-            # Older migrations: try without profile, then without PE history.
-            log(f"  extras write with profile failed ({exc}); falling back")
+            # Older migrations: peel off the newest optional args one by one.
+            log(f"  extras write failed ({exc}); falling back")
             try:
-                store.upsert_company_extras(sym, monthly, prof.get("sector"),
-                                            prof.get("industry"), pe_hist or None)
+                store.upsert_company_extras(
+                    sym, monthly, prof.get("sector"), prof.get("industry"),
+                    pe_hist or None, prof or None)
             except store.StoreError:
-                store.upsert_company_extras(sym, monthly, prof.get("sector"),
-                                            prof.get("industry"))
+                try:
+                    store.upsert_company_extras(
+                        sym, monthly, prof.get("sector"), prof.get("industry"),
+                        pe_hist or None)
+                except store.StoreError:
+                    store.upsert_company_extras(
+                        sym, monthly, prof.get("sector"), prof.get("industry"))
         extras = f", {len(monthly)} months, {prof.get('sector') or 'no sector'}"
         if pe_hist:
             extras += f", {len(pe_hist)} pe"
+        if emp_hist:
+            extras += f", {len(emp_hist)} headcount"
         if prof.get("ceo") or prof.get("description"):
             extras += ", profile"
         etf = market.SECTOR_ETF.get(prof.get("sector") or "")
@@ -418,7 +431,7 @@ def fetch_prices(symbol: str) -> bool:
 
 
 def fill_company_profile(symbol: str) -> bool:
-    """Write FMP /profile onto an existing price_daily row (no bars refetch)."""
+    """Write FMP /profile (+ headcount history) onto an existing price_daily row."""
     if not market.configured():
         return False
     sym = symbol.upper()
@@ -429,14 +442,25 @@ def fill_company_profile(symbol: str) -> bool:
         return False
     if not prof:
         return False
+    emp_hist: list[dict] = []
+    try:
+        emp_hist = market.employee_history(sym)
+    except market.MarketError as exc:
+        log(f"  employee history {sym}: {exc}")
     try:
         store.upsert_company_extras(sym, None, prof.get("sector"),
-                                    prof.get("industry"), None, prof)
-    except store.StoreError as exc:
-        log(f"  profile write {sym}: {exc}")
-        return False
+                                    prof.get("industry"), None, prof,
+                                    emp_hist or None)
+    except store.StoreError:
+        try:
+            store.upsert_company_extras(sym, None, prof.get("sector"),
+                                        prof.get("industry"), None, prof)
+        except store.StoreError as exc:
+            log(f"  profile write {sym}: {exc}")
+            return False
     log(f"profile {sym}: {prof.get('name') or sym}"
-        f"{', ' + prof['ceo'] if prof.get('ceo') else ''}")
+        f"{', ' + prof['ceo'] if prof.get('ceo') else ''}"
+        f"{', ' + str(len(emp_hist)) + ' headcount' if emp_hist else ''}")
     return True
 
 
