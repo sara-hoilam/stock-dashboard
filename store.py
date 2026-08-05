@@ -199,10 +199,13 @@ def pending_prices(limit: int = 5) -> list[str]:
 
 
 def upsert_company_extras(symbol: str, monthly: list[dict] | None,
-                          sector: str | None, industry: str | None) -> int:
-    return rpc("upsert_company_extras",
-               {"p_symbol": symbol, "p_monthly": monthly,
-                "p_sector": sector, "p_industry": industry}) or 0
+                          sector: str | None, industry: str | None,
+                          pe_history: list[dict] | None = None) -> int:
+    payload = {"p_symbol": symbol, "p_monthly": monthly,
+               "p_sector": sector, "p_industry": industry}
+    if pe_history is not None:
+        payload["p_pe_history"] = pe_history
+    return rpc("upsert_company_extras", payload) or 0
 
 
 def upsert_benchmark(symbol: str, closes: list[dict]) -> int:

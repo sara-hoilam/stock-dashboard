@@ -1087,8 +1087,10 @@ async function selectSymbol(sym){
   if (sel !== S.sel) return;
   const row = S.rows.find(r => r.symbol === sym);
   const q = (d && d.quote) || row || null;
+  const lastClose = (d && d.points && d.points.length)
+    ? d.points[d.points.length - 1].c : null;
 
-  if (q) fillQuoteHead(sym, q);
+  if (q || lastClose != null) fillQuoteHead(sym, q, lastClose);
 
   if (d && d.points && d.points.length) {
     S.gotIntraday = true;
@@ -1127,7 +1129,8 @@ function pollIntraday(sym, sel){
     if (sel !== S.sel) return;
     if (d && d.points && d.points.length) {
       S.gotIntraday = true;
-      if (d.quote) fillQuoteHead(sym, d.quote);     // clears the range label
+      const last = d.points[d.points.length - 1].c;
+      if (d.quote || last != null) fillQuoteHead(sym, d.quote, last);
       return drawChart(d.points);
     }
     S.intraPoll = setTimeout(tick, 4000);
@@ -1136,11 +1139,14 @@ function pollIntraday(sym, sel){
 }
 
 /** Price, name and change above the chart. */
-function fillQuoteHead(sym, q){
-  document.getElementById("c-price").textContent = price(q.price);
-  const cp = q.changePct ?? q.change_pct;
+function fillQuoteHead(sym, q, fallbackPrice){
+  const px = (q && q.price != null && q.price !== undefined)
+    ? q.price
+    : fallbackPrice;
+  document.getElementById("c-price").textContent = price(px);
+  const cp = q ? (q.changePct ?? q.change_pct) : null;
   document.getElementById("c-meta").innerHTML =
-    `${esc(q.name || "")} ${cp !== undefined && cp !== null
+    `${esc((q && q.name) || "")} ${cp !== undefined && cp !== null
       ? `· <b class="${dir(cp)}">${pct(cp)}</b>` : ""}
      · <a href="company.html?t=${encodeURIComponent(sym)}"
           style="color:var(--accent);text-decoration:none">view financials →</a>`;
@@ -1156,10 +1162,15 @@ async function dailyFallback(sym, sel){
   if (S.gotIntraday) return;                    // the real series beat us here
 
   // A ticker reached from the search box is not in the table, so the header
-  // may still be blank. get_prices carries a quote of its own.
-  if (d && d.quote && !document.getElementById("c-price").textContent) fillQuoteHead(sym, d.quote);
-
+  // may still be blank. get_prices carries a quote of its own; when that is
+  // still empty, the last daily close is better than "—".
   const bars = (d && d.bars) || [];
+  const dailyClose = bars.length ? bars[bars.length - 1].c : null;
+  const head = document.getElementById("c-price").textContent;
+  if ((!head || head === "—") && (d && d.quote || dailyClose != null)) {
+    fillQuoteHead(sym, d && d.quote, dailyClose);
+  }
+
   if (bars.length) {
     drawDaily(sym, bars);
     // Stale bars still draw; the refresh lands on the next visit.
