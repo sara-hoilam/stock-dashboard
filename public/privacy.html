@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Ticker Alpha</title>
+<script src="config.js"></script>
+<script type="module" src="clarity-init.js"></script>
+<link rel="stylesheet" href="nav.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --ground:#eef0f3; --card:#ffffff; --sunk:#f6f7f9;
+  --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
+  --rule:#dde2e8; --rule-2:#eaeef2;
+  --accent:#1e4fbf; --accent-soft:#e6ecfb;
+  --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
+  --r:10px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:#0d1219; --card:#151c25; --sunk:#111821;
+  --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
+  --rule:#232d3a; --rule-2:#1c2531;
+  --accent:#6e9bff; --accent-soft:#1a2740;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  background:var(--ground); color:var(--ink);
+  font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+}
+main{max-width:720px;margin:0 auto;padding:32px 28px 48px}
+.panel{
+  background:var(--card); border:1px solid var(--rule); border-radius:var(--r);
+  box-shadow:var(--shadow); padding:28px 32px 32px;
+}
+h1{
+  font-family:"IBM Plex Serif",Georgia,serif;
+  font-size:30px; font-weight:600; letter-spacing:-.02em; line-height:1.2;
+  margin-bottom:8px;
+}
+.meta{color:var(--ink-3); font-size:12.5px; margin-bottom:22px}
+.meta b{font-family:"IBM Plex Mono",monospace; font-weight:500; color:var(--ink-2)}
+h2{
+  font-size:15px; font-weight:600; margin:22px 0 8px; letter-spacing:-.01em;
+}
+p, li{color:var(--ink-2); font-size:14px}
+p + p{margin-top:10px}
+ul{padding-left:1.2em; margin:8px 0 0}
+li{margin:4px 0}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+@media (max-width:720px){
+  main{padding:20px 14px 36px}
+  .panel{padding:22px 18px 26px}
+  h1{font-size:26px}
+}
+</style>
+</head>
+<body>
+<main>
+  <article class="panel">
+    <h1>Privacy Policy</h1>
+    <p class="meta">Last updated <b>5 August 2026</b> · Ticker Alpha</p>
+
+    <p>Ticker Alpha (“we”, “us”) is a market-data and company-filings dashboard.
+       This page explains what information the site uses, why, and how you can
+       control it. It is written for a product that can be used signed out or
+       with a Google account.</p>
+
+    <h2>Information we process</h2>
+    <ul>
+      <li><strong>Account information.</strong> If you sign in with Google, we
+        receive the profile details Google shares for OAuth (typically your
+        name, email address, and profile picture) through our authentication
+        provider, Supabase. We use that to keep you signed in and to sync a
+        watchlist to your account.</li>
+      <li><strong>Watchlist data.</strong> Tickers you star can be stored in
+        your browser’s local storage when you are signed out, or in our
+        database when you are signed in so the list follows you across devices.</li>
+      <li><strong>Usage analytics.</strong> We use Microsoft Clarity to
+        understand how the site is used (pages viewed, clicks, and similar
+        session diagnostics). Clarity may set cookies or use similar
+        technologies. When you are signed in we may pass a hashed custom id so
+        sessions can be linked to an account in Clarity’s dashboard.</li>
+      <li><strong>Technical logs.</strong> Our hosting and API providers
+        (for example Cloudflare Pages, Supabase, and our background worker)
+        may process standard request metadata such as IP address, user agent,
+        and timestamps to operate and secure the service.</li>
+    </ul>
+
+    <h2>Market and filing data</h2>
+    <p>Prices, movers, and related market fields come from third-party market
+       data providers (including Financial Modeling Prep). Company financials
+       and filings shown on the company report come from public SEC filings.
+       That content is about public companies, not about you as a visitor.</p>
+
+    <h2>How we use information</h2>
+    <ul>
+      <li>To run the product: authentication, watchlists, and page features.</li>
+      <li>To improve the product with aggregated usage insights from Clarity.</li>
+      <li>To keep the service reliable and secure.</li>
+    </ul>
+    <p>We do not sell your personal information. We do not use your account
+       email for marketing lists.</p>
+
+    <h2>Cookies and local storage</h2>
+    <p>Signed-in sessions are stored in the browser so you stay logged in.
+       Anonymous watchlists use local storage on the device you are using.
+       Clarity and Google sign-in may set their own cookies according to their
+       policies.</p>
+
+    <h2>Third parties</h2>
+    <ul>
+      <li><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google</a> — sign-in (OAuth).</li>
+      <li><a href="https://supabase.com/privacy" target="_blank" rel="noopener">Supabase</a> — authentication and backend data.</li>
+      <li><a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener">Microsoft Clarity</a> — product analytics.</li>
+      <li>Cloudflare — static hosting and delivery.</li>
+      <li>Market-data and SEC data sources used to populate the dashboard.</li>
+    </ul>
+
+    <h2>Your choices</h2>
+    <ul>
+      <li>You can use much of the site without signing in.</li>
+      <li>You can clear local watchlist data by clearing site data in your browser.</li>
+      <li>You can sign out from the account menu in the top bar.</li>
+      <li>You can use browser controls or Microsoft’s tools to limit Clarity
+        where available.</li>
+    </ul>
+
+    <h2>Children</h2>
+    <p>Ticker Alpha is not directed at children under 13, and we do not
+       knowingly collect personal information from them.</p>
+
+    <h2>Changes</h2>
+    <p>We may update this policy as the product changes. The “Last updated”
+       date at the top will change when we do. Continued use of the site after
+       an update means you are using the service under the revised policy.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about privacy on Ticker Alpha can be raised through the same
+       channel you use to reach the product operators for support or feedback.</p>
+  </article>
+</main>
+<script src="nav.js"></script>
+</body>
+</html>

@@ -1407,6 +1407,9 @@ async function toggleWatch(symbol){
   if (!sym) return false;
   if (!signedIn()) {
     const added = localWatch.toggle(sym);
+    if (added && window.TA?.showSignupModal) {
+      window.TA.showSignupModal({ reason: "watchlist" });
+    }
     dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: added } }));
     return added;
   }
@@ -1477,12 +1480,15 @@ async function wireStar(){
     // count stays put rather than claiming a watcher the database has not got.
     paint(watching, others + (watching && signedIn() ? 1 : 0));
     el.disabled = false;
-    if (watching && !signedIn()) starHint(el);
   };
 }
 
-/** Said once per session, next to the star that just lit up. */
+/** Kept for compatibility; signup modal is shown from toggleWatch. */
 function starHint(anchor){
+  if (window.TA?.showSignupModal) {
+    window.TA.showSignupModal({ reason: "watchlist" });
+    return;
+  }
   if (sessionStorage.getItem("wl-hinted")) return;
   sessionStorage.setItem("wl-hinted", "1");
   const tip = document.createElement("div");

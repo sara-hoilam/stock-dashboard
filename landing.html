@@ -1089,7 +1089,10 @@ async function toggleWatch(symbol){
   if (!sym) return false;
   if (!signedIn()) {
     const added = localWatch.toggle(sym);
-    if (added) askWatchPrices(sym);
+    if (added) {
+      askWatchPrices(sym);
+      if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+    }
     dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: added } }));
     return added;
   }
@@ -1374,11 +1377,15 @@ function wireWatchSearch(){
   };
 }
 
-/** A list built without an account lives in one browser. Say so once, at the
-    moment it starts being worth something, rather than gating the feature. */
+/** A list built without an account lives in one browser. Prefer the shared
+    Google signup modal; keep the old sheet only if nav.js is unavailable. */
 function promptSaveWatchlist(n){
   if (sessionStorage.getItem("wl-prompted")) return;
   sessionStorage.setItem("wl-prompted", "1");
+  if (window.TA?.showSignupModal) {
+    window.TA.showSignupModal({ reason: "watchlist" });
+    return;
+  }
   const el = document.createElement("div");
   el.className = "wl-prompt";
   el.innerHTML = `
@@ -2123,7 +2130,8 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
      <strong>Company financials</strong> — everything on the
      <a href="company.html">company page</a> — come only from SEC filings.
      Two sources, two different questions: what the market did, and what the
-     business earned.`;
+     business earned.
+     <span class="foot-links"> · <a href="privacy.html">Privacy Policy</a></span>`;
 
   if (!HOSTED) {
     document.getElementById("cards").innerHTML =
