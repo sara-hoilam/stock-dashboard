@@ -255,6 +255,7 @@
     token: () => (session() || {}).access_token || null,
     signedIn: () => !!(session() && session().user),
     signIn,
+    showSignupModal,
     recover,
     onAuthChange(fn){ addEventListener("ta-auth", () => fn(window.TA.signedIn())); },
   };
@@ -341,9 +342,56 @@
             "Authentication → Providers.");
       return;
     }
-    const redirect = location.origin + location.pathname;
+    const redirect = location.origin + location.pathname + location.search;
     location.href = `${CFG.supabaseUrl}/auth/v1/authorize` +
       `?provider=google&redirect_to=${encodeURIComponent(redirect)}`;
+  }
+
+  /** Google-only signup sheet — shown when someone adds to a watchlist
+      without an account. Matches the conversion modal pattern: one CTA,
+      privacy link, dismiss. */
+  function showSignupModal(opts) {
+    if (window.TA.signedIn()) return;
+    if (document.getElementById("auth-modal")) return;
+    const title = "Sign up below to unlock the full potential of Ticker Alpha";
+
+    const el = document.createElement("div");
+    el.id = "auth-modal";
+    el.className = "auth-modal";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-labelledby", "auth-modal-title");
+    el.innerHTML = `
+      <div class="auth-modal-card">
+        <button type="button" class="auth-modal-x" aria-label="Close">×</button>
+        <h2 id="auth-modal-title">${esc(title)}</h2>
+        <p class="auth-legal">By continuing, you agree to our
+          <a href="privacy.html" target="_blank" rel="noopener">privacy policy</a>.</p>
+        <button type="button" class="auth-google" id="auth-google">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </button>
+        <p class="auth-sso">Single sign-on (SSO)</p>
+        <button type="button" class="auth-modal-close">Close</button>
+      </div>`;
+    document.body.appendChild(el);
+
+    const shut = () => {
+      el.remove();
+      document.removeEventListener("keydown", onKey);
+    };
+    const onKey = e => { if (e.key === "Escape") shut(); };
+    document.addEventListener("keydown", onKey);
+    el.querySelector(".auth-modal-x").onclick = shut;
+    el.querySelector(".auth-modal-close").onclick = shut;
+    el.addEventListener("click", e => { if (e.target === el) shut(); });
+    el.querySelector("#auth-google").onclick = () => { shut(); signIn(); };
+    try { el.querySelector("#auth-google").focus(); } catch {}
   }
 
   // A one-line explanation under the bar. Sign-in failures used to leave no
@@ -481,5 +529,18 @@
       google.accounts.id.prompt();
     };
     document.head.appendChild(s);
+  }
+
+  /* ---- site footer ------------------------------------------------------ */
+  if (!document.querySelector(".site-foot")) {
+    document.body.insertAdjacentHTML("beforeend", `
+      <footer class="site-foot">
+        <span>© ${new Date().getFullYear()} Ticker Alpha</span>
+        <span class="site-foot-links">
+          <a href="privacy.html">Privacy Policy</a>
+          <a href="news.html">News</a>
+          <a href="company.html">Company Report</a>
+        </span>
+      </footer>`);
   }
 })();

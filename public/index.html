@@ -90,10 +90,14 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .card .d{font-size:12px;margin-top:auto;padding-top:6px;color:var(--ink-3)}
 .card .d b{font-family:"IBM Plex Mono",monospace;font-weight:600}
 .up{color:var(--up)} .down{color:var(--down)}
-.tsym{display:flex;flex-direction:column;gap:1px;text-decoration:none}
-.tsym-t{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--accent)}
-.tsym-n{font-family:"IBM Plex Sans",sans-serif;font-size:10.5px;color:var(--ink-3);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
+.tsym,.ppl{display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  text-decoration:none;text-align:left}
+.tsym-t{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--accent);
+  font-size:12.5px;line-height:1.25}
+.tsym-n,.ppl-n{font-family:"IBM Plex Sans",sans-serif;font-size:10.5px;color:var(--ink-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;line-height:1.3}
+.ppl-t{font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:12.5px;
+  color:var(--ink);line-height:1.25}
 
 /* ---- market summary ------------------------------------------------------ */
 h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
@@ -172,6 +176,20 @@ svg{display:block;max-width:100%}
 .hmhead p{font-size:12px;color:var(--ink-3);max-width:64ch;margin:0}
 .hmhead h3{font-size:14.5px;font-weight:600;letter-spacing:-.005em;margin:0 0 3px}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
+/* Congress & Insiders: fixed-height panes with a real scrollbar and sticky
+   headers so scrolling past the first screenful stays readable. */
+#insiders.scroll, #congress.scroll{
+  max-height:420px; overflow-y:auto; overflow-x:auto;
+  scrollbar-gutter:stable; overscroll-behavior:contain;
+}
+#insiders .mini thead th, #congress .mini thead th{
+  position:sticky; top:0; z-index:1; background:var(--card);
+  box-shadow:0 1px 0 var(--rule);
+}
+#insiders .trade-more, #congress .trade-more{
+  text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
+}
+#insiders .trade-more .load, #congress .trade-more .load{margin-right:6px}
 .legend{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;
   font-size:13.5px;color:var(--ink-3);padding:0 18px 14px}
 .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;
@@ -192,14 +210,17 @@ svg{display:block;max-width:100%}
 /* Compact tables for the trade panels. */
 .mini{width:100%;border-collapse:collapse;font-size:12.5px}
 .mini thead th{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;text-align:right;padding:0 0 7px 0;border-bottom:1px solid var(--rule)}
-.mini thead th:first-child{text-align:left}
-.mini tbody td{padding:7px 0;border-bottom:1px solid var(--rule-2);text-align:right;
-  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
-.mini tbody td:first-child{text-align:left;color:var(--ink-3)}
+  font-weight:600;text-align:right;padding:0 0 7px 8px;border-bottom:1px solid var(--rule)}
+.mini thead th:first-child{text-align:left;padding-left:0}
+.mini thead th.idcol{text-align:left}
+.mini tbody td{padding:7px 0 7px 8px;border-bottom:1px solid var(--rule-2);text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;
+  vertical-align:middle}
+.mini tbody td:first-child{text-align:left;color:var(--ink-3);padding-left:0}
+.mini tbody td.idcol{text-align:left;font-family:"IBM Plex Sans",sans-serif}
 .mini tbody tr:last-child td{border-bottom:0}
 .mini a{color:var(--accent);text-decoration:none;font-weight:500}
-.mini a:hover{text-decoration:underline}
+.mini a:hover .tsym-t{text-decoration:underline}
 .side{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;font-weight:600;
   font-family:"IBM Plex Sans",sans-serif}
 .side.buy{background:var(--up-soft);color:var(--up)}
@@ -234,7 +255,7 @@ svg{display:block;max-width:100%}
 .pulse{
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
   background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
-  box-shadow:var(--shadow);margin:0 0 10px;overflow:hidden;
+  box-shadow:var(--shadow);margin:0 0 18px;overflow:hidden;
 }
 .pulse .cell{padding:14px 16px;border-right:1px solid var(--rule);min-width:0}
 .pulse .cell:last-child{border-right:0}
@@ -262,35 +283,6 @@ svg{display:block;max-width:100%}
 }
 .pulse .gauge .rating{font-size:11.5px;color:var(--ink-3);text-transform:capitalize;
   align-self:center;margin-bottom:2px}
-
-.newsbar{
-  display:flex;align-items:center;gap:10px;margin:0 0 18px;min-width:0;
-}
-.nb-track{
-  flex:1;min-width:0;display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;
-  -webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 0;
-}
-.nb-track::-webkit-scrollbar{display:none}
-.nb-chip{
-  flex:0 0 auto;scroll-snap-align:start;max-width:min(420px,78vw);
-  display:flex;align-items:center;gap:8px;padding:8px 14px;
-  background:var(--card);border:1px solid var(--rule);border-radius:999px;
-  color:var(--ink);text-decoration:none;font-size:13px;line-height:1.3;
-  box-shadow:var(--shadow);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.nb-chip:hover{border-color:var(--accent);color:var(--accent)}
-.nb-chip .hot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;
-  background:#eb6834;box-shadow:0 0 0 3px color-mix(in srgb, #eb6834 25%, transparent)}
-.nb-chip b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
-.nb-tag{
-  flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
-  padding:8px 12px;border-radius:999px;border:1px solid var(--accent);
-  color:var(--ink);background:var(--accent-soft);text-decoration:none;
-  font-size:12.5px;font-weight:600;white-space:nowrap;
-}
-.nb-tag:hover{background:var(--accent);color:#fff}
-
-
 
 /* Star on the chart header — yellow when followed, grey when not. */
 .cstar{background:none;border:0;cursor:pointer;font-size:21px;line-height:1;
@@ -412,10 +404,6 @@ svg{display:block;max-width:100%}
   .pulse .gauge-wrap .score{font-size:13px;bottom:0}
   .pulse .gauge .rating{display:none}
 
-  .newsbar{padding:0 10px;margin-bottom:12px;gap:6px}
-  .nb-chip{font-size:10px;padding:4px 9px;gap:5px;max-width:min(260px,68vw)}
-  .nb-chip .hot{width:5px;height:5px;box-shadow:0 0 0 2px color-mix(in srgb, #eb6834 25%, transparent)}
-  .nb-tag{font-size:10px;padding:4px 8px;gap:4px}
   h2{margin-top:4px}
 
   /* Market Summary: keep the list; drop the chart panel (ticker header,
@@ -529,10 +517,6 @@ svg{display:block;max-width:100%}
   <div class="pulse" id="pulse" aria-label="Market pulse">
     <div class="note" style="grid-column:1/-1;padding:18px"><span class="load"></span></div>
   </div>
-  <div class="newsbar" id="newsbar" aria-label="Top news">
-    <div class="nb-track" id="nb-track"></div>
-    <a class="nb-tag" href="news.html"><span aria-hidden="true">☰</span> Top News</a>
-  </div>
   <section class="panel">
     <div class="split">
       <div>
@@ -629,14 +613,18 @@ svg{display:block;max-width:100%}
     <section class="panel">
       <div class="hmhead"><div><h3>Insider Transactions</h3>
         <p>Officers and directors buying or selling their own company's stock,
-           as disclosed on Form 4. Largest transaction per company.</p></div></div>
-      <div class="scroll" id="insiders"><div class="note"><span class="load"></span></div></div>
+           as disclosed on Form 4 over the last 7 days. Trades above $0.5M only;
+           largest transaction per company. Scroll for more.</p></div></div>
+      <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
+        <div class="note"><span class="load"></span></div></div>
     </section>
     <section class="panel">
       <div class="hmhead"><div><h3>Congress Trades</h3>
-        <p>Trades disclosed by members of the House and Senate. Amounts are the
-           ranges they are required to report, not exact figures.</p></div></div>
-      <div class="scroll" id="congress"><div class="note"><span class="load"></span></div></div>
+        <p>Trades disclosed by members of the House and Senate over the last
+           7 days, above $0.5M. Amounts are the ranges they are required to
+           report, not exact figures. Scroll for more.</p></div></div>
+      <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
+        <div class="note"><span class="load"></span></div></div>
     </section>
   </div>
 
@@ -812,20 +800,6 @@ function renderPulse(p){
     </div>`,
   ];
   host.innerHTML = cells.join("");
-}
-
-function renderNewsBar(articles){
-  const track = document.getElementById("nb-track");
-  if (!articles || !articles.length) {
-    track.innerHTML = `<span class="nb-chip"><span class="hot"></span><b>No headlines yet</b></span>`;
-    return;
-  }
-  track.innerHTML = articles.slice(0, 12).map(a =>
-    `<a class="nb-chip" href="${esc(a.url)}" target="_blank" rel="noopener"
-        data-ta-news="home_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
-      <span class="hot" aria-hidden="true"></span>
-      <b>${a.symbol ? esc(a.symbol) + " · " : ""}${esc(a.title)}</b>
-    </a>`).join("");
 }
 
 /* ---- Discover carousel --------------------------------------------------- */
@@ -1107,8 +1081,10 @@ async function toggleWatch(symbol, source){
     watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
   if (!signedIn()) {
     const added = localWatch.toggle(sym);
-    if (added) askWatchPrices(sym);
-    report(added);
+    if (added) {
+      askWatchPrices(sym);
+      if (window.TA?.showSignupModal) window.TA.showSignupModal({ reason: "watchlist" });
+    }
     dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: added } }));
     return added;
   }
@@ -1396,11 +1372,15 @@ function wireWatchSearch(){
   };
 }
 
-/** A list built without an account lives in one browser. Say so once, at the
-    moment it starts being worth something, rather than gating the feature. */
+/** A list built without an account lives in one browser. Prefer the shared
+    Google signup modal; keep the old sheet only if nav.js is unavailable. */
 function promptSaveWatchlist(n){
   if (sessionStorage.getItem("wl-prompted")) return;
   sessionStorage.setItem("wl-prompted", "1");
+  if (window.TA?.showSignupModal) {
+    window.TA.showSignupModal({ reason: "watchlist" });
+    return;
+  }
   const el = document.createElement("div");
   el.className = "wl-prompt";
   el.innerHTML = `
@@ -2050,6 +2030,37 @@ const symLink = (s, name) =>
      ${name ? `<span class="tsym-n">${esc(name)}</span>` : ""}
    </a>`;
 
+/** Role over name — same stack as ticker/company. Insider titles are
+    normalised by the worker (CEO, CFO, …); congress uses Senator / Rep. */
+const peopleStack = (title, person, fallback = "Insider") => {
+  const role = (title || "").trim() || fallback;
+  const who = (person || "").trim();
+  return `<div class="ppl" title="${esc(who ? `${role} · ${who}` : role)}">
+     <span class="ppl-t">${esc(role)}</span>
+     ${who ? `<span class="ppl-n">${esc(who)}</span>` : ""}
+   </div>`;
+};
+
+const congressRole = chamber => {
+  const c = String(chamber || "").toLowerCase();
+  if (c.includes("senate")) return "Senator";
+  if (c.includes("house")) return "Representative";
+  return "Member";
+};
+
+/** Normalise FMP side strings (Purchase, Sale (Partial), …) to Buy/Sell pills. */
+const sidePill = side => {
+  const raw = String(side || "").trim();
+  const s = raw.toLowerCase();
+  let label = raw || "—", cls = "";
+  if (/^(buy|purchase|receive)/.test(s) || s.includes("purchase") || s.includes("receive")) {
+    label = "Buy"; cls = "buy";
+  } else if (/^(sell|sale)/.test(s) || s.includes("sale") || s.includes("sell") || s.includes("exchange")) {
+    label = "Sell"; cls = "sell";
+  }
+  return `<span class="side ${cls}">${esc(label)}</span>`;
+};
+
 /** Congressional disclosures are reported as a band, never an exact figure,
     so the band is what gets shown -- compacted, not rounded to a single
     number that would imply a precision the filing does not have. */
@@ -2065,31 +2076,109 @@ const range = raw => {
   return nums.length > 1 ? `${short(nums[0])}–${short(nums[1])}` : short(nums[0]);
 };
 
-function renderTrades(t){
-  const ins = document.getElementById("insiders");
-  const con = document.getElementById("congress");
+/* Paginated last-7-days feed. Each panel scrolls independently and asks for
+   the next page when the scrollbar nears the bottom. */
+const TRADES = {
+  days: 7,
+  page: 20,
+  insider:  { rows: [], total: 0, loading: false, done: false, wired: false },
+  congress: { rows: [], total: 0, loading: false, done: false, wired: false },
+};
 
-  ins.innerHTML = !t || !t.insiders || !t.insiders.length
-    ? `<div class="note">No insider filings loaded yet.</div>`
-    : `<table class="mini"><thead><tr>
-         <th>Filed</th><th>Ticker</th><th>Side</th><th>Shares</th><th>Amount</th>
-       </tr></thead><tbody>${t.insiders.map(r => `
-         <tr><td>${esc(r.filed || "")}</td>
-             <td>${symLink(r.symbol, r.name)}</td>
-             <td><span class="side ${r.side === "Buy" ? "buy" : "sell"}">${esc(r.side)}</span></td>
-             <td>${esc(shares(r.shares))}</td>
-             <td>${esc(amount(r.amount))}</td></tr>`).join("")}</tbody></table>`;
+const insiderRow = r =>
+  `<tr><td>${esc(r.filed || "")}</td>
+       <td class="idcol">${symLink(r.symbol, r.name)}</td>
+       <td class="idcol">${peopleStack(r.title, r.person)}</td>
+       <td>${sidePill(r.side)}</td>
+       <td>${esc(shares(r.shares))}</td>
+       <td>${esc(amount(r.amount))}</td></tr>`;
 
-  con.innerHTML = !t || !t.congress || !t.congress.length
-    ? `<div class="note">No congressional disclosures loaded yet.</div>`
-    : `<table class="mini"><thead><tr>
-         <th>Disclosed</th><th>Ticker</th><th>Amount</th><th>Representative</th>
-       </tr></thead><tbody>${t.congress.map(r => `
-         <tr><td>${esc(r.disclosed || "")}</td>
-             <td>${symLink(r.symbol, r.name)}</td>
-             <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td>
-             <td><span class="who" title="${esc(r.person)} · ${esc(r.chamber)}">${esc(r.person)}</span></td>
-         </tr>`).join("")}</tbody></table>`;
+const congressRow = r =>
+  `<tr><td>${esc(r.disclosed || "")}</td>
+       <td class="idcol">${symLink(r.symbol, r.name)}</td>
+       <td class="idcol">${peopleStack(congressRole(r.chamber), r.person)}</td>
+       <td>${sidePill(r.side)}</td>
+       <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td></tr>`;
+
+function renderTradePanel(kind){
+  const isIns = kind === "insider";
+  const host = document.getElementById(isIns ? "insiders" : "congress");
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (!host) return;
+
+  if (!bucket.rows.length) {
+    host.innerHTML = bucket.loading
+      ? `<div class="note"><span class="load"></span></div>`
+      : `<div class="note">${isIns
+          ? "No insider filings in the last 7 days."
+          : "No congressional disclosures in the last 7 days."}</div>`;
+    return;
+  }
+
+  const head = isIns
+    ? `<th>Filed</th><th class="idcol">Ticker</th><th class="idcol">People</th>
+       <th>Side</th><th>Shares</th><th>Amount</th>`
+    : `<th>Disclosed</th><th class="idcol">Ticker</th>
+       <th class="idcol">People</th><th>Side</th><th>Amount</th>`;
+  const body = bucket.rows.map(isIns ? insiderRow : congressRow).join("");
+  const more = bucket.loading
+    ? `<div class="trade-more"><span class="load"></span>Loading more…</div>`
+    : bucket.done ? ""
+    : `<div class="trade-more">Scroll for more · ${bucket.rows.length} of ${bucket.total}</div>`;
+  const top = host.scrollTop;
+  host.innerHTML = `<table class="mini"><thead><tr>${head}</tr></thead>
+                    <tbody>${body}</tbody></table>${more}`;
+  host.scrollTop = top;
+  wireTradeScroll(kind);
+}
+
+function wireTradeScroll(kind){
+  const isIns = kind === "insider";
+  const host = document.getElementById(isIns ? "insiders" : "congress");
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (!host || bucket.wired) return;
+  bucket.wired = true;
+  host.addEventListener("scroll", () => {
+    if (bucket.loading || bucket.done) return;
+    if (host.scrollTop + host.clientHeight < host.scrollHeight - 48) return;
+    loadTrades(kind);
+  }, { passive: true });
+}
+
+async function loadTrades(kind){
+  const isIns = kind === "insider";
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (bucket.loading || bucket.done) return;
+  bucket.loading = true;
+  if (bucket.rows.length) renderTradePanel(kind);
+  try {
+    const d = await rpc("get_trades", {
+      p_limit: TRADES.page,
+      p_offset: bucket.rows.length,
+      p_days: TRADES.days,
+      p_kind: isIns ? "insider" : "congress",
+    });
+    const key = isIns ? "insiders" : "congress";
+    const totalKey = isIns ? "insidersTotal" : "congressTotal";
+    const chunk = (d && d[key]) || [];
+    bucket.total = (d && d[totalKey]) || 0;
+    bucket.rows = bucket.rows.concat(chunk);
+    bucket.done = !chunk.length
+      || chunk.length < TRADES.page
+      || (bucket.total > 0 && bucket.rows.length >= bucket.total);
+  } catch {
+    if (!bucket.rows.length) {
+      bucket.done = true;
+    }
+  } finally {
+    bucket.loading = false;
+    renderTradePanel(kind);
+  }
+}
+
+function bootTrades(){
+  loadTrades("insider");
+  loadTrades("congress");
 }
 
 /* ---- ticker search ------------------------------------------------------- */
@@ -2157,7 +2246,8 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
      <strong>Company financials</strong> — everything on the
      <a href="company.html">company page</a> — come only from SEC filings.
      Two sources, two different questions: what the market did, and what the
-     business earned.`;
+     business earned.
+     <span class="foot-links"> · <a href="privacy.html">Privacy Policy</a></span>`;
 
   if (!HOSTED) {
     document.getElementById("cards").innerHTML =
@@ -2182,9 +2272,6 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
     catch { try { pulse = await assemblePulseFallback(); } catch {} }
     renderPulse(pulse);
   })();
-
-  rpc("get_news_feed", { p_hours: 24, p_limit: 12 }).then(renderNewsBar)
-    .catch(() => renderNewsBar(null));
 
   wireDiscover();
   loadDiscover();
@@ -2235,7 +2322,7 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
     document.getElementById("sectorperf").innerHTML = `<div class="note">Unavailable.</div>`;
   });
 
-  rpc("get_trades", { p_limit: 12 }).then(renderTrades).catch(() => renderTrades(null));
+  bootTrades();
 })();
 </script>
 <script src="nav.js"></script>

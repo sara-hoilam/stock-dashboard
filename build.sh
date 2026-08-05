@@ -5,10 +5,11 @@
 #   Build command:          bash build.sh
 #   Build output directory: public
 #
-# Three pages plus the shared navigation, no bundler:
+# Pages plus the shared navigation, no bundler:
 #   index.html    Markets Today — the landing page
 #   news.html     market news
 #   company.html  the filed-financials dashboard
+#   privacy.html  privacy policy
 #   nav.js/.css   the top bar every page injects
 #   analytics.js  Google Analytics 4 (gtag.js) and the consent banner
 #   clarity-init.js + vendor/clarity  Microsoft Clarity (@microsoft/clarity)
@@ -29,6 +30,7 @@ mkdir -p public/vendor/clarity/src
 cp landing.html   public/index.html
 cp dashboard.html public/company.html
 cp news.html      public/news.html
+cp privacy.html   public/privacy.html
 cp nav.js nav.css public/
 cp analytics.js public/
 cp clarity-init.js public/
