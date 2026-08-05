@@ -1843,7 +1843,6 @@ function drawAnalyst(){
     <section class="card panel">
       <div class="phead"><div>
         <h2>Analyst Ratings ${helpIcon("houses")}</h2>
-        <p>Most recent action from each firm.</p>
       </div></div>
       <div class="ascroll">${rows ? `<table class="atable">
         <thead><tr><th>Institution</th><th>Date</th><th>Rating</th><th>Action</th></tr></thead>
@@ -2153,7 +2152,6 @@ function render(){
         <section class="card pricechart">
           <div class="phead"><div>
             <h2>Price ${helpIcon("price")}</h2>
-            <p id="price-sub"></p>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <div class="ranges" id="price-ranges"></div>
@@ -2180,7 +2178,6 @@ function render(){
         <div class="phead">
           <div>
             <h2>How the quarter's revenue became profit ${helpIcon("sankey")}</h2>
-            <p id="sankey-sub"></p>
           </div>
           <button type="button" class="chart-fs-btn" id="sankey-fs" aria-label="Expand diagram"
             title="Full screen">
@@ -2196,7 +2193,7 @@ function render(){
       <div class="grid2">
         <section class="card panel" id="mix-panel">
           <div class="phead">
-            <div><h2>Where the revenue came from ${helpIcon("mix")}</h2><p id="mix-sub"></p></div>
+            <div><h2>Where the revenue came from ${helpIcon("mix")}</h2></div>
             <div class="seg" id="mix-cuts"></div>
           </div>
           <div class="scroll" id="mix"></div>
@@ -2205,8 +2202,6 @@ function render(){
         <section class="card panel">
           <div class="phead"><div>
             <h2>Revenue by quarter ${helpIcon("revTrend")}</h2>
-            <p>The twelve quarters ending with the one selected. Bars derived from an
-               annual report rather than filed directly are outlined.</p>
           </div></div>
           <div class="scroll" id="revtrend"></div>
         </section>
@@ -2216,7 +2211,6 @@ function render(){
         <section class="card panel">
           <div class="phead"><div>
             <h2>Margins ${helpIcon("margins")}</h2>
-            <p>Gross, operating and net profit as a share of revenue — all three on one scale.</p>
           </div></div>
           <div class="scroll" id="margins"></div>
           <div class="legend" id="margins-legend"></div>
@@ -2225,7 +2219,6 @@ function render(){
         <section class="card panel">
           <div class="phead"><div>
             <h2>Where the revenue went ${helpIcon("costStack")}</h2>
-            <p>Cost and expense structure each quarter, as a share of revenue.</p>
           </div></div>
           <div class="scroll" id="coststack"></div>
           <div class="legend" id="coststack-legend"></div>
@@ -2235,8 +2228,6 @@ function render(){
       <section class="card panel">
         <div class="phead"><div>
           <h2>Income statement ${helpIcon("statement")}</h2>
-          <p>Quarterly figures for Q${q.fq} FY${q.fy}, against the same quarter a year earlier
-             and the quarter immediately before.</p>
         </div></div>
         <div class="scroll" id="istmt"></div>
       </section>
@@ -2249,14 +2240,12 @@ function render(){
           <section class="card panel">
             <div class="phead"><div>
               <h2>Price vs sector ${helpIcon("bench")}</h2>
-              <p>Both rebased to 100, so the lines compare performance not price.</p>
             </div></div>
             <div class="lwrap" id="bench-chart"></div>
           </section>
           <section class="card panel">
             <div class="phead"><div>
               <h2>P/E vs industry ${helpIcon("pe")}</h2>
-              <p>Price over trailing diluted EPS, from the filings.</p>
             </div></div>
             <div class="lwrap" id="pe-chart"></div>
           </section>
@@ -2266,7 +2255,6 @@ function render(){
         <section class="card panel">
           <div class="phead"><div>
             <h2>Monthly returns ${helpIcon("season")}</h2>
-            <p>Every month's return, one row per year, newest first.</p>
           </div></div>
           <div class="swrap" id="season-grid"></div>
         </section>
@@ -2293,8 +2281,6 @@ function render(){
       <section class="card panel" id="builder">
         <div class="phead"><div>
           <h2>Build your own chart ${helpIcon("builder")}</h2>
-          <p>Pick what to plot. Only the lines this company actually reports are
-             offered, so a chart here can never show data that is not in the filings.</p>
         </div></div>
 
         <div class="bpad">
@@ -2638,8 +2624,8 @@ function renderSankey(){
   const hasSeg = cols.includes(0);
   const twoLevelSrc = cols.includes(-1);
   const W = twoLevelSrc ? 1560 : hasSeg ? 1300 : 1000;
-  const H = twoLevelSrc ? 580 : 520;
-  const padT = 40, padB = 22;
+  const H = twoLevelSrc ? 420 : 380;
+  const padT = 34, padB = 18;
   const leftPad  = twoLevelSrc ? 230 : hasSeg ? 250 : 84;
   const rightPad = 210;
   const nodeW = 13;
@@ -2650,7 +2636,7 @@ function renderSankey(){
   const order = {seg:0, group:0, revenue:0, profit:0, cost:1};
   // Every node carries a two-line label, so the gap has to clear it. The
   // segment column stacks the most nodes and needs the most room.
-  const gapFor = c => 32;
+  const gapFor = c => 26;
   const maxTotal = Math.max(...cols.map(c =>
     N.filter(n => n.col === c).reduce((s,n) => s + n.val, 0)));
   const maxGaps = Math.max(...cols.map(c =>
@@ -2717,17 +2703,14 @@ function renderSankey(){
 
   // Drop fixed width/height so mobile can full-bleed the viewBox; desktop
   // still sizes from CSS max-width and the intrinsic aspect ratio.
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" class="schart"
+  const lossNote = S.sankeyLoss
+    ? `<div class="note" style="text-align:left;padding:4px 0 10px">Costs exceeded revenue this quarter, so revenue alone cannot cover them. `
+      + `The ${esc(money(-S.sankeyLoss.net,1))} net loss`
+      + (S.sankeyLoss.tax < 0 ? ` and the ${esc(money(-S.sankeyLoss.tax,1))} tax benefit` : "")
+      + ` appear on the left as the rest of what funded the quarter's costs.</div>`
+    : "";
+  host.innerHTML = `${lossNote}<svg viewBox="0 0 ${W} ${H}" role="img" class="schart"
       aria-label="Flow of revenue into costs and profit for Q${q.fq} FY${q.fy}">${parts.join("")}</svg>`;
-
-  const sub = document.getElementById("sankey-sub");
-  if (sub) sub.textContent = S.sankeyLoss
-    ? `Costs exceeded revenue this quarter, so revenue alone cannot cover them. `
-    + `The ${money(-S.sankeyLoss.net,1)} net loss`
-    + (S.sankeyLoss.tax < 0 ? ` and the ${money(-S.sankeyLoss.tax,1)} tax benefit` : "")
-    + ` appear on the left as the rest of what funded the quarter's costs.`
-    : "Every dollar of revenue, followed left to right as it is split between costs (red) "
-    + "and what survives as profit (green). Widths are proportional to dollars.";
 
   host.querySelectorAll("[data-n]").forEach(el => hoverable(el, el.dataset.n,
     [["Amount", money(+el.dataset.v)], ["Share of revenue", pct(+el.dataset.v/rev*100)]]));
@@ -2739,19 +2722,16 @@ function renderSankey(){
 /* ---- Revenue mix --------------------------------------------------------- */
 function renderMix(){
   const host = document.getElementById("mix");
-  const sub  = document.getElementById("mix-sub");
   const cuts = document.getElementById("mix-cuts");
   if (!host) return;
 
   if (S.breakdowns === null){
     cuts.innerHTML = "";
-    sub.textContent = "";
     host.innerHTML = `<div class="note"><span class="load"></span> &nbsp;Reading the segment note from the filing…</div>`;
     return;
   }
   if (!S.breakdowns.length){
     cuts.innerHTML = "";
-    sub.textContent = "";
     host.innerHTML = `<div class="note">This filing's revenue note could not be reconciled to
       total revenue, so no breakdown is shown rather than an approximate one.</div>`;
     return;
@@ -2764,9 +2744,6 @@ function renderMix(){
   cuts.querySelectorAll("button").forEach(b => b.onclick = () => {
     S.cut = +b.dataset.i; renderMix(); renderSankey();
   });
-  sub.textContent = cut.basis === "derived"
-    ? "Fourth-quarter figures, derived by subtracting nine months from the annual report."
-    : "As disclosed in the quarter's own segment note.";
 
   // A donut carries the part-to-whole reading; the ranked rows beside it
   // carry the comparison, and every slice is labelled so colour is never the
@@ -3590,8 +3567,7 @@ function restorePriceRow(){
   row.innerHTML = `
     <section class="card pricechart">
       <div class="phead"><div>
-        <h2>Price</h2>
-        <p id="price-sub"></p>
+        <h2>Price ${helpIcon("price")}</h2>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <div class="ranges" id="price-ranges"></div>
@@ -3671,7 +3647,7 @@ function paintPrices(){
   if (tools) { tools.innerHTML = chartToolbar(); wireToolbar(); }
 
   wirePriceFullscreen();
-  drawPriceStats();          // sets the caption the crosshair restores
+  drawPriceStats();
   drawCandles();
 
   // Three of the panels below are drawn from these bars. Prices arrive after
@@ -4275,16 +4251,12 @@ function drawCandles(){
 }
 
 function drawPriceStats(){
-  const q = PRICE.quote, bars = PRICE.bars;
-  const last = bars[bars.length - 1];
+  const q = PRICE.quote;
   const host = document.getElementById("price-stats");
   if (!host) return;
   const price = lastPrice();
   const chg = q ? q.change : null;
   const chgPct = q ? q.change_pct : null;
-
-  document.getElementById("price-sub").textContent =
-    `Daily closes through ${longDate(last.d)} · market data, not from the filing`;
 
   // In the market-only view the heading may be the bare ticker, because the
   // company was never ingested and so has no stored name. The quote has one.
