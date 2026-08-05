@@ -16,4 +16,8 @@ window.ALPHATICKER_CONFIG = {
   // the anon key does. The client secret belongs only in Supabase's provider
   // settings and must never appear in this file.
   googleClientId: "545683469665-p6u8svkptvshr5brkdn3ot99mrjnel4c.apps.googleusercontent.com",
+
+  // Microsoft Clarity. Public project ID from clarity.microsoft.com → project
+  // → Settings → Overview. Wired through @microsoft/clarity (see clarity-init.js).
+  clarityProjectId: "",
 };

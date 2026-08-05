@@ -251,6 +251,21 @@
   };
   const announce = () => dispatchEvent(new CustomEvent("ta-auth"));
 
+  /** Tell Clarity who is signed in. Only custom-id is required; Clarity hashes
+      it before upload. Safe no-op when Clarity is not configured. */
+  function identifyClarity() {
+    const C = window.TAClarity;
+    if (!C || typeof C.identify !== "function") return;
+    const u = (session() || {}).user;
+    if (!u) return;
+    const id = u.email || u.name;
+    if (!id) return;
+    try { C.identify(id, undefined, undefined, u.name || undefined); } catch {}
+  }
+  addEventListener("ta-auth", identifyClarity);
+  // clarity-init.js is a module and may land after this script.
+  addEventListener("load", identifyClarity);
+
   function renderAuth() {
     const s = session();
     if (s && s.user) {
