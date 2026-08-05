@@ -226,7 +226,9 @@
       let settled = false;
       const done = v => { if (!settled) { settled = true; resolve(v || null); } };
       // gtag never calls back when the tag is blocked, so do not wait forever.
-      setTimeout(() => done(null), 2500);
+      // Generously, though: this is queued before gtag.js has finished
+      // loading, and nothing is waiting on the answer.
+      setTimeout(() => done(null), 10000);
       try { gtag("get", GA_ID, field, done); } catch { done(null); }
     });
   }
@@ -240,8 +242,13 @@
     const token = (session() || {}).access_token;
     if (!token) return;
 
-    const ids = await Promise.all([gaGet("client_id"), gaGet("session_id")]);
-    if (!ids[0]) return;
+    // One at a time, not Promise.all. Two `get` calls in the same tick and the
+    // tag answers only the second, every time, on the first pair after a page
+    // load -- so asking for both at once is how the client id ends up never
+    // being stored at all.
+    const clientId = await gaGet("client_id");
+    if (!clientId) return;
+    const sessionId = await gaGet("session_id");
 
     try {
       const r = await fetch(`${CFG.supabaseUrl}/rest/v1/rpc/set_ga_ids`, {
@@ -251,7 +258,7 @@
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ p_client_id: ids[0], p_session_id: ids[1] }),
+        body: JSON.stringify({ p_client_id: clientId, p_session_id: sessionId }),
       });
       if (r.ok) { try { sessionStorage.setItem(IDS_KEY, userId); } catch {} }
     } catch {}

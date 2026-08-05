@@ -89,11 +89,11 @@ begin
     v_sid := null;
   end if;
 
-  insert into public.profile (id, ga_client_id, ga_session_id)
+  insert into public.profile as p (id, ga_client_id, ga_session_id)
   values (v_uid, v_cid, v_sid)
   on conflict (id) do update
-    set ga_client_id  = coalesce(public.profile.ga_client_id, excluded.ga_client_id),
-        ga_session_id = coalesce(excluded.ga_session_id, public.profile.ga_session_id),
+    set ga_client_id  = coalesce(p.ga_client_id, excluded.ga_client_id),
+        ga_session_id = coalesce(excluded.ga_session_id, p.ga_session_id),
         updated_at    = now();
 
   return jsonb_build_object('ok', true);
