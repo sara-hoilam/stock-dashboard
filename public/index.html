@@ -613,15 +613,16 @@ svg{display:block;max-width:100%}
     <section class="panel">
       <div class="hmhead"><div><h3>Insider Transactions</h3>
         <p>Officers and directors buying or selling their own company's stock,
-           as disclosed on Form 4 over the last 7 days. Trades above $0.5M only;
-           largest transaction per company. Scroll for more.</p></div></div>
+           as disclosed on Form 4 over the last 7 days. Shown when the trade is
+           above $1M or at least 1% of shares outstanding; largest transaction
+           per company. Scroll for more.</p></div></div>
       <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
         <div class="note"><span class="load"></span></div></div>
     </section>
     <section class="panel">
       <div class="hmhead"><div><h3>Congress Trades</h3>
         <p>Trades disclosed by members of the House and Senate over the last
-           7 days, above $0.5M. Amounts are the ranges they are required to
+           14 days, above $0.5M. Amounts are the ranges they are required to
            report, not exact figures. Scroll for more.</p></div></div>
       <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
         <div class="note"><span class="load"></span></div></div>
@@ -2076,13 +2077,12 @@ const range = raw => {
   return nums.length > 1 ? `${short(nums[0])}–${short(nums[1])}` : short(nums[0]);
 };
 
-/* Paginated last-7-days feed. Each panel scrolls independently and asks for
-   the next page when the scrollbar nears the bottom. */
+/* Paginated trade feeds. Insiders use 7 days; congress uses 14. Each panel
+   scrolls independently and asks for the next page near the bottom. */
 const TRADES = {
-  days: 7,
   page: 20,
-  insider:  { rows: [], total: 0, loading: false, done: false, wired: false },
-  congress: { rows: [], total: 0, loading: false, done: false, wired: false },
+  insider:  { days: 7,  rows: [], total: 0, loading: false, done: false, wired: false },
+  congress: { days: 14, rows: [], total: 0, loading: false, done: false, wired: false },
 };
 
 const insiderRow = r =>
@@ -2111,7 +2111,7 @@ function renderTradePanel(kind){
       ? `<div class="note"><span class="load"></span></div>`
       : `<div class="note">${isIns
           ? "No insider filings in the last 7 days."
-          : "No congressional disclosures in the last 7 days."}</div>`;
+          : "No congressional disclosures in the last 14 days."}</div>`;
     return;
   }
 
@@ -2155,7 +2155,7 @@ async function loadTrades(kind){
     const d = await rpc("get_trades", {
       p_limit: TRADES.page,
       p_offset: bucket.rows.length,
-      p_days: TRADES.days,
+      p_days: bucket.days,
       p_kind: isIns ? "insider" : "congress",
     });
     const key = isIns ? "insiders" : "congress";

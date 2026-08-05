@@ -432,9 +432,10 @@ def _as_day(value) -> dt.date | None:
         return None
 
 
-# Markets Today only surfaces material trades. Form 4 amounts are signed
-# dollars; congressional disclosures are a reported range (text).
-MIN_TRADE_AMOUNT = 500_000  # $0.5M
+# Markets Today only surfaces material trades.
+MIN_INSIDER_AMOUNT = 1_000_000       # $1M absolute Form 4 value
+MIN_INSIDER_SHARES_PCT = 0.01        # or ≥1% of shares outstanding
+MIN_CONGRESS_AMOUNT = 500_000        # $0.5M high end of disclosure range
 
 
 def _congress_amount_high(raw) -> float:
@@ -449,6 +450,28 @@ def _congress_amount_high(raw) -> float:
     return max(vals) if vals else 0.0
 
 
+def _shares_outstanding_map(symbols: list[str], cap: int = 100) -> dict[str, float]:
+    """Approx shares outstanding from FMP quote marketCap / price.
+
+    Capped so a noisy Form 4 dump cannot turn into hundreds of quote calls.
+    """
+    out: dict[str, float] = {}
+    for sym in symbols[:max(0, cap)]:
+        if not sym or sym in out:
+            continue
+        try:
+            q = quote(sym)
+        except MarketError:
+            continue
+        if not q:
+            continue
+        px = q.get("price")
+        cap_v = q.get("market_cap")
+        if px and cap_v and float(px) > 0:
+            out[sym] = float(cap_v) / float(px)
+    return out
+
+
 def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
     """Form 4 filings from the last `days`, one line per company.
 
@@ -457,10 +480,12 @@ def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
     panel fills with one ticker repeated, so only the largest transaction per
     company (within the window) is kept. Pages are walked until filings fall
     outside the window so the Markets Today list can scroll through a week.
-    Only trades above $0.5M (absolute) are kept.
+
+    A row is kept when abs(dollar amount) > $1M, or when shares transacted are
+    at least 1% of estimated shares outstanding (market cap / price).
     """
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
-    out: list[dict] = []
+    raw_rows: list[dict] = []
     page_size = 100
     for page in range(12):
         rows = _get("insider-trading/latest", page=page, limit=page_size) or []
@@ -474,29 +499,53 @@ def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
             filed = _as_day(r.get("filingDate"))
             if filed is not None and filed < cutoff:
                 continue
-            shares = r.get("securitiesTransacted") or 0
-            price = r.get("price") or 0
+            shares = float(r.get("securitiesTransacted") or 0)
+            price = float(r.get("price") or 0)
             code = (r.get("transactionType") or r.get("acquisitionOrDisposition") or "")
             buy = str(code).upper().startswith(("P", "A"))
             amount = (shares * price) * (1 if buy else -1)
-            if abs(amount or 0) <= MIN_TRADE_AMOUNT:
+            sym = r.get("symbol")
+            if not sym:
                 continue
-            out.append({
+            raw_rows.append({
                 "filed": (r.get("filingDate") or "")[:10],
-                "symbol": r.get("symbol"),
+                "symbol": sym,
                 "side": "Buy" if buy else "Sell",
                 "shares": shares,
                 "amount": amount,
                 "person": _insider_person_name(r.get("reportingName")),
                 "title": _insider_title(r.get("typeOfOwner")),
+                "shares_out": None,
             })
         if len(rows) < page_size:
             break
 
+    # Quote only names that need the 1%-of-float test (amount alone is not enough).
+    need_out: dict[str, float] = {}
+    for r in raw_rows:
+        if abs(r["amount"] or 0) > MIN_INSIDER_AMOUNT:
+            continue
+        sh = float(r["shares"] or 0)
+        if sh <= 0:
+            continue
+        sym = r["symbol"]
+        need_out[sym] = max(need_out.get(sym, 0.0), sh)
+    ranked_need = sorted(need_out, key=lambda s: -need_out[s])
+    shares_out = _shares_outstanding_map(ranked_need)
+
+    out: list[dict] = []
+    for r in raw_rows:
+        so = shares_out.get(r["symbol"])
+        if so:
+            r["shares_out"] = so
+        big_dollars = abs(r["amount"] or 0) > MIN_INSIDER_AMOUNT
+        big_float = bool(
+            so and so > 0 and (float(r["shares"] or 0) / so) >= MIN_INSIDER_SHARES_PCT)
+        if big_dollars or big_float:
+            out.append(r)
+
     best: dict[str, dict] = {}
     for r in out:
-        if not r["symbol"]:
-            continue
         prev = best.get(r["symbol"])
         if prev is None or abs(r["amount"] or 0) > abs(prev["amount"] or 0):
             best[r["symbol"]] = r
@@ -519,7 +568,7 @@ def _congress_side(raw: str | None) -> str | None:
     return str(raw).strip()
 
 
-def congress_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
+def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
     """Disclosures from both chambers filed in the last `days`, newest first.
 
     Only rows whose reported amount range tops out above $0.5M are kept.
@@ -529,7 +578,7 @@ def congress_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
     page_size = 100
     for path, chamber in (("senate-latest", "Senate"), ("house-latest", "House")):
         try:
-            for page in range(8):
+            for page in range(12):
                 batch = _get(path, page=page, limit=page_size) or []
                 if not batch:
                     break
@@ -542,7 +591,7 @@ def congress_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
                     if disclosed is not None and disclosed < cutoff:
                         continue
                     amount = r.get("amount")
-                    if _congress_amount_high(amount) <= MIN_TRADE_AMOUNT:
+                    if _congress_amount_high(amount) <= MIN_CONGRESS_AMOUNT:
                         continue
                     rows.append({
                         "disclosed": (r.get("disclosureDate") or "")[:10],
