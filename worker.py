@@ -387,8 +387,9 @@ def fetch_prices(symbol: str) -> bool:
             store.upsert_company_extras(sym, monthly, prof.get("sector"),
                                         prof.get("industry"), pe_hist or None,
                                         prof or None)
-        except store.StoreError:
+        except store.StoreError as exc:
             # Older migrations: try without profile, then without PE history.
+            log(f"  extras write with profile failed ({exc}); falling back")
             try:
                 store.upsert_company_extras(sym, monthly, prof.get("sector"),
                                             prof.get("industry"), pe_hist or None)
@@ -414,6 +415,39 @@ def fetch_prices(symbol: str) -> bool:
 
     log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
     return True
+
+
+def fill_company_profile(symbol: str) -> bool:
+    """Write FMP /profile onto an existing price_daily row (no bars refetch)."""
+    if not market.configured():
+        return False
+    sym = symbol.upper()
+    try:
+        prof = market.profile(sym)
+    except market.MarketError as exc:
+        log(f"  profile {sym}: {exc}")
+        return False
+    if not prof:
+        return False
+    try:
+        store.upsert_company_extras(sym, None, prof.get("sector"),
+                                    prof.get("industry"), None, prof)
+    except store.StoreError as exc:
+        log(f"  profile write {sym}: {exc}")
+        return False
+    log(f"profile {sym}: {prof.get('name') or sym}"
+        f"{', ' + prof['ceo'] if prof.get('ceo') else ''}")
+    return True
+
+
+def drain_profiles(max_items: int = 15) -> int:
+    """Fill About-card profiles for symbols that already have prices."""
+    try:
+        pending = store.pending_profiles(max_items)
+    except store.StoreError as exc:
+        log(f"  profile queue unavailable (apply 0031_pending_profiles.sql): {exc}")
+        return 0
+    return sum(1 for sym in pending if fill_company_profile(sym))
 
 
 def fetch_analyst(symbol: str) -> bool:
@@ -686,6 +720,8 @@ def run() -> None:
                 continue
             if drain_prices():
                 continue
+            if drain_profiles():
+                continue
             if drain_intraday():
                 continue
             if drain_analyst():
@@ -765,6 +801,14 @@ def main(argv: list[str]) -> int:
     elif cmd == "earnings":
         log("earnings refreshed" if refresh_earnings()
             else "earnings unavailable (check FMP_API_KEY / plan / migration)")
+    elif cmd == "profiles":
+        if len(argv) > 1:
+            for sym in argv[1:]:
+                log(f"{sym}: {'ok' if fill_company_profile(sym.upper()) else 'failed'}")
+        else:
+            n = drain_profiles(40)
+            log(f"filled {n} company profile(s)" if n
+                else "no profiles pending (apply 0031, or none missing)")
     elif cmd == "intraday":
         if len(argv) < 2:
             print("usage: python worker.py intraday TICKER")

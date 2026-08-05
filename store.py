@@ -215,6 +215,10 @@ def upsert_company_extras(symbol: str, monthly: list[dict] | None,
     return rpc("upsert_company_extras", payload) or 0
 
 
+def pending_profiles(limit: int = 20) -> list[str]:
+    return rpc("pending_profiles", {"p_limit": limit}) or []
+
+
 def upsert_benchmark(symbol: str, closes: list[dict]) -> int:
     return rpc("upsert_benchmark", {"p_symbol": symbol, "p_closes": closes}) or 0
 
