@@ -649,16 +649,16 @@ svg{display:block;max-width:100%}
     <section class="panel">
       <div class="hmhead"><div><h3>Insider Transactions</h3>
         <p>Officers and directors buying or selling their own company's stock,
-           as disclosed on Form 4 over the last 7 days. Largest transaction per
-           company. Scroll for more.</p></div></div>
+           as disclosed on Form 4 over the last 7 days. Trades above $0.5M only;
+           largest transaction per company. Scroll for more.</p></div></div>
       <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
         <div class="note"><span class="load"></span></div></div>
     </section>
     <section class="panel">
       <div class="hmhead"><div><h3>Congress Trades</h3>
         <p>Trades disclosed by members of the House and Senate over the last
-           7 days. Amounts are the ranges they are required to report, not
-           exact figures. Scroll for more.</p></div></div>
+           7 days, above $0.5M. Amounts are the ranges they are required to
+           report, not exact figures. Scroll for more.</p></div></div>
       <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
         <div class="note"><span class="load"></span></div></div>
     </section>
@@ -2194,8 +2194,8 @@ async function loadTrades(kind){
     bucket.total = (d && d[totalKey]) || 0;
     bucket.rows = bucket.rows.concat(chunk);
     bucket.done = !chunk.length
-      || bucket.rows.length >= bucket.total
-      || chunk.length < TRADES.page;
+      || chunk.length < TRADES.page
+      || (bucket.total > 0 && bucket.rows.length >= bucket.total);
   } catch {
     if (!bucket.rows.length) {
       bucket.done = true;

@@ -6,6 +6,9 @@
 -- to a recent window, accepts an offset, and can return one kind at a time
 -- so each table paginates independently. Totals let the client know when to
 -- stop requesting.
+--
+-- Only material trades are returned: Form 4 abs(amount) > $500k, and
+-- congressional disclosures whose reported range tops out above $500k.
 
 create or replace function public.get_trades(
   p_limit integer default 20,
@@ -23,6 +26,7 @@ declare
   v_days   integer := greatest(1, least(coalesce(p_days, 7), 30));
   v_kind   text    := lower(nullif(trim(coalesce(p_kind, '')), ''));
   v_cut    date    := current_date - v_days;
+  v_min    double precision := 500000;  -- $0.5M
   v_insiders jsonb := '[]'::jsonb;
   v_congress jsonb := '[]'::jsonb;
   v_ins_total integer := 0;
@@ -31,7 +35,8 @@ begin
   if v_kind is null or v_kind = 'insider' or v_kind = 'insiders' then
     select count(*)::integer into v_ins_total
     from ledger.insider_trade i
-    where i.filed >= v_cut;
+    where i.filed >= v_cut
+      and abs(coalesce(i.amount, 0)) > v_min;
 
     select coalesce(jsonb_agg(jsonb_build_object(
              'filed', x.filed, 'symbol', x.symbol,
@@ -46,6 +51,7 @@ begin
       left join ledger.ticker  t on t.ticker = i.symbol
       left join ledger.company c on c.ticker = i.symbol
       where i.filed >= v_cut
+        and abs(coalesce(i.amount, 0)) > v_min
       order by i.filed desc nulls last, i.amount desc nulls last
       limit v_limit offset v_offset
     ) x;
@@ -54,7 +60,11 @@ begin
   if v_kind is null or v_kind = 'congress' then
     select count(*)::integer into v_con_total
     from ledger.congress_trade g
-    where g.disclosed >= v_cut;
+    where g.disclosed >= v_cut
+      and coalesce((
+            select max(replace(m[1], ',', '')::double precision)
+            from regexp_matches(coalesce(g.amount, ''), '[\d,]+', 'g') as m
+          ), 0) > v_min;
 
     select coalesce(jsonb_agg(jsonb_build_object(
              'disclosed', x.disclosed, 'traded', x.traded, 'symbol', x.symbol,
@@ -69,6 +79,10 @@ begin
       left join ledger.ticker  t on t.ticker = g.symbol
       left join ledger.company c on c.ticker = g.symbol
       where g.disclosed >= v_cut
+        and coalesce((
+              select max(replace(m[1], ',', '')::double precision)
+              from regexp_matches(coalesce(g.amount, ''), '[\d,]+', 'g') as m
+            ), 0) > v_min
       order by g.disclosed desc nulls last
       limit v_limit offset v_offset
     ) x;
@@ -81,7 +95,8 @@ begin
     'congressTotal', v_con_total,
     'days', v_days,
     'limit', v_limit,
-    'offset', v_offset);
+    'offset', v_offset,
+    'minAmount', v_min);
 end;
 $$;
 

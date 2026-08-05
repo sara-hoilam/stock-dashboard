@@ -432,6 +432,23 @@ def _as_day(value) -> dt.date | None:
         return None
 
 
+# Markets Today only surfaces material trades. Form 4 amounts are signed
+# dollars; congressional disclosures are a reported range (text).
+MIN_TRADE_AMOUNT = 500_000  # $0.5M
+
+
+def _congress_amount_high(raw) -> float:
+    """Largest dollar figure mentioned in a disclosure amount band."""
+    nums = re.findall(r"[\d,]+", str(raw or ""))
+    vals: list[float] = []
+    for n in nums:
+        try:
+            vals.append(float(n.replace(",", "")))
+        except ValueError:
+            continue
+    return max(vals) if vals else 0.0
+
+
 def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
     """Form 4 filings from the last `days`, one line per company.
 
@@ -440,6 +457,7 @@ def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
     panel fills with one ticker repeated, so only the largest transaction per
     company (within the window) is kept. Pages are walked until filings fall
     outside the window so the Markets Today list can scroll through a week.
+    Only trades above $0.5M (absolute) are kept.
     """
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     out: list[dict] = []
@@ -460,12 +478,15 @@ def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
             price = r.get("price") or 0
             code = (r.get("transactionType") or r.get("acquisitionOrDisposition") or "")
             buy = str(code).upper().startswith(("P", "A"))
+            amount = (shares * price) * (1 if buy else -1)
+            if abs(amount or 0) <= MIN_TRADE_AMOUNT:
+                continue
             out.append({
                 "filed": (r.get("filingDate") or "")[:10],
                 "symbol": r.get("symbol"),
                 "side": "Buy" if buy else "Sell",
                 "shares": shares,
-                "amount": (shares * price) * (1 if buy else -1),
+                "amount": amount,
                 "person": _insider_person_name(r.get("reportingName")),
                 "title": _insider_title(r.get("typeOfOwner")),
             })
@@ -499,7 +520,10 @@ def _congress_side(raw: str | None) -> str | None:
 
 
 def congress_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
-    """Disclosures from both chambers filed in the last `days`, newest first."""
+    """Disclosures from both chambers filed in the last `days`, newest first.
+
+    Only rows whose reported amount range tops out above $0.5M are kept.
+    """
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     rows: list[dict] = []
     page_size = 100
@@ -517,6 +541,9 @@ def congress_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
                     disclosed = _as_day(r.get("disclosureDate"))
                     if disclosed is not None and disclosed < cutoff:
                         continue
+                    amount = r.get("amount")
+                    if _congress_amount_high(amount) <= MIN_TRADE_AMOUNT:
+                        continue
                     rows.append({
                         "disclosed": (r.get("disclosureDate") or "")[:10],
                         "traded": (r.get("transactionDate") or "")[:10],
@@ -525,7 +552,7 @@ def congress_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
                             x for x in (r.get("firstName"), r.get("lastName")) if x),
                         "chamber": chamber,
                         "side": _congress_side(r.get("type")),
-                        "amount": r.get("amount"),
+                        "amount": amount,
                     })
                 if len(batch) < page_size:
                     break
