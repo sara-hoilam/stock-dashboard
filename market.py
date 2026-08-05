@@ -461,6 +461,19 @@ def insider_trades(limit: int = 40) -> list[dict]:
                   key=lambda r: (r["filed"], abs(r["amount"])), reverse=True)[:limit]
 
 
+def _congress_side(raw: str | None) -> str | None:
+    """Map FMP disclosure types onto the same Buy/Sell labels as Form 4s."""
+    if not raw:
+        return None
+    s = str(raw).strip().lower()
+    if s.startswith(("buy", "purchase", "receive")) or "purchase" in s or "receive" in s:
+        return "Buy"
+    if (s.startswith(("sell", "sale")) or "sale" in s or "sell" in s
+            or "exchange" in s):
+        return "Sell"
+    return str(raw).strip()
+
+
 def congress_trades(limit: int = 40) -> list[dict]:
     """Recent disclosures from both chambers, newest first."""
     rows = []
@@ -473,7 +486,7 @@ def congress_trades(limit: int = 40) -> list[dict]:
                     "symbol": r.get("symbol"),
                     "person": " ".join(x for x in (r.get("firstName"), r.get("lastName")) if x),
                     "chamber": chamber,
-                    "side": r.get("type"),
+                    "side": _congress_side(r.get("type")),
                     "amount": r.get("amount"),
                 })
         except MarketError:

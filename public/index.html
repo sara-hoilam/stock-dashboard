@@ -2042,15 +2042,35 @@ const symLink = (s, name) =>
      ${name ? `<span class="tsym-n">${esc(name)}</span>` : ""}
    </a>`;
 
-/** Role over name — same stack as ticker/company. Title is normalised by the
-    worker (CEO, CFO, Director, …); before that column exists, fall back. */
-const peopleStack = (title, person) => {
-  const role = (title || "").trim() || "Insider";
+/** Role over name — same stack as ticker/company. Insider titles are
+    normalised by the worker (CEO, CFO, …); congress uses Senator / Rep. */
+const peopleStack = (title, person, fallback = "Insider") => {
+  const role = (title || "").trim() || fallback;
   const who = (person || "").trim();
   return `<div class="ppl" title="${esc(who ? `${role} · ${who}` : role)}">
      <span class="ppl-t">${esc(role)}</span>
      ${who ? `<span class="ppl-n">${esc(who)}</span>` : ""}
    </div>`;
+};
+
+const congressRole = chamber => {
+  const c = String(chamber || "").toLowerCase();
+  if (c.includes("senate")) return "Senator";
+  if (c.includes("house")) return "Representative";
+  return "Member";
+};
+
+/** Normalise FMP side strings (Purchase, Sale (Partial), …) to Buy/Sell pills. */
+const sidePill = side => {
+  const raw = String(side || "").trim();
+  const s = raw.toLowerCase();
+  let label = raw || "—", cls = "";
+  if (/^(buy|purchase|receive)/.test(s) || s.includes("purchase") || s.includes("receive")) {
+    label = "Buy"; cls = "buy";
+  } else if (/^(sell|sale)/.test(s) || s.includes("sale") || s.includes("sell") || s.includes("exchange")) {
+    label = "Sell"; cls = "sell";
+  }
+  return `<span class="side ${cls}">${esc(label)}</span>`;
 };
 
 /** Congressional disclosures are reported as a band, never an exact figure,
@@ -2081,19 +2101,21 @@ function renderTrades(t){
          <tr><td>${esc(r.filed || "")}</td>
              <td class="idcol">${symLink(r.symbol, r.name)}</td>
              <td class="idcol">${peopleStack(r.title, r.person)}</td>
-             <td><span class="side ${r.side === "Buy" ? "buy" : "sell"}">${esc(r.side)}</span></td>
+             <td>${sidePill(r.side)}</td>
              <td>${esc(shares(r.shares))}</td>
              <td>${esc(amount(r.amount))}</td></tr>`).join("")}</tbody></table>`;
 
   con.innerHTML = !t || !t.congress || !t.congress.length
     ? `<div class="note">No congressional disclosures loaded yet.</div>`
     : `<table class="mini"><thead><tr>
-         <th>Disclosed</th><th class="idcol">Ticker</th><th>Amount</th><th>Representative</th>
+         <th>Disclosed</th><th class="idcol">Ticker</th>
+         <th class="idcol">People</th><th>Side</th><th>Amount</th>
        </tr></thead><tbody>${t.congress.map(r => `
          <tr><td>${esc(r.disclosed || "")}</td>
              <td class="idcol">${symLink(r.symbol, r.name)}</td>
+             <td class="idcol">${peopleStack(congressRole(r.chamber), r.person)}</td>
+             <td>${sidePill(r.side)}</td>
              <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td>
-             <td><span class="who" title="${esc(r.person)} · ${esc(r.chamber)}">${esc(r.person)}</span></td>
          </tr>`).join("")}</tbody></table>`;
 }
 
