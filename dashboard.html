@@ -1067,7 +1067,7 @@ async function waitForBackfill(ticker){
    them describe the market's view of the company rather than the company's
    own account of itself, so they are grouped away from the filed statements.
 =========================================================================== */
-const EXTRA = { symbol: null, data: null };
+const EXTRA = { symbol: null, data: null, _askingProfile: false };
 
 /** Relative time, because "2 hours ago" is what a reader wants from a feed.
     The news page has its own copy; this page had none, and the missing
@@ -1154,6 +1154,31 @@ async function loadExtras(){
   // Profile arrives with extras; redraw the metrics card so the flip side fills.
   if ((PRICE.bars || []).length && document.getElementById("price-stats")) drawPriceStats();
   wireHelp();
+  // Existing tickers often have fresh bars, so fetch_prices never re-ran after
+  // the profile column shipped. Ask for a refresh and poll until About fills.
+  if (!EXTRA.data.profile && !EXTRA._askingProfile) ensureCompanyProfile(sym);
+}
+
+/** Queue a price/extras refresh and poll until the About flip face has data. */
+async function ensureCompanyProfile(sym){
+  EXTRA._askingProfile = true;
+  try { await API.requestPrices(sym); } catch {}
+  let tries = 0;
+  const tick = async () => {
+    if (!S.company || S.company.ticker !== sym) { EXTRA._askingProfile = false; return; }
+    if (tries++ > 40) { EXTRA._askingProfile = false; return; }  // ~2 minutes
+    try {
+      const d = await API.extras(sym);
+      if (d && d.profile) {
+        EXTRA.data = d;
+        EXTRA._askingProfile = false;
+        if (document.getElementById("price-stats")) drawPriceStats();
+        return;
+      }
+    } catch {}
+    setTimeout(tick, 3000);
+  };
+  setTimeout(tick, 2500);
 }
 
 /* ---- shared line-chart plumbing ------------------------------------------ */
@@ -4368,7 +4393,9 @@ function profileFace(){
   if (!p) {
     return `<div class="pface pface-back">
       <div class="pabout-h">About</div>
-      <div class="note" style="padding:18px 0">Company details will appear after the next price refresh for this ticker.</div>
+      <div class="note" style="padding:18px 0">${EXTRA._askingProfile
+        ? `<span class="load"></span> &nbsp;Fetching company details…`
+        : `Company details will appear after the next price refresh for this ticker.`}</div>
       <p class="pflip-hint">Flip back to metrics</p>
     </div>`;
   }
