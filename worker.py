@@ -549,15 +549,24 @@ def refresh_earnings() -> bool:
     if not market.configured():
         return False
     start = dt.date.today() - dt.timedelta(days=7)
-    end = dt.date.today() + dt.timedelta(days=60)
+    # FMP allows ~90 days; keep enough runway for "next earning" on mega-caps
+    # that just reported (e.g. AAPL → late October).
+    end = dt.date.today() + dt.timedelta(days=90)
     try:
         rows = market.earnings_calendar(start, end)
     except market.MarketError as exc:
         log(f"  earnings: {exc}")
         return False
     if not rows:
+        log(f"earnings: FMP returned no rows for "
+            f"{start.isoformat()} → {end.isoformat()}")
         return False
-    n = store.replace_earnings(rows)
+    try:
+        n = store.replace_earnings(rows)
+    except store.StoreError as exc:
+        # Missing migration or RPC must not take down the whole worker loop.
+        log(f"  earnings write failed: {exc}")
+        return False
     log(f"earnings: {len(rows)} events ({n} written), "
         f"{start.isoformat()} → {end.isoformat()}")
     return True
@@ -646,6 +655,12 @@ def run() -> None:
                     refresh_news()
                 except market.MarketError as exc:
                     log(f"news refresh failed (continuing): {exc}")
+                # Keep the Earnings page warm with the market cycle (one FMP
+                # call) so a deploy does not wait an hour for the first fill.
+                try:
+                    refresh_earnings()
+                except market.MarketError as exc:
+                    log(f"earnings refresh failed (continuing): {exc}")
                 last_market = now
 
             if now - last_sections > sections_every:
@@ -657,10 +672,6 @@ def run() -> None:
                     refresh_sections()
                 except market.MarketError as exc:
                     log(f"sections refresh failed (continuing): {exc}")
-                try:
-                    refresh_earnings()
-                except market.MarketError as exc:
-                    log(f"earnings refresh failed (continuing): {exc}")
                 last_sections = now
 
             # Visitors first: a queued company should appear within a minute.
@@ -744,6 +755,9 @@ def main(argv: list[str]) -> int:
     elif cmd == "sections":
         log("sections refreshed" if refresh_sections()
             else "FMP_API_KEY not set; nothing to do")
+    elif cmd == "earnings":
+        log("earnings refreshed" if refresh_earnings()
+            else "earnings unavailable (check FMP_API_KEY / plan / migration)")
     elif cmd == "intraday":
         if len(argv) < 2:
             print("usage: python worker.py intraday TICKER")
