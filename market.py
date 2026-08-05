@@ -631,7 +631,7 @@ def earnings_calendar(start: dt.date | None = None,
     time without storing the whole universe forever.
     """
     start = start or (dt.date.today() - dt.timedelta(days=7))
-    end = end or (dt.date.today() + dt.timedelta(days=60))
+    end = end or (dt.date.today() + dt.timedelta(days=90))
     if end < start:
         start, end = end, start
 

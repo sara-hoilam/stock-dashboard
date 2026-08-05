@@ -549,7 +549,9 @@ def refresh_earnings() -> bool:
     if not market.configured():
         return False
     start = dt.date.today() - dt.timedelta(days=7)
-    end = dt.date.today() + dt.timedelta(days=60)
+    # FMP allows ~90 days; keep enough runway for "next earning" on mega-caps
+    # that just reported (e.g. AAPL → late October).
+    end = dt.date.today() + dt.timedelta(days=90)
     try:
         rows = market.earnings_calendar(start, end)
     except market.MarketError as exc:
