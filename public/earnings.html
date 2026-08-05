@@ -369,7 +369,7 @@ function highlights(r){
   else if (revE) bullets.push(`Revenue estimate ${revE}`);
   else if (revA) bullets.push(`Reported revenue ${revA}`);
   bullets.push(`Reports ${reportTime(r.time).toLowerCase()}`);
-  if (r.fiscalDate) bullets.push(`Fiscal period ending ${esc(r.fiscalDate)}`);
+  if (r.fiscalDate) bullets.push(`Fiscal period ending ${r.fiscalDate}`);
   if (r.headline) bullets.push(r.headline);
   return bullets.slice(0, 4);
 }
@@ -560,6 +560,5 @@ wireSearch();
   try { GA.pageView(); } catch {}
 })();
 </script>
-<script src="nav.js"></script>
 </body>
 </html>
