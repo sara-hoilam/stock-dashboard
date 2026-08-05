@@ -20,4 +20,10 @@ window.ALPHATICKER_CONFIG = {
   // Microsoft Clarity. Public project ID from clarity.microsoft.com → project
   // → Settings → Overview. Wired through @microsoft/clarity (see clarity-init.js).
   clarityProjectId: "xxfel0xa0x",
+
+  // Google Analytics 4. The measurement ID (G-…) is public the same way, and
+  // is the one gtag.js needs; the tag ID (GT-…) shown beside it in the GA4
+  // admin belongs to a Google Tag container this site does not use.
+  // See analytics.js.
+  gaMeasurementId: "G-BTQ5F5F2GR",
 };

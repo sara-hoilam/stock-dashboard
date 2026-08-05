@@ -14,4 +14,15 @@ if (projectId) {
   // Expose the same API the npm package documents, so nav.js can identify
   // signed-in visitors without a second import.
   window.TAClarity = Clarity;
+
+  // The cookie banner in analytics.js speaks for both tags, so honour the same
+  // answer here rather than storing regardless. Declared straight after init
+  // because this module is deferred and the choice was made long before it
+  // ran; analytics.js reapplies it on every later change.
+  let consent = null;
+  try { consent = localStorage.getItem("alphaticker-consent"); } catch {}
+  Clarity.consentV2({
+    ad_Storage: "denied",
+    analytics_Storage: consent === "granted" ? "granted" : "denied",
+  });
 }

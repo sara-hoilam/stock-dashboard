@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — market news</title>
 <script src="config.js"></script>
+<script src="analytics.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -247,6 +248,9 @@ tbody tr:hover td{background:var(--sunk)}
 
 const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
 const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+// analytics.js loads first, in the head. The fallback is only so a missing one
+// breaks analytics rather than the page.
+const GA = window.TAnalytics || { track(){}, pageView(){} };
 
 async function rpc(fn, args){
   if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
@@ -318,7 +322,8 @@ async function setView(v){
 
 /* ---- centre column ------------------------------------------------------- */
 function storyCard(a){
-  return `<a class="story" href="${esc(a.url)}" target="_blank" rel="noopener">
+  return `<a class="story" href="${esc(a.url)}" target="_blank" rel="noopener"
+    data-ta-news="news_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
     ${a.image ? `<span class="thumb"><img src="${esc(a.image)}" alt="" loading="lazy"
         onerror="this.parentNode.style.display='none'"></span>` : ""}
     <h2>${esc(a.title)}</h2>
@@ -437,7 +442,8 @@ async function loadFeed(){
   try { rows = await rpc("get_news_feed", { p_hours: 24, p_limit: 30 }) || []; } catch {}
   if (!rows.length){ host.innerHTML = `<div class="note">No stories in the last 24 hours.</div>`; return; }
 
-  const item = a => `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener">
+  const item = a => `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener"
+      data-ta-news="news_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
       <div class="when">${esc(ago(a.published))}${a.symbol ? ` · <span class="tag">${esc(a.symbol)}</span>` : ""}</div>
       <h4>${esc(a.title)}</h4>
       <p>${esc(a.summary || "")}</p></a>`;
@@ -502,7 +508,12 @@ function startFeedDrift(){
       `<div class="note">config.js is missing, so this page has no data source.</div>`;
     return;
   }
-  document.querySelectorAll("#views button").forEach(b => b.onclick = () => setView(b.dataset.v));
+  // Wired here rather than inside setView, which also runs on boot: a view the
+  // visitor never chose is not a screener they ran.
+  document.querySelectorAll("#views button").forEach(b => b.onclick = () => {
+    GA.track("run_screener", { screener_name: b.dataset.v });
+    setView(b.dataset.v);
+  });
 
   // A ticker in the URL pre-filters, so a company page can link straight to
   // "news about this company".
@@ -516,14 +527,20 @@ function startFeedDrift(){
   // Free-text search, on the same filter as the chips.
   const tq = document.getElementById("tq");
   let typing = null;
+  // Reported where the filter is actually applied, so a search is one event
+  // per question asked rather than one per keystroke.
+  const searched = term => {
+    if (term) GA.track("search", { search_term: term });
+    setFilter(term || null);
+  };
   document.getElementById("tsearch").onsubmit = e => {
     e.preventDefault();
     clearTimeout(typing);
-    setFilter(tq.value.trim() || null);
+    searched(tq.value.trim());
   };
   tq.addEventListener("input", () => {
     clearTimeout(typing);
-    typing = setTimeout(() => setFilter(tq.value.trim() || null), 350);
+    typing = setTimeout(() => searched(tq.value.trim()), 350);
   });
 
   const more = document.getElementById("more");

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — markets today</title>
 <script src="config.js"></script>
+<script src="analytics.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -637,6 +638,9 @@ svg{display:block;max-width:100%}
 
 const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
 const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+// analytics.js loads first, in the head. The fallback is only so a missing one
+// breaks analytics rather than the page.
+const GA = window.TAnalytics || { track(){}, pageView(){} };
 
 async function rpc(fn, args){
   if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
@@ -873,7 +877,8 @@ function renderDiscover(articles){
       ? `<span class="ph"><img src="${esc(a.image)}" alt="" loading="lazy"
            onerror="this.parentNode.classList.add('blank');this.remove()"></span>`
       : `<span class="ph blank">Market</span>`;
-    return `<a class="disc-card" href="${esc(a.url)}" target="_blank" rel="noopener">
+    return `<a class="disc-card" href="${esc(a.url)}" target="_blank" rel="noopener"
+        data-ta-news="home_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
       ${img}
       <div class="body">
         <h3>${esc(a.title)}</h3>
@@ -1006,7 +1011,7 @@ function renderRows(into){
     btn.onclick = async e => {
       e.stopPropagation();
       const sym = btn.dataset.star;
-      const now = await toggleWatch(sym);
+      const now = await toggleWatch(sym, S.view === "watchlist" ? "watchlist" : "market_page");
       now ? S.watched.add(sym) : S.watched.delete(sym);
       btn.textContent = now ? "★" : "☆";
       btn.classList.toggle("on", now);
@@ -1019,11 +1024,20 @@ function renderRows(into){
 
   host.querySelectorAll("tr[data-s]").forEach(tr => {
     tr.onclick = () => selectSymbol(tr.dataset.s);
-    tr.querySelector(".tick").onclick = e => { e.stopPropagation(); openCompany(tr.dataset.s); };
+    tr.querySelector(".tick").onclick = e => {
+      e.stopPropagation();
+      openCompany(tr.dataset.s, S.view === "watchlist" ? "watchlist" : "market_page");
+    };
   });
 }
 
-const openCompany = sym => { location.href = `company.html?t=${encodeURIComponent(sym)}`; };
+// The source travels in the URL because the report opens as a fresh document:
+// nothing this page knows survives the navigation, and the referrer only says
+// which page it came from, not which part of it.
+const openCompany = (sym, src) => {
+  location.href = `company.html?t=${encodeURIComponent(sym)}` +
+                  (src ? `&src=${encodeURIComponent(src)}` : "");
+};
 
 
 /* ===========================================================================
@@ -1058,10 +1072,13 @@ function askWatchPrices(sym){
   rpc("request_prices", { p_symbol: sym }).catch(() => {});
 }
 
-/** Add or remove, wherever this visitor's list lives. */
-async function toggleWatch(symbol){
+/** Add or remove, wherever this visitor's list lives. `source` says which
+    part of the page the star was on; see analytics.js for the vocabulary. */
+async function toggleWatch(symbol, source){
   const sym = String(symbol || "").toUpperCase();
   if (!sym) return false;
+  const report = watching => GA.track(
+    watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
   if (!signedIn()) {
     const added = localWatch.toggle(sym);
     if (added) {
@@ -1075,6 +1092,7 @@ async function toggleWatch(symbol){
     const d = await rpc("toggle_watchlist", { p_symbol: sym });
     const w = !!(d && d.watching);
     if (w) askWatchPrices(sym);
+    report(w);
     dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: w } }));
     return w;
   } catch { return false; }
@@ -1147,7 +1165,7 @@ async function paintChartStar(sym){
   el.onclick = async e => {
     e.stopPropagation();
     el.disabled = true;
-    paint(await toggleWatch(sym));
+    paint(await toggleWatch(sym, S.view === "watchlist" ? "watchlist" : "market_page"));
     el.disabled = false;
     // Watching the list you are looking at: reflect the change immediately.
     if (S.view === "watchlist") renderWatchlist();
@@ -1307,7 +1325,7 @@ async function renderWatchEmpty(host){
 
   host.querySelectorAll("[data-add]").forEach(card => {
     card.onclick = async () => {
-      await toggleWatch(card.dataset.add);
+      await toggleWatch(card.dataset.add, "watchlist");
       renderWatchlist();
     };
   });
@@ -1333,9 +1351,10 @@ function wireWatchSearch(){
       ac.querySelectorAll("[data-s]").forEach(d => d.onmousedown = async e => {
         e.preventDefault();
         const sym = d.dataset.s;
+        GA.track("search", { search_term: term });
         // Add it if it is new, then show it on the chart either way -- picking
         // a company should put it in front of you, not just on a list.
-        if (!(await watchSymbols()).includes(sym)) await toggleWatch(sym);
+        if (!(await watchSymbols()).includes(sym)) await toggleWatch(sym, "watchlist");
         await renderWatchlist();
         selectSymbol(sym);
       });
@@ -1346,7 +1365,8 @@ function wireWatchSearch(){
     e.preventDefault();
     const sym = q.value.trim().toUpperCase();
     if (!sym) return;
-    if (!(await watchSymbols()).includes(sym)) await toggleWatch(sym);
+    GA.track("search", { search_term: sym });
+    if (!(await watchSymbols()).includes(sym)) await toggleWatch(sym, "watchlist");
     await renderWatchlist();
     selectSymbol(sym);
   };
@@ -2005,7 +2025,7 @@ const amount = v => {
 // name from 0019; before that migration it is absent and only the symbol
 // shows, which is what the page did before.
 const symLink = (s, name) =>
-  `<a class="tsym" href="company.html?t=${encodeURIComponent(s)}">
+  `<a class="tsym" href="company.html?t=${encodeURIComponent(s)}&src=market_page">
      <span class="tsym-t">${esc(s)}</span>
      ${name ? `<span class="tsym-n">${esc(name)}</span>` : ""}
    </a>`;
@@ -2182,13 +2202,20 @@ qEl.addEventListener("input", () => {
   }, 130);
 });
 function closeAc(){ acEl.classList.remove("open"); qEl.setAttribute("aria-expanded","false"); acIdx = -1; }
+// What was typed, not what was chosen: the term is the question, and a search
+// nobody could answer is the interesting half of the report.
+const openSearched = ticker => {
+  const term = qEl.value.trim();
+  if (term) GA.track("search", { search_term: term });
+  openCompany(ticker, "search_results");
+};
 acEl.addEventListener("mousedown", e => {
   const d = e.target.closest("[data-i]");
-  if (d) { e.preventDefault(); openCompany(acItems[+d.dataset.i].ticker); }
+  if (d) { e.preventDefault(); openSearched(acItems[+d.dataset.i].ticker); }
 });
 qEl.addEventListener("keydown", e => {
   if (!acEl.classList.contains("open")) {
-    if (e.key === "Enter" && qEl.value.trim()) openCompany(qEl.value.trim().toUpperCase());
+    if (e.key === "Enter" && qEl.value.trim()) openSearched(qEl.value.trim().toUpperCase());
     return;
   }
   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -2197,7 +2224,7 @@ qEl.addEventListener("keydown", e => {
     [...acEl.children].forEach((c,i) => c.setAttribute("aria-selected", i === acIdx));
   } else if (e.key === "Enter") {
     e.preventDefault();
-    openCompany((acIdx >= 0 ? acItems[acIdx] : acItems[0]).ticker);
+    openSearched((acIdx >= 0 ? acItems[acIdx] : acItems[0]).ticker);
   } else if (e.key === "Escape") closeAc();
 });
 qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
@@ -2206,7 +2233,12 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
 
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot(){
-  document.querySelectorAll("#views button").forEach(b => b.onclick = () => setView(b.dataset.v));
+  // Wired here rather than inside setView, which also runs on boot: a view
+  // the visitor never chose is not a screener they ran.
+  document.querySelectorAll("#views button").forEach(b => b.onclick = () => {
+    GA.track("run_screener", { screener_name: b.dataset.v });
+    setView(b.dataset.v);
+  });
 
   document.getElementById("foot").innerHTML =
     `<strong>Prices and movers</strong> come from Financial Modeling Prep and are
@@ -2280,6 +2312,7 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
     renderSectorPerf(d && d.performance);
     document.querySelectorAll("#rot-range button").forEach(b => b.onclick = () => {
       ROT.days = +b.dataset.d;
+      GA.track("change_chart_range", { range: `${ROT.days}d`, source: "market_page" });
       document.querySelectorAll("#rot-range button").forEach(x =>
         x.setAttribute("aria-pressed", x === b));
       renderRotation();

@@ -11,6 +11,7 @@
 #   company.html  the filed-financials dashboard
 #   privacy.html  privacy policy
 #   nav.js/.css   the top bar every page injects
+#   analytics.js  Google Analytics 4 (gtag.js) and the consent banner
 #   clarity-init.js + vendor/clarity  Microsoft Clarity (@microsoft/clarity)
 set -euo pipefail
 
@@ -31,6 +32,7 @@ cp dashboard.html public/company.html
 cp news.html      public/news.html
 cp privacy.html   public/privacy.html
 cp nav.js nav.css public/
+cp analytics.js public/
 cp clarity-init.js public/
 cp node_modules/@microsoft/clarity/index.js      public/vendor/clarity/
 cp node_modules/@microsoft/clarity/package.json  public/vendor/clarity/
@@ -41,23 +43,32 @@ if [ ! -f public/config.js ]; then
   exit 1
 fi
 
-# Optional: inject Clarity project ID from the environment (Cloudflare Pages
-# env var, or a local `.env` already exported). Leaves config.js unchanged
-# when unset so a committed ID keeps working.
-if [ -n "${CLARITY_PROJECT_ID:-}" ]; then
-  python3 - "$CLARITY_PROJECT_ID" <<'PY'
+# Optional: inject the public analytics IDs from the environment (Cloudflare
+# Pages env vars, or a local `.env` already exported). Leaves config.js
+# unchanged when unset, so a committed ID keeps working.
+inject() {
+  python3 - "$1" "$2" "$3" <<'PY'
 import json, pathlib, re, sys
-pid, path = sys.argv[1], pathlib.Path("public/config.js")
+field, value, label = sys.argv[1], sys.argv[2], sys.argv[3]
+path = pathlib.Path("public/config.js")
 text = path.read_text(encoding="utf-8")
 new, n = re.subn(
-    r'clarityProjectId:\s*["\'][^"\']*["\']',
-    "clarityProjectId: " + json.dumps(pid),
+    field + r':\s*["\'][^"\']*["\']',
+    field + ": " + json.dumps(value),
     text, count=1)
 if n != 1:
-    sys.exit("could not inject CLARITY_PROJECT_ID into public/config.js")
+    sys.exit(f"could not inject {label} into public/config.js")
 path.write_text(new, encoding="utf-8")
-print(f"clarity: injected project id ({len(pid)} chars)")
+print(f"{label}: injected ({len(value)} chars)")
 PY
+}
+
+if [ -n "${CLARITY_PROJECT_ID:-}" ]; then
+  inject clarityProjectId "$CLARITY_PROJECT_ID" CLARITY_PROJECT_ID
+fi
+
+if [ -n "${GA_MEASUREMENT_ID:-}" ]; then
+  inject gaMeasurementId "$GA_MEASUREMENT_ID" GA_MEASUREMENT_ID
 fi
 
 echo "built public/: $(ls -1 public | tr '\n' ' ')"

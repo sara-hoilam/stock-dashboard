@@ -98,6 +98,14 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/nav.css":
                 return self._file("nav.css", "text/css; charset=utf-8")
 
+            # Both read their IDs from config.js, which is empty locally, so
+            # they load and do nothing rather than 404 in every console.
+            if route == "/analytics.js":
+                return self._file("analytics.js", "application/javascript")
+
+            if route == "/clarity-init.js":
+                return self._file("clarity-init.js", "application/javascript")
+
             if route == "/config.js":
                 # Deployed builds ship a real config.js pointing at Supabase.
                 # Locally the page talks to this server instead, so an empty
