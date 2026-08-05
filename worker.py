@@ -544,6 +544,25 @@ def refresh_sections() -> bool:
     return True
 
 
+def refresh_earnings() -> bool:
+    """FMP earnings calendar for the window the Earnings page reads."""
+    if not market.configured():
+        return False
+    start = dt.date.today() - dt.timedelta(days=7)
+    end = dt.date.today() + dt.timedelta(days=60)
+    try:
+        rows = market.earnings_calendar(start, end)
+    except market.MarketError as exc:
+        log(f"  earnings: {exc}")
+        return False
+    if not rows:
+        return False
+    n = store.replace_earnings(rows)
+    log(f"earnings: {len(rows)} events ({n} written), "
+        f"{start.isoformat()} → {end.isoformat()}")
+    return True
+
+
 def refresh_intraday(symbol: str) -> bool:
     """Fetch one symbol's chart series on demand."""
     if not market.configured():
@@ -638,6 +657,10 @@ def run() -> None:
                     refresh_sections()
                 except market.MarketError as exc:
                     log(f"sections refresh failed (continuing): {exc}")
+                try:
+                    refresh_earnings()
+                except market.MarketError as exc:
+                    log(f"earnings refresh failed (continuing): {exc}")
                 last_sections = now
 
             # Visitors first: a queued company should appear within a minute.

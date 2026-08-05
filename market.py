@@ -613,6 +613,44 @@ def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Earnings calendar
+# ---------------------------------------------------------------------------
+
+def earnings_calendar(start: dt.date | None = None,
+                      end: dt.date | None = None) -> list[dict]:
+    """Upcoming and recent earnings announcements from FMP.
+
+    ``from``/``to`` are capped by FMP (about three months). The worker asks for
+    a short window around today so the Earnings page can scroll a week at a
+    time without storing the whole universe forever.
+    """
+    start = start or (dt.date.today() - dt.timedelta(days=7))
+    end = end or (dt.date.today() + dt.timedelta(days=60))
+    if end < start:
+        start, end = end, start
+    rows = _get("earnings-calendar",
+                **{"from": start.isoformat(), "to": end.isoformat()}) or []
+    out: list[dict] = []
+    for r in rows:
+        sym = (r.get("symbol") or "").upper().strip()
+        day = (r.get("date") or "")[:10]
+        if not sym or not day:
+            continue
+        out.append({
+            "date": day,
+            "symbol": sym,
+            "eps_actual": r.get("epsActual"),
+            "eps_estimated": r.get("epsEstimated"),
+            "revenue_actual": r.get("revenueActual"),
+            "revenue_estimated": r.get("revenueEstimated"),
+            "time": (r.get("time") or r.get("when") or "")[:16] or None,
+            "fiscal_date": (r.get("fiscalDateEnding") or "")[:10] or None,
+        })
+    out.sort(key=lambda x: (x["date"], x["symbol"]))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # News
 # ---------------------------------------------------------------------------
 
