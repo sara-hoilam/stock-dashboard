@@ -177,13 +177,17 @@ as $$
     from uniq u
   ),
   ordered as (
+    -- CASE branches must share one type; watchlist sorts by symbol as a
+    -- second key so we never mix text into the numeric CASE.
     select w.*, row_number() over (order by
              case when lower(coalesce(p_view, 'market_cap')) = 'market_cap'
                     then -coalesce(w.market_cap, 0)
                   when lower(p_view) = 'losers' then w.change_pct
-                  when lower(p_view) = 'watchlist' then w.symbol
+                  when lower(p_view) = 'watchlist' then null::double precision
                   else -w.change_pct end
-             nulls last) as ord
+             nulls last,
+             case when lower(coalesce(p_view, 'market_cap')) = 'watchlist'
+                    then w.symbol else null end) as ord
     from with_next w
     where lower(coalesce(p_view, 'market_cap')) <> 'market_cap'
        or w.market_cap is not null
