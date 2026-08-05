@@ -13,6 +13,9 @@
 
   const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
   const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+  // analytics.js loads first on every page. The fallback is only so a missing
+  // one breaks analytics rather than the search box.
+  const GA = window.TAnalytics || { track(){}, pageView(){} };
   const esc = s => String(s ?? "").replace(/[&<>"]/g,
     c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -117,7 +120,7 @@
     if (!rows || !rows.length) return;
 
     const one = rows.map(r =>
-      `<a class="tape-i" href="company.html?t=${encodeURIComponent(r.symbol)}"` +
+      `<a class="tape-i" href="company.html?t=${encodeURIComponent(r.symbol)}&src=ticker_tape"` +
       ` title="${esc(r.name || r.symbol)}">` +
       `<span class="tape-s">${esc(r.symbol)}</span>` +
       `<span class="tape-p">${price(r.price)}</span>` +
@@ -139,7 +142,13 @@
   let items = [], idx = -1, timer = null;
 
   const close = () => { ac.classList.remove("open"); q.setAttribute("aria-expanded", "false"); idx = -1; };
-  const open = t => { location.href = `company.html?t=${encodeURIComponent(t)}`; };
+  const open = t => {
+    // What was typed, not what was chosen: the term is the question, and a
+    // search nobody could answer is the interesting half of the report.
+    const term = q.value.trim();
+    if (term) GA.track("search", { search_term: term });
+    location.href = `company.html?t=${encodeURIComponent(t)}&src=search_results`;
+  };
 
   q.addEventListener("input", () => {
     clearTimeout(timer);
@@ -370,8 +379,12 @@
     let user = {};
     try {
       const body = JSON.parse(atob(tok.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-      user = { email: body.email, name: (body.user_metadata || {}).full_name,
-               picture: (body.user_metadata || {}).avatar_url };
+      const m = body.user_metadata || {};
+      // `sub` is the account's UUID. It is the only identifier that may be
+      // sent to Google Analytics, so it is kept alongside the display fields
+      // rather than re-derived from the token everywhere it is needed.
+      user = { id: body.sub, email: body.email, name: m.full_name,
+               picture: m.avatar_url, planTier: m.plan_tier };
     } catch {}
     saveSession({ access_token: tok, refresh_token: p.get("refresh_token"), user });
     history.replaceState(null, "", location.pathname + location.search);
@@ -380,6 +393,31 @@
   })();
 
   renderAuth();
+
+  // The redirect flow only ever sees the access token, and that carries the
+  // account's id but not the date it was opened. One call fills in the rest
+  // and it is then in the stored session for good, so this runs once per
+  // browser rather than once per page. Sessions saved before the id was kept
+  // at all are repaired by the same call.
+  (async function hydrateUser() {
+    const s = session();
+    if (!HOSTED || !s || !s.access_token || !s.user) return;
+    if (s.user.id && s.user.createdAt) return;
+    try {
+      const r = await fetch(`${CFG.supabaseUrl}/auth/v1/user`, {
+        headers: { apikey: CFG.supabaseAnonKey, Authorization: `Bearer ${s.access_token}` },
+      });
+      if (!r.ok) return;
+      const u = await r.json();
+      if (!u || !u.id) return;
+      const m = u.user_metadata || {};
+      const now = session();
+      if (!now) return;
+      saveSession({ ...now, user: { ...now.user, id: u.id, createdAt: u.created_at,
+                                    planTier: m.plan_tier } });
+      announce();
+    } catch {}
+  })();
 
   /* ---- Google One Tap --------------------------------------------------- */
   // The prompt in the top-right corner. Requires a client id; silently absent
@@ -397,7 +435,9 @@
     saveSession({
       access_token: d.access_token,
       refresh_token: d.refresh_token,
-      user: { email: u.email, name: m.full_name || m.name, picture: m.avatar_url || m.picture },
+      user: { id: u.id, email: u.email, name: m.full_name || m.name,
+              picture: m.avatar_url || m.picture, createdAt: u.created_at,
+              planTier: m.plan_tier },
     });
     renderAuth();
     announce();

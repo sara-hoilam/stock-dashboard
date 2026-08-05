@@ -7,6 +7,7 @@
 <!-- Deployed builds ship this pointing at Supabase. Absent locally, where the
      page falls back to server.py. -->
 <script src="config.js"></script>
+<script src="analytics.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -842,6 +843,9 @@ const S = { company:null, quarter:null, breakdowns:null, cut:0, ticker:null };
 const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
 const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 const MOBILE_MQ = matchMedia("(max-width:720px)");
+// analytics.js loads first, in the head. The fallback is only so a missing one
+// breaks analytics rather than the page.
+const GA = window.TAnalytics || { track(){}, pageView(){} };
 
 async function rpc(fn, args){
   // A stale token must never take the page down with it. If Supabase rejects
@@ -922,9 +926,13 @@ function wireSearch(input, ac){
   };
   const pick = item => {
     if (!item) return;
+    // What was typed, not what was chosen: the term is the question, and a
+    // search nobody could answer is the interesting half of the report.
+    const term = input.value.trim();
     input.value = item.ticker;
     close();
-    load(item.ticker);
+    if (term) GA.track("search", { search_term: term });
+    load(item.ticker, "search_results");
   };
 
   input.addEventListener("input", () => {
@@ -951,7 +959,11 @@ function wireSearch(input, ac){
   });
   input.addEventListener("keydown", e => {
     if (!ac.classList.contains("open")) {
-      if (e.key === "Enter" && input.value.trim()) load(input.value.trim().toUpperCase());
+      if (e.key === "Enter" && input.value.trim()) {
+        const term = input.value.trim();
+        GA.track("search", { search_term: term });
+        load(term.toUpperCase(), "search_results");
+      }
       return;
     }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -970,7 +982,7 @@ const hqEl = document.getElementById("hq");
 wireSearch(hqEl, document.getElementById("hac"));
 
 document.querySelectorAll(".hero-eg button").forEach(b =>
-  b.onclick = () => load(b.dataset.t));
+  b.onclick = () => load(b.dataset.t, "ticker_page"));
 
 /* ===========================================================================
    Load
@@ -1401,18 +1413,23 @@ const localWatch = {
 
 const signedIn = () => !!(window.TA && window.TA.signedIn());
 
-/** Add or remove, wherever this visitor's list lives. */
-async function toggleWatch(symbol){
+/** Add or remove, wherever this visitor's list lives. `source` says which
+    part of the page the star was on; see analytics.js for the vocabulary. */
+async function toggleWatch(symbol, source){
   const sym = String(symbol || "").toUpperCase();
   if (!sym) return false;
+  const report = watching => GA.track(
+    watching ? "add_to_watchlist" : "remove_from_watchlist", { ticker: sym, source });
   if (!signedIn()) {
     const added = localWatch.toggle(sym);
+    report(added);
     dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: added } }));
     return added;
   }
   try {
     const d = await rpc("toggle_watchlist", { p_symbol: sym });
     const w = !!(d && d.watching);
+    report(w);
     dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: w } }));
     return w;
   } catch { return false; }
@@ -1472,7 +1489,7 @@ async function wireStar(){
 
   el.onclick = async () => {
     el.disabled = true;
-    watching = await toggleWatch(sym);
+    watching = await toggleWatch(sym, "ticker_page");
     // A signed-out visitor changes nothing anyone else can see, so the public
     // count stays put rather than claiming a watcher the database has not got.
     paint(watching, others + (watching && signedIn() ? 1 : 0));
@@ -1534,7 +1551,8 @@ async function loadTickerNews(){
 
   try {
     const item = a => `
-      <a class="conews" href="${esc(a.url)}" target="_blank" rel="noopener">
+      <a class="conews" href="${esc(a.url)}" target="_blank" rel="noopener"
+         data-ta-news="ticker_page"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
         <div class="when">${esc(ago(a.published))}${a.symbol ? ` · <span class="tag">${esc(a.symbol)}</span>` : ""}</div>
         <h4>${esc(a.title)}</h4>
         <p>${esc((a.summary || "").slice(0, 150))}</p>
@@ -1851,13 +1869,19 @@ function marketOnly(ticker, company, why){
 function openReport(ticker){
   document.getElementById("hero").hidden = true;
   main.hidden = false;
-  const url = `${location.pathname}?t=${encodeURIComponent(ticker)}`;
-  if (location.search !== `?t=${encodeURIComponent(ticker)}`)
-    history.pushState({ t: ticker }, "", url);
+  // Compared on the ticker rather than on the whole query string, so arriving
+  // with a `src` on the URL is not mistaken for a different company and
+  // pushed over again -- which would also have counted the page twice.
+  if (new URLSearchParams(location.search).get("t") === ticker) return;
+  history.pushState({ t: ticker }, "", `${location.pathname}?t=${encodeURIComponent(ticker)}`);
+  // A company opened from within this page never reloads it, so its page view
+  // has to be sent by hand.
+  GA.pageView(location.pathname + location.search);
 }
 
-async function load(ticker){
+async function load(ticker, source){
   S.ticker = ticker;
+  GA.track("view_ticker", { ticker, source });
   openReport(ticker);
   busy(`Loading ${ticker}…`);
   fyEl.disabled = fqEl.disabled = true;
@@ -3586,9 +3610,15 @@ function paintPrices(){
 
   const ranges = document.getElementById("price-ranges");
   ranges.innerHTML = RANGES.map(([lab, n]) =>
-    `<button data-n="${n}" aria-pressed="${PRICE.range === n && !PRICE.view}">${lab}</button>`).join("");
+    `<button data-n="${n}" data-r="${lab}" aria-pressed="${PRICE.range === n && !PRICE.view}">${lab}</button>`).join("");
   ranges.querySelectorAll("button").forEach(b =>
-    b.onclick = () => { PRICE.range = +b.dataset.n; PRICE.view = null; paintPrices(); });
+    b.onclick = () => {
+      PRICE.range = +b.dataset.n;
+      PRICE.view = null;
+      GA.track("change_chart_range",
+        { ticker: PRICE.symbol || S.ticker, range: b.dataset.r, source: "ticker_page" });
+      paintPrices();
+    });
 
   // The indicator and interval menus are rebuilt with the panel, so their
   // ticked state always matches what is actually drawn.
@@ -4273,13 +4303,18 @@ function showHero(){
 }
 
 addEventListener("popstate", () => {
+  // Back and forward move the URL without reloading, so this is a page view
+  // the tag would otherwise never hear about.
+  GA.pageView(location.pathname + location.search);
   const t = new URLSearchParams(location.search).get("t");
   if (t) load(t); else showHero();
 });
 
 (function boot(){
-  const start = new URLSearchParams(location.search).get("t");
-  if (start) load(start); else showHero();
+  const q = new URLSearchParams(location.search);
+  const start = q.get("t");
+  // Whichever part of the site sent us here; see analytics.js for the list.
+  if (start) load(start, q.get("src") || undefined); else showHero();
 })();
 </script>
 <script src="nav.js"></script>
