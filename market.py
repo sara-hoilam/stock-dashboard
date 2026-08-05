@@ -841,17 +841,35 @@ SECTOR_ETF = {
 
 
 def profile(symbol: str) -> dict | None:
-    """Sector and industry, which decide the benchmark and the peer PE."""
+    """Company identity from FMP /profile.
+
+    Sector and industry decide the benchmark and peer PE. The rest (CEO, IPO,
+    employees, description, …) fills the flip side of the price metrics card.
+    """
     rows = _get("profile", symbol=symbol) or []
     if not rows:
         return None
     r = rows[0]
+    employees = r.get("fullTimeEmployees")
+    try:
+        employees = int(employees) if employees not in (None, "") else None
+    except (TypeError, ValueError):
+        employees = None
     return {
         "symbol": r.get("symbol"),
         "name": r.get("companyName"),
         "sector": r.get("sector"),
         "industry": r.get("industry"),
         "exchange": r.get("exchangeShortName") or r.get("exchange"),
+        "exchangeFull": r.get("exchangeFullName") or r.get("exchange"),
+        "ceo": r.get("ceo") or None,
+        "ipoDate": (r.get("ipoDate") or "")[:10] or None,
+        "employees": employees,
+        "country": r.get("country") or None,
+        "description": r.get("description") or None,
+        "website": r.get("website") or None,
+        "city": r.get("city") or None,
+        "state": r.get("state") or None,
     }
 
 

@@ -385,14 +385,21 @@ def fetch_prices(symbol: str) -> bool:
             log(f"  pe history {sym}: {exc}")
         try:
             store.upsert_company_extras(sym, monthly, prof.get("sector"),
-                                        prof.get("industry"), pe_hist or None)
+                                        prof.get("industry"), pe_hist or None,
+                                        prof or None)
         except store.StoreError:
-            # 0021 not applied yet — write the rest without the PE series.
-            store.upsert_company_extras(sym, monthly, prof.get("sector"),
-                                        prof.get("industry"))
+            # Older migrations: try without profile, then without PE history.
+            try:
+                store.upsert_company_extras(sym, monthly, prof.get("sector"),
+                                            prof.get("industry"), pe_hist or None)
+            except store.StoreError:
+                store.upsert_company_extras(sym, monthly, prof.get("sector"),
+                                            prof.get("industry"))
         extras = f", {len(monthly)} months, {prof.get('sector') or 'no sector'}"
         if pe_hist:
             extras += f", {len(pe_hist)} pe"
+        if prof.get("ceo") or prof.get("description"):
+            extras += ", profile"
         etf = market.SECTOR_ETF.get(prof.get("sector") or "")
         if etf:
             fetch_benchmark(etf)

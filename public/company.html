@@ -298,8 +298,25 @@ tbody tr:hover td{background:var(--sunk)}
 .ranges button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);
   color:#fff}
 
-.pricestats{padding:16px 18px 14px;display:flex;flex-direction:column}
-.pqhead{padding-bottom:13px;border-bottom:1px solid var(--rule)}
+.pricestats{padding:16px 18px 14px;display:flex;flex-direction:column;
+  perspective:1400px;position:relative}
+.pflip{display:grid;flex:1;min-height:0}
+.pflip > .pface{grid-area:1/1;display:flex;flex-direction:column;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  transition:transform .5s cubic-bezier(.2,.7,.2,1);min-width:0}
+.pflip > .pface-front{transform:rotateY(0deg)}
+.pflip > .pface-back{transform:rotateY(180deg);pointer-events:none}
+.pflip.is-flipped > .pface-front{transform:rotateY(-180deg);pointer-events:none}
+.pflip.is-flipped > .pface-back{transform:rotateY(0deg);pointer-events:auto}
+.pflip-btn{
+  position:absolute;top:10px;right:10px;z-index:3;
+  width:30px;height:30px;border-radius:8px;cursor:pointer;
+  background:var(--sunk);border:1px solid var(--rule);color:var(--ink-2);
+  display:grid;place-items:center;padding:0;
+}
+.pflip-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pflip-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pqhead{padding-bottom:13px;border-bottom:1px solid var(--rule);padding-right:28px}
 .pq{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
 .pq-price{font-family:"IBM Plex Mono",monospace;font-size:29px;font-weight:600;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -322,6 +339,25 @@ tbody tr:hover td{background:var(--sunk)}
   font-variant-numeric:tabular-nums;text-align:right}
 .pnote{margin-top:11px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--ink-3)}
+
+/* Flip-side company profile (FMP /profile). */
+.pabout-h{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 6px;padding-right:28px}
+.pabout{display:flex;flex-direction:column;margin:0}
+.pabout>div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding:8px 0;border-bottom:1px solid var(--rule-2)}
+.pabout dt{font-size:12px;color:var(--ink-3);white-space:nowrap}
+.pabout dd{font-size:12.5px;font-weight:500;color:var(--ink);text-align:right;
+  overflow-wrap:anywhere}
+.pdesc{margin-top:14px;font-size:12.5px;line-height:1.55;color:var(--ink-2)}
+.pdesc-more{display:inline-flex;align-items:center;gap:4px;margin-top:8px;
+  background:none;border:0;padding:0;font:inherit;font-size:12.5px;font-weight:600;
+  color:var(--accent);cursor:pointer}
+.pdesc-more:hover{text-decoration:underline}
+.pdesc-more svg{width:12px;height:12px;transition:transform .2s}
+.pdesc-more[aria-expanded=true] svg{transform:rotate(180deg)}
+.pflip-hint{margin-top:auto;padding-top:12px;font-size:10.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-3)}
 
 /* Where the houses think the price is going, under the price it is measured
    against. Same shape as the quote above it: a heading, a figure, the spread. */
@@ -1115,6 +1151,8 @@ async function loadExtras(){
   drawSeasonality();          // needs only the monthly closes
   loadTickerNews();
   marketPanels();             // the rest wait on the price bars
+  // Profile arrives with extras; redraw the metrics card so the flip side fills.
+  if ((PRICE.bars || []).length && document.getElementById("price-stats")) drawPriceStats();
   wireHelp();
 }
 
@@ -3263,7 +3301,8 @@ addEventListener("themechange", () => {
    this page is the company's own account of itself. They are kept visibly
    apart for that reason.
 =========================================================================== */
-const PRICE = { symbol: null, bars: [], quote: null, range: 126, view: null, poll: null };
+const PRICE = { symbol: null, bars: [], quote: null, range: 126, view: null, poll: null,
+  flipped: false, descOpen: false };
 const RANGES = [["1M", 21], ["3M", 63], ["6M", 126], ["1Y", 252], ["Max", 0]];
 
 /** Sticky tab offset under the shared nav (and tape, when present). */
@@ -4238,6 +4277,7 @@ function drawPriceStats(){
   const q = PRICE.quote, bars = PRICE.bars;
   const last = bars[bars.length - 1];
   const host = document.getElementById("price-stats");
+  if (!host) return;
   const price = lastPrice();
   const chg = q ? q.change : null;
   const chgPct = q ? q.change_pct : null;
@@ -4277,24 +4317,150 @@ function drawPriceStats(){
   // when it does.
   const call = consensusCall(ANALYST.data && ANALYST.data.consensus);
 
-  host.innerHTML = `
-    <div class="pqhead">
-      <div class="pq">
-        <div class="pq-price ${dirClass}">${n(price)}</div>
-        ${chg === null || chg === undefined ? "" : `
-          <span class="pq-pill ${dirClass}">${chg >= 0 ? "+" : ""}${n(chg)}</span>
-          <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
+  const front = `
+    <div class="pface pface-front">
+      <div class="pqhead">
+        <div class="pq">
+          <div class="pq-price ${dirClass}">${n(price)}</div>
+          ${chg === null || chg === undefined ? "" : `
+            <span class="pq-pill ${dirClass}">${chg >= 0 ? "+" : ""}${n(chg)}</span>
+            <span class="pq-pill ${dirClass}">${chgPct >= 0 ? "+" : ""}${n(chgPct)}%</span>`}
+        </div>
+        ${!call ? "" : `<div class="pq-call ${call.tone}"
+          title="${call.n} of ${call.total} analysts covering ${esc(PRICE.symbol || "")} rate it ${call.word.toLowerCase()}">
+          <b>${call.word}</b><span>${call.n}/${call.total} ratings</span>
+        </div>`}
       </div>
-      ${!call ? "" : `<div class="pq-call ${call.tone}"
-        title="${call.n} of ${call.total} analysts covering ${esc(PRICE.symbol || "")} rate it ${call.word.toLowerCase()}">
-        <b>${call.word}</b><span>${call.n}/${call.total} ratings</span>
-      </div>`}
-    </div>
-    <dl class="pstats">
+      <dl class="pstats">
+        ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
+      </dl>
+      <p class="pnote">Last trading day${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>
+      ${consensusSummary(price)}
+      <p class="pflip-hint">Flip for company profile</p>
+    </div>`;
+
+  host.innerHTML = `
+    <button type="button" class="pflip-btn" id="pflip-btn"
+      aria-label="${PRICE.flipped ? "Show price metrics" : "Show company profile"}"
+      title="${PRICE.flipped ? "Show price metrics" : "About this company"}">
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+        stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 5.5h7.5a3 3 0 0 1 0 6H6"/><path d="M5.5 3 3 5.5 5.5 8"/>
+      </svg>
+    </button>
+    <div class="pflip${PRICE.flipped ? " is-flipped" : ""}" id="pflip">
+      ${front}
+      ${profileFace()}
+    </div>`;
+
+  wirePriceFlip(host);
+}
+
+const COUNTRY_NAME = {
+  US: "United States", USA: "United States", GB: "United Kingdom", UK: "United Kingdom",
+  CA: "Canada", CN: "China", JP: "Japan", DE: "Germany", FR: "France",
+  HK: "Hong Kong", IE: "Ireland", IL: "Israel", IN: "India", KR: "South Korea",
+  NL: "Netherlands", SE: "Sweden", CH: "Switzerland", TW: "Taiwan", AU: "Australia",
+  BR: "Brazil", MX: "Mexico", SG: "Singapore",
+};
+
+function countryLabel(code){
+  if (!code) return null;
+  const c = String(code).trim();
+  return COUNTRY_NAME[c.toUpperCase()] || c;
+}
+
+function formatEmployees(n){
+  if (n == null || n === "") return null;
+  const v = Number(n);
+  if (!Number.isFinite(v)) return String(n);
+  if (v >= 1e6) return (v / 1e6).toFixed(v % 1e6 === 0 ? 0 : 1) + "M";
+  if (v >= 1e3) {
+    const k = v / 1e3;
+    return (Number.isInteger(k) ? k.toFixed(0) : k.toFixed(1)) + "K";
+  }
+  return String(Math.round(v));
+}
+
+function formatIpo(iso){
+  if (!iso) return null;
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
+  if (!y || !m) return iso;
+  const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${mon[m - 1]} ${d}, ${y}`;
+}
+
+function profileFace(){
+  const p = (EXTRA.data && EXTRA.data.profile) || null;
+  if (!p) {
+    return `<div class="pface pface-back">
+      <div class="pabout-h">About</div>
+      <div class="note" style="padding:18px 0">Company details will appear after the next price refresh for this ticker.</div>
+      <p class="pflip-hint">Flip back to metrics</p>
+    </div>`;
+  }
+  const rows = [
+    ["Symbol", p.symbol || PRICE.symbol],
+    ["IPO Date", formatIpo(p.ipoDate)],
+    ["CEO", p.ceo],
+    ["Fulltime Employees", formatEmployees(p.employees)],
+    ["Sector", p.sector],
+    ["Industry", p.industry],
+    ["Country", countryLabel(p.country)],
+    ["Exchange", p.exchangeFull || p.exchange],
+  ].filter(([, v]) => v != null && v !== "");
+
+  const desc = String(p.description || "").trim();
+  const shortLen = 220;
+  const needsMore = desc.length > shortLen;
+  const shown = !needsMore || PRICE.descOpen ? desc
+    : desc.slice(0, shortLen).replace(/\s+\S*$/, "") + "…";
+
+  return `<div class="pface pface-back">
+    <div class="pabout-h">About</div>
+    <dl class="pabout">
       ${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
     </dl>
-    <p class="pnote">Last trading day${q && q.exchange ? ` · ${esc(q.exchange)}` : ""}</p>
-    ${consensusSummary(price)}`;
+    ${!desc ? "" : `
+      <div class="pdesc" id="pdesc">${esc(shown)}</div>
+      ${!needsMore ? "" : `
+        <button type="button" class="pdesc-more" id="pdesc-more"
+          aria-expanded="${PRICE.descOpen}">
+          ${PRICE.descOpen ? "View Less" : "View More"}
+          <svg viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor"
+            stroke-width="1.6" stroke-linecap="round"><path d="M2 4.5 6 8.5 10 4.5"/></svg>
+        </button>`}`}
+    <p class="pflip-hint">Flip back to metrics</p>
+  </div>`;
+}
+
+function wirePriceFlip(host){
+  const flipper = host.querySelector("#pflip");
+  const btn = host.querySelector("#pflip-btn");
+  const setFlip = on => {
+    PRICE.flipped = !!on;
+    flipper.classList.toggle("is-flipped", PRICE.flipped);
+    btn.setAttribute("aria-label", PRICE.flipped ? "Show price metrics" : "Show company profile");
+    btn.title = PRICE.flipped ? "Show price metrics" : "About this company";
+  };
+  btn.onclick = e => {
+    e.stopPropagation();
+    setFlip(!PRICE.flipped);
+    try { GA.track("company_profile_flip", { ticker: PRICE.symbol, flipped: PRICE.flipped }); } catch {}
+  };
+  // Clicking the card body flips, but not interactive children (View More).
+  flipper.onclick = e => {
+    if (e.target.closest("button, a")) return;
+    setFlip(!PRICE.flipped);
+  };
+  const more = host.querySelector("#pdesc-more");
+  if (more) {
+    more.onclick = e => {
+      e.stopPropagation();
+      PRICE.descOpen = !PRICE.descOpen;
+      drawPriceStats();
+    };
+  }
 }
 
 /** No ticker in the URL means the visitor arrived from the nav rather than
