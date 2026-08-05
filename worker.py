@@ -529,17 +529,17 @@ def refresh_sections() -> bool:
         hist = []
 
     try:
-        # A week of filings so the Markets Today panels can scroll past the
-        # first screenful; still one largest Form 4 per company.
+        # Insiders: last week of material Form 4s. Congress: two weeks of
+        # disclosures so the panel has enough >$0.5M rows to scroll.
         ins = market.insider_trades(days=7)
-        con = market.congress_trades(days=7)
+        con = market.congress_trades(days=14)
         store.replace_trades(ins, con)
     except market.MarketError as exc:
         log(f"  trades: {exc}")
         ins = con = []
 
     log(f"sections: {len(rows)} heatmap, {len(hist)} sector series, "
-        f"{len(ins)} insider, {len(con)} congress (7d), "
+        f"{len(ins)} insider (7d), {len(con)} congress (14d), "
         f"{time.time()-started:.1f}s")
     return True
 
