@@ -616,6 +616,12 @@ def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
 # Earnings calendar
 # ---------------------------------------------------------------------------
 
+# FMP's earnings-calendar returns at most ~4000 rows and prefers the back of
+# a wide window, so a single 60-day pull silently drops the current week.
+# Pull week-sized chunks and merge.
+_EARNINGS_CHUNK_DAYS = 7
+
+
 def earnings_calendar(start: dt.date | None = None,
                       end: dt.date | None = None) -> list[dict]:
     """Upcoming and recent earnings announcements from FMP.
@@ -628,24 +634,34 @@ def earnings_calendar(start: dt.date | None = None,
     end = end or (dt.date.today() + dt.timedelta(days=60))
     if end < start:
         start, end = end, start
-    rows = _get("earnings-calendar",
-                **{"from": start.isoformat(), "to": end.isoformat()}) or []
-    out: list[dict] = []
-    for r in rows:
-        sym = (r.get("symbol") or "").upper().strip()
-        day = (r.get("date") or "")[:10]
-        if not sym or not day:
-            continue
-        out.append({
-            "date": day,
-            "symbol": sym,
-            "eps_actual": r.get("epsActual"),
-            "eps_estimated": r.get("epsEstimated"),
-            "revenue_actual": r.get("revenueActual"),
-            "revenue_estimated": r.get("revenueEstimated"),
-            "time": (r.get("time") or r.get("when") or "")[:16] or None,
-            "fiscal_date": (r.get("fiscalDateEnding") or "")[:10] or None,
-        })
+
+    by_key: dict[tuple[str, str], dict] = {}
+    cursor = start
+    while cursor <= end:
+        chunk_end = min(cursor + dt.timedelta(days=_EARNINGS_CHUNK_DAYS - 1), end)
+        rows = _get("earnings-calendar",
+                    **{"from": cursor.isoformat(), "to": chunk_end.isoformat()}) or []
+        for r in rows:
+            sym = (r.get("symbol") or "").upper().strip()
+            day = (r.get("date") or "")[:10]
+            if not sym or not day:
+                continue
+            by_key[(day, sym)] = {
+                "date": day,
+                "symbol": sym,
+                "eps_actual": r.get("epsActual"),
+                "eps_estimated": r.get("epsEstimated"),
+                "revenue_actual": r.get("revenueActual"),
+                "revenue_estimated": r.get("revenueEstimated"),
+                # Stable calendar often omits timing / fiscal-end; keep both
+                # spellings so a plan that still sends them is not dropped.
+                "time": (r.get("time") or r.get("when") or "")[:16] or None,
+                "fiscal_date": (r.get("fiscalDateEnding") or r.get("fiscalDate")
+                                or "")[:10] or None,
+            }
+        cursor = chunk_end + dt.timedelta(days=1)
+
+    out = list(by_key.values())
     out.sort(key=lambda x: (x["date"], x["symbol"]))
     return out
 
