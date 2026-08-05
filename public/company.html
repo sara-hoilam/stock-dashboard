@@ -147,6 +147,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 .phead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:16px 22px 0;flex-wrap:wrap}
 .phead h2{font-size:14px;font-weight:600;letter-spacing:-.005em}
 .phead p{font-size:12px;color:var(--ink-3);margin-top:2px;max-width:62ch}
+.phead-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
 .seg{display:flex;gap:0;border:1px solid var(--rule);border-radius:7px;overflow:hidden;flex-shrink:0}
 .seg button{background:transparent;border:0;padding:6px 11px;font-size:12px;cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule)}
 .seg button:last-child{border-right:0}
@@ -1067,7 +1068,7 @@ async function waitForBackfill(ticker){
    them describe the market's view of the company rather than the company's
    own account of itself, so they are grouped away from the filed statements.
 =========================================================================== */
-const EXTRA = { symbol: null, data: null };
+const EXTRA = { symbol: null, data: null, _askingProfile: false };
 
 /** Relative time, because "2 hours ago" is what a reader wants from a feed.
     The news page has its own copy; this page had none, and the missing
@@ -2204,13 +2205,16 @@ function render(){
           <div>
             <h2>How the quarter's revenue became profit ${helpIcon("sankey")}</h2>
           </div>
-          <button type="button" class="chart-fs-btn" id="sankey-fs" aria-label="Expand diagram"
-            title="Full screen">
-            <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
-              stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-              <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
-            </svg>
-          </button>
+          <div class="phead-tools">
+            <div class="seg" id="mix-cuts" role="group" aria-label="Revenue breakdown"></div>
+            <button type="button" class="chart-fs-btn" id="sankey-fs" aria-label="Expand diagram"
+              title="Full screen">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"
+                stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="scroll" id="sankey"></div>
       </section>
@@ -2219,7 +2223,6 @@ function render(){
         <section class="card panel" id="mix-panel">
           <div class="phead">
             <div><h2>Where the revenue came from ${helpIcon("mix")}</h2></div>
-            <div class="seg" id="mix-cuts"></div>
           </div>
           <div class="scroll" id="mix"></div>
         </section>
@@ -4276,7 +4279,7 @@ function drawCandles(){
 }
 
 function drawPriceStats(){
-  const q = PRICE.quote, bars = PRICE.bars;
+  const q = PRICE.quote;
   const host = document.getElementById("price-stats");
   if (!host) return;
   const price = lastPrice();
