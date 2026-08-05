@@ -89,10 +89,14 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .card .d{font-size:12px;margin-top:auto;padding-top:6px;color:var(--ink-3)}
 .card .d b{font-family:"IBM Plex Mono",monospace;font-weight:600}
 .up{color:var(--up)} .down{color:var(--down)}
-.tsym{display:flex;flex-direction:column;gap:1px;text-decoration:none}
-.tsym-t{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--accent)}
-.tsym-n{font-family:"IBM Plex Sans",sans-serif;font-size:10.5px;color:var(--ink-3);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px}
+.tsym,.ppl{display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  text-decoration:none;text-align:left}
+.tsym-t{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--accent);
+  font-size:12.5px;line-height:1.25}
+.tsym-n,.ppl-n{font-family:"IBM Plex Sans",sans-serif;font-size:10.5px;color:var(--ink-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;line-height:1.3}
+.ppl-t{font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:12.5px;
+  color:var(--ink);line-height:1.25}
 
 /* ---- market summary ------------------------------------------------------ */
 h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
@@ -191,14 +195,17 @@ svg{display:block;max-width:100%}
 /* Compact tables for the trade panels. */
 .mini{width:100%;border-collapse:collapse;font-size:12.5px}
 .mini thead th{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
-  font-weight:600;text-align:right;padding:0 0 7px 0;border-bottom:1px solid var(--rule)}
-.mini thead th:first-child{text-align:left}
-.mini tbody td{padding:7px 0;border-bottom:1px solid var(--rule-2);text-align:right;
-  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
-.mini tbody td:first-child{text-align:left;color:var(--ink-3)}
+  font-weight:600;text-align:right;padding:0 0 7px 8px;border-bottom:1px solid var(--rule)}
+.mini thead th:first-child{text-align:left;padding-left:0}
+.mini thead th.idcol{text-align:left}
+.mini tbody td{padding:7px 0 7px 8px;border-bottom:1px solid var(--rule-2);text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;
+  vertical-align:middle}
+.mini tbody td:first-child{text-align:left;color:var(--ink-3);padding-left:0}
+.mini tbody td.idcol{text-align:left;font-family:"IBM Plex Sans",sans-serif}
 .mini tbody tr:last-child td{border-bottom:0}
 .mini a{color:var(--accent);text-decoration:none;font-weight:500}
-.mini a:hover{text-decoration:underline}
+.mini a:hover .tsym-t{text-decoration:underline}
 .side{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;font-weight:600;
   font-family:"IBM Plex Sans",sans-serif}
 .side.buy{background:var(--up-soft);color:var(--up)}
@@ -2035,6 +2042,17 @@ const symLink = (s, name) =>
      ${name ? `<span class="tsym-n">${esc(name)}</span>` : ""}
    </a>`;
 
+/** Role over name — same stack as ticker/company. Title is normalised by the
+    worker (CEO, CFO, Director, …); before that column exists, fall back. */
+const peopleStack = (title, person) => {
+  const role = (title || "").trim() || "Insider";
+  const who = (person || "").trim();
+  return `<div class="ppl" title="${esc(who ? `${role} · ${who}` : role)}">
+     <span class="ppl-t">${esc(role)}</span>
+     ${who ? `<span class="ppl-n">${esc(who)}</span>` : ""}
+   </div>`;
+};
+
 /** Congressional disclosures are reported as a band, never an exact figure,
     so the band is what gets shown -- compacted, not rounded to a single
     number that would imply a precision the filing does not have. */
@@ -2057,10 +2075,12 @@ function renderTrades(t){
   ins.innerHTML = !t || !t.insiders || !t.insiders.length
     ? `<div class="note">No insider filings loaded yet.</div>`
     : `<table class="mini"><thead><tr>
-         <th>Filed</th><th>Ticker</th><th>Side</th><th>Shares</th><th>Amount</th>
+         <th>Filed</th><th class="idcol">Ticker</th><th class="idcol">People</th>
+         <th>Side</th><th>Shares</th><th>Amount</th>
        </tr></thead><tbody>${t.insiders.map(r => `
          <tr><td>${esc(r.filed || "")}</td>
-             <td>${symLink(r.symbol, r.name)}</td>
+             <td class="idcol">${symLink(r.symbol, r.name)}</td>
+             <td class="idcol">${peopleStack(r.title, r.person)}</td>
              <td><span class="side ${r.side === "Buy" ? "buy" : "sell"}">${esc(r.side)}</span></td>
              <td>${esc(shares(r.shares))}</td>
              <td>${esc(amount(r.amount))}</td></tr>`).join("")}</tbody></table>`;
@@ -2068,10 +2088,10 @@ function renderTrades(t){
   con.innerHTML = !t || !t.congress || !t.congress.length
     ? `<div class="note">No congressional disclosures loaded yet.</div>`
     : `<table class="mini"><thead><tr>
-         <th>Disclosed</th><th>Ticker</th><th>Amount</th><th>Representative</th>
+         <th>Disclosed</th><th class="idcol">Ticker</th><th>Amount</th><th>Representative</th>
        </tr></thead><tbody>${t.congress.map(r => `
          <tr><td>${esc(r.disclosed || "")}</td>
-             <td>${symLink(r.symbol, r.name)}</td>
+             <td class="idcol">${symLink(r.symbol, r.name)}</td>
              <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td>
              <td><span class="who" title="${esc(r.person)} · ${esc(r.chamber)}">${esc(r.person)}</span></td>
          </tr>`).join("")}</tbody></table>`;
