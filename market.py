@@ -510,6 +510,15 @@ def _trim_company(name: str) -> str:
     return name
 
 
+# Policy / geopolitics subjects the Discover rail on Markets Today also
+# surfaces. Appended to the chip catalogue so the News page can filter them.
+_POLICY_TOPICS: list[tuple[str, str]] = [
+    ("War",            "war"),
+    ("Sanctions",      "sanction"),
+    ("Geopolitics",    "geopolit"),
+]
+
+
 def _topics(companies: list[tuple[str, str]]) -> list[dict]:
     """The catalogue of chips: what each one says, and what it searches for.
 
@@ -522,8 +531,9 @@ def _topics(companies: list[tuple[str, str]]) -> list[dict]:
     `ord` is the position: for companies that is market-cap rank, which is the
     order they are shown in and the reason they are on the list at all.
     """
+    topics = list(_TOPICS) + _POLICY_TOPICS
     out = [{"word": label, "query": query, "kind": "topic", "ord": i}
-           for i, (label, query) in enumerate(_TOPICS)]
+           for i, (label, query) in enumerate(topics)]
     out += [{"word": name, "query": ticker, "kind": "company", "ord": i}
             for i, (ticker, name) in enumerate(companies)]
     return out
@@ -566,7 +576,9 @@ def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
     uniq.sort(key=lambda r: r["published"] or "", reverse=True)
 
     try:
-        companies = top_by_cap(8)
+        # Discover on Markets Today covers the twenty largest names; keep the
+        # chip catalogue aligned so those tickers are tagged in the corpus.
+        companies = top_by_cap(20)
     except MarketError:
         companies = []
     return uniq[:limit * 2], _topics(companies)
