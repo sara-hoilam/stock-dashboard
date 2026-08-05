@@ -257,11 +257,11 @@ const money = v => {
   return `$${n.toFixed(2)}`;
 };
 const reportTime = t => {
-  const s = String(t || "").toLowerCase();
+  const s = String(t || "").toLowerCase().trim();
+  if (!s || s === "tba") return null;
   if (s.includes("bmo") || s.includes("before")) return "Before open";
   if (s.includes("amc") || s.includes("after")) return "After close";
-  if (s) return s.toUpperCase();
-  return "Time TBA";
+  return s.toUpperCase();
 };
 
 const localWatch = {
@@ -368,7 +368,8 @@ function highlights(r){
   if (revA && revE) bullets.push(`Revenue ${revA} vs ${revE} estimated`);
   else if (revE) bullets.push(`Revenue estimate ${revE}`);
   else if (revA) bullets.push(`Reported revenue ${revA}`);
-  bullets.push(`Reports ${reportTime(r.time).toLowerCase()}`);
+  // Report time belongs in the card header when FMP provides it — not as a
+  // "TBA" bullet. Stable earnings-calendar currently omits timing.
   if (r.fiscalDate) bullets.push(`Fiscal period ending ${r.fiscalDate}`);
   if (r.headline) bullets.push(r.headline);
   return bullets.slice(0, 4);
@@ -381,7 +382,10 @@ function paintDay(){
     return;
   }
   host.innerHTML = S.dayRows.map(r => {
-    const when = r.fiscalDate ? `FY ending ${r.fiscalDate}` : "Earnings";
+    // FMP stable earnings-calendar does not currently return bmo/amc timing;
+    // only render the header when we actually have it (never "TBA").
+    const time = reportTime(r.time);
+    const meta = time ? `<div class="meta"><b>${esc(time)}</b></div>` : `<div class="meta"></div>`;
     return `<article class="ecard">
       <div class="top">
         <div class="who">
@@ -391,7 +395,7 @@ function paintDay(){
             <div class="tick">${esc(r.symbol)}</div>
           </div>
         </div>
-        <div class="meta"><b>${esc(when)}</b>${esc(reportTime(r.time))}</div>
+        ${meta}
       </div>
       <ul>${highlights(r).map(b => `<li>${esc(b)}</li>`).join("")}</ul>
       <a class="more" href="company.html?t=${encodeURIComponent(r.symbol)}&src=earnings_page">Company report →</a>
