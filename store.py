@@ -222,6 +222,10 @@ def pending_profiles(limit: int = 20) -> list[str]:
     return rpc("pending_profiles", {"p_limit": limit}) or []
 
 
+def pending_employee_history(limit: int = 20) -> list[str]:
+    return rpc("pending_employee_history", {"p_limit": limit}) or []
+
+
 def upsert_benchmark(symbol: str, closes: list[dict]) -> int:
     return rpc("upsert_benchmark", {"p_symbol": symbol, "p_closes": closes}) or 0
 

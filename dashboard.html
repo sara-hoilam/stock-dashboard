@@ -1069,7 +1069,7 @@ async function waitForBackfill(ticker){
    them describe the market's view of the company rather than the company's
    own account of itself, so they are grouped away from the filed statements.
 =========================================================================== */
-const EXTRA = { symbol: null, data: null, _askingProfile: false };
+const EXTRA = { symbol: null, data: null, _askingExtras: false };
 
 /** Relative time, because "2 hours ago" is what a reader wants from a feed.
     The news page has its own copy; this page had none, and the missing
@@ -1146,6 +1146,7 @@ async function loadExtras(){
   if (EXTRA.symbol !== sym) {
     EXTRA.symbol = sym;
     EXTRA.data = null;
+    EXTRA._askingExtras = false;
     try { EXTRA.data = await API.extras(sym); } catch { return; }
   }
   if (!EXTRA.data) return;
@@ -1157,26 +1158,34 @@ async function loadExtras(){
   if ((PRICE.bars || []).length && document.getElementById("price-stats")) drawPriceStats();
   if (S.company && document.getElementById("revtrend")) renderRevTrend();
   wireHelp();
-  // Existing tickers often have fresh bars, so fetch_prices never re-ran after
-  // the profile column shipped. Ask for a refresh and poll until About fills.
-  if (!EXTRA.data.profile && !EXTRA._askingProfile) ensureCompanyProfile(sym);
+  // Profile / headcount only write on a price/extras refresh. If either is
+  // still missing, ask the worker and poll until the About card / RPE line
+  // can draw.
+  const needsProfile = !EXTRA.data.profile;
+  const needsEmployees = EXTRA.data.employeeHistory == null;
+  if ((needsProfile || needsEmployees) && !EXTRA._askingExtras) ensureCompanyExtras(sym);
 }
 
-/** Queue a price/extras refresh and poll until the About flip face has data. */
-async function ensureCompanyProfile(sym){
-  EXTRA._askingProfile = true;
+/** Queue a price/extras refresh and poll until About + headcount are filled. */
+async function ensureCompanyExtras(sym){
+  EXTRA._askingExtras = true;
   try { await API.requestPrices(sym); } catch {}
   let tries = 0;
   const tick = async () => {
-    if (!S.company || S.company.ticker !== sym) { EXTRA._askingProfile = false; return; }
-    if (tries++ > 40) { EXTRA._askingProfile = false; return; }  // ~2 minutes
+    if (!S.company || S.company.ticker !== sym) { EXTRA._askingExtras = false; return; }
+    if (tries++ > 40) { EXTRA._askingExtras = false; return; }  // ~2 minutes
     try {
       const d = await API.extras(sym);
-      if (d && d.profile) {
+      if (d) {
         EXTRA.data = d;
-        EXTRA._askingProfile = false;
+        const haveProfile = !!d.profile;
+        const haveEmployees = d.employeeHistory != null; // [] means fetched
         if (document.getElementById("price-stats")) drawPriceStats();
-        return;
+        if (document.getElementById("revtrend")) renderRevTrend();
+        if (haveProfile && haveEmployees) {
+          EXTRA._askingExtras = false;
+          return;
+        }
       }
     } catch {}
     setTimeout(tick, 3000);
@@ -4469,7 +4478,7 @@ function profileFace(){
   if (!p) {
     return `<div class="pface pface-back">
       <div class="pabout-h">About</div>
-      <div class="note" style="padding:18px 0">${EXTRA._askingProfile
+      <div class="note" style="padding:18px 0">${EXTRA._askingExtras
         ? `<span class="load"></span> &nbsp;Fetching company details…`
         : `Company details will appear after the next price refresh for this ticker.`}</div>
       <p class="pflip-hint">Flip back to metrics</p>
