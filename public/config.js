@@ -19,5 +19,5 @@ window.ALPHATICKER_CONFIG = {
 
   // Microsoft Clarity. Public project ID from clarity.microsoft.com → project
   // → Settings → Overview. Wired through @microsoft/clarity (see clarity-init.js).
-  clarityProjectId: "",
+  clarityProjectId: "xxfel0xa0x",
 };
