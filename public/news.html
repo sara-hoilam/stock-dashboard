@@ -338,9 +338,25 @@ async function loadNews(reset){
   try {
     d = await rpc("get_news", { p_q: S.q, p_limit: PAGE, p_offset: S.page * PAGE });
   } catch (e) {
-    host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
-    S.loading = false;
-    return;
+    // get_news used to time out recounting every topic chip. Until that
+    // migration is applied, still show the day's stories from the feed RPC
+    // rather than leaving the centre column on an error.
+    try {
+      const feed = await rpc("get_news_feed", {
+        p_hours: S.q ? 168 : 48,
+        p_limit: PAGE,
+      }) || [];
+      const q = (S.q || "").toLowerCase();
+      const arts = !q ? feed : feed.filter(a =>
+        (a.symbol && a.symbol.toLowerCase() === q) ||
+        (a.title && a.title.toLowerCase().includes(q)) ||
+        (a.summary && a.summary.toLowerCase().includes(q)));
+      d = { articles: arts, total: arts.length, keywords: [], newest: arts[0] && arts[0].published };
+    } catch {
+      host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
+      S.loading = false;
+      return;
+    }
   }
   const arts = (d && d.articles) || [];
   S.total = (d && d.total) || 0;
