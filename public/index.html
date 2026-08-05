@@ -816,18 +816,27 @@ const localWatch = {
 
 const signedIn = () => !!(window.TA && window.TA.signedIn());
 
+/** Ask the worker for a quote and a chart the moment a name is followed, so
+    the price column does not wait on the next market-wide refresh. */
+function askWatchPrices(sym){
+  rpc("request_intraday", { p_symbol: sym }).catch(() => {});
+  rpc("request_prices", { p_symbol: sym }).catch(() => {});
+}
+
 /** Add or remove, wherever this visitor's list lives. */
 async function toggleWatch(symbol){
   const sym = String(symbol || "").toUpperCase();
   if (!sym) return false;
   if (!signedIn()) {
     const added = localWatch.toggle(sym);
+    if (added) askWatchPrices(sym);
     dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: added } }));
     return added;
   }
   try {
     const d = await rpc("toggle_watchlist", { p_symbol: sym });
     const w = !!(d && d.watching);
+    if (w) askWatchPrices(sym);
     dispatchEvent(new CustomEvent("watchchange", { detail: { symbol: sym, watching: w } }));
     return w;
   } catch { return false; }
@@ -918,22 +927,92 @@ function toast(msg){
 }
 
 /* ---- the watchlist view -------------------------------------------------- */
+/** Resolve prices for an arbitrary set of tickers — not only the top market
+    caps. Prefers get_symbol_quotes; falls back to per-symbol intraday/daily
+    when that RPC is not applied yet. */
+async function enrichWatchPrices(syms){
+  const out = {};
+  if (!syms.length) return out;
+  try {
+    const rows = await rpc("get_symbol_quotes", { p_symbols: syms }) || [];
+    if (Array.isArray(rows) && rows.length) {
+      rows.forEach(r => { if (r && r.symbol) out[r.symbol] = r; });
+      return out;
+    }
+  } catch {}
+  await Promise.all(syms.map(async sym => {
+    try {
+      const d = await rpc("get_intraday", { p_symbol: sym });
+      if (d && d.quote && d.quote.price != null) {
+        out[sym] = { symbol: sym, name: d.quote.name, price: d.quote.price,
+                     changePct: d.quote.changePct, marketCap: null };
+        return;
+      }
+      const last = d && d.points && d.points.length ? d.points[d.points.length - 1].c : null;
+      if (last != null) { out[sym] = { symbol: sym, price: last, changePct: null }; return; }
+      const p = await rpc("get_prices", { p_symbol: sym });
+      const q = p && p.quote;
+      const bars = (p && p.bars) || [];
+      const px = (q && q.price != null) ? q.price
+        : (bars.length ? bars[bars.length - 1].c : null);
+      if (px != null) {
+        out[sym] = { symbol: sym, name: q && q.name, price: px,
+                     changePct: q && (q.change_pct ?? q.changePct), marketCap: q && q.market_cap };
+      }
+    } catch {}
+  }));
+  return out;
+}
+
 async function renderWatchlist(){
   const host = document.getElementById("rows");
-  const syms = await watchSymbols();
-  // These are the watched symbols by definition, so the row stars can be told
-  // straight away rather than reading a set that predates the last add.
-  S.watched = new Set(syms);
+  // Prefer the watchlist RPC's own quote join — not the top-50 market-cap
+  // summary, which left followed names like HOOD as "—" even when a quote
+  // was already in ledger.
+  let items = [];
+  if (signedIn()) {
+    try {
+      const d = await rpc("get_watchlist");
+      items = ((d && d.items) || []).map(i => ({
+        symbol: i.symbol, name: i.name, price: i.price,
+        changePct: i.changePct, marketCap: i.marketCap,
+      }));
+    } catch {}
+  }
+  if (!items.length) {
+    const syms = await watchSymbols();
+    items = syms.map(symbol => ({ symbol, price: null, changePct: null }));
+  }
 
-  if (!syms.length) return renderWatchEmpty(host);
+  S.watched = new Set(items.map(i => i.symbol));
+  if (!items.length) return renderWatchEmpty(host);
 
-  // Prices live in ledger, which the browser cannot read directly; the market
-  // summary already has them for the names worth showing, and anything else
-  // falls back to the symbol alone.
-  let quotes = [];
-  try { quotes = await rpc("get_market_summary", { p_view: "market_cap", p_limit: 50 }) || []; } catch {}
-  const byId = Object.fromEntries(quotes.map(q => [q.symbol, q]));
-  S.rows = syms.map(sym => byId[sym] || { symbol: sym, price: null, changePct: null });
+  const missing = items.filter(i => i.price == null).map(i => i.symbol);
+  if (missing.length) {
+    const by = await enrichWatchPrices(missing);
+    items = items.map(i => {
+      if (i.price != null || !by[i.symbol]) return i;
+      const e = by[i.symbol];
+      return {
+        symbol: i.symbol,
+        name: i.name || e.name,
+        price: e.price,
+        changePct: i.changePct ?? e.changePct,
+        marketCap: i.marketCap ?? e.marketCap,
+      };
+    });
+    // Still blank: ask the worker so the next pass fills ledger.quote.
+    const still = items.filter(i => i.price == null).map(i => i.symbol);
+    still.forEach(askWatchPrices);
+    if (still.length) {
+      clearTimeout(S.wlPricePoll);
+      S.wlPricePoll = setTimeout(() => {
+        if (S.view === "watchlist") renderWatchlist();
+      }, 8000);
+    }
+  }
+
+  S.rows = items;
 
   // The search stays above the list rather than only appearing when the list
   // is empty: adding the second company should be no harder than the first.
@@ -946,7 +1025,7 @@ async function renderWatchlist(){
   // empty chart beside a full list looks like something failed.
   if (!S.rows.some(r => r.symbol === S.symbol)) selectSymbol(S.rows[0].symbol);
 
-  if (!signedIn()) promptSaveWatchlist(syms.length);
+  if (!signedIn()) promptSaveWatchlist(items.length);
 }
 
 /** One search field, used above the list and inside the empty state. */
