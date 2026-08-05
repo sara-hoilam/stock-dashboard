@@ -375,6 +375,56 @@ def sector_history(days: int = 45) -> list[dict]:
 # Insider and congressional trades
 # ---------------------------------------------------------------------------
 
+def _insider_title(type_of_owner: str | None) -> str:
+    """Collapse FMP's typeOfOwner string into a short role label.
+
+    Filings say things like ``officer: Sr. VP, Chief Acct Officer`` or plain
+    ``director``. The Markets Today panel only has room for a generic title
+    (CEO, CFO, Director, …) above the person's name.
+    """
+    raw = " ".join(str(type_of_owner or "").split())
+    if not raw:
+        return "Insider"
+    # Lowercase and split camelCase (tenPercentOwner → ten percent owner) so
+    # the same patterns work on both FMP styles.
+    spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", raw)
+    s = spaced.lower()
+    body = s.split(":", 1)[-1].strip() if ":" in s else s
+    hay = f"{s} {body}"
+
+    # VP family before President: "vice president" contains "president".
+    rules: list[tuple[str, str]] = [
+        ("CEO", r"chief\s+executive|\bceo\b"),
+        ("CFO", r"chief\s+financial|chief\s+acct|chief\s+account|\bcontroller\b|\bcfo\b"),
+        ("CTO", r"chief\s+technolog|chief\s+information|\bcto\b|\bcio\b"),
+        ("COO", r"chief\s+operating|\bcoo\b"),
+        ("CMO", r"chief\s+marketing|\bcmo\b"),
+        ("CLO", r"chief\s+legal|general\s+counsel|\bclo\b"),
+        ("CHRO", r"chief\s+human|chief\s+people|\bchro\b"),
+        ("SVP", r"senior\s+vice\s+president|sr\.?\s*vice\s+president|sr\.?\s*vp\b|\bsvp\b"),
+        ("EVP", r"executive\s+vice\s+president|exec(?:utive)?\s+vp\b|\bevp\b"),
+        ("VP", r"vice\s+president|\bv\.?p\.?\b"),
+        ("President", r"\bpresident\b"),
+        ("Director", r"\bdirector\b"),
+        ("10% Owner", r"ten\s*percent|10\s*percent|10\s*%|beneficial\s+owner"),
+        ("Officer", r"\bofficer\b"),
+    ]
+    for label, pattern in rules:
+        if re.search(pattern, hay):
+            return label
+    return "Insider"
+
+
+def _insider_person_name(name: str | None) -> str | None:
+    """Light cleanup so ALL-CAPS Form 4 names read as ordinary names."""
+    if not name:
+        return None
+    text = " ".join(str(name).split())
+    if text.isupper() and any(c.isalpha() for c in text):
+        return text.title()
+    return text
+
+
 def insider_trades(limit: int = 40) -> list[dict]:
     """The most recent Form 4 filings, one line per company.
 
@@ -396,7 +446,8 @@ def insider_trades(limit: int = 40) -> list[dict]:
             "side": "Buy" if buy else "Sell",
             "shares": shares,
             "amount": (shares * price) * (1 if buy else -1),
-            "person": r.get("reportingName"),
+            "person": _insider_person_name(r.get("reportingName")),
+            "title": _insider_title(r.get("typeOfOwner")),
         })
 
     best: dict[str, dict] = {}
