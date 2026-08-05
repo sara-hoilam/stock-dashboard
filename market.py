@@ -513,10 +513,11 @@ def _trim_company(name: str) -> str:
 def _topics(companies: list[tuple[str, str]]) -> list[dict]:
     """The catalogue of chips: what each one says, and what it searches for.
 
-    Deliberately uncounted. Counting here would mean counting the batch just
-    fetched, while the filter searches a seven-day window -- the two disagreed
-    badly enough that "Nasdaq" read 2 and opened on 21 stories. The count is
-    computed in get_news against the same rows the filter reads.
+    Deliberately uncounted here. Counting the batch just fetched disagreed
+    with the seven-day filter badly enough that "Nasdaq" read 2 and opened
+    on 21 stories. upsert_news counts each chip against the stored corpus
+    with the same match rules as the filter; get_news only reads those
+    numbers so the page cannot time out recounting them.
 
     `ord` is the position: for companies that is market-cap rank, which is the
     order they are shown in and the reason they are on the list at all.
