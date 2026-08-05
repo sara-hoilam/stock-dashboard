@@ -391,7 +391,7 @@ def fetch_prices(symbol: str) -> bool:
         try:
             store.upsert_company_extras(
                 sym, monthly, prof.get("sector"), prof.get("industry"),
-                pe_hist or None, prof or None, emp_hist or None)
+                pe_hist or None, prof or None, emp_hist if emp_hist is not None else [])
         except store.StoreError as exc:
             # Older migrations: peel off the newest optional args one by one.
             log(f"  extras write failed ({exc}); falling back")
@@ -450,7 +450,7 @@ def fill_company_profile(symbol: str) -> bool:
     try:
         store.upsert_company_extras(sym, None, prof.get("sector"),
                                     prof.get("industry"), None, prof,
-                                    emp_hist or None)
+                                    emp_hist)
     except store.StoreError:
         try:
             store.upsert_company_extras(sym, None, prof.get("sector"),
@@ -464,6 +464,25 @@ def fill_company_profile(symbol: str) -> bool:
     return True
 
 
+def fill_employee_history(symbol: str) -> bool:
+    """Write FMP headcount history only (for the revenue / employee line)."""
+    if not market.configured():
+        return False
+    sym = symbol.upper()
+    try:
+        emp_hist = market.employee_history(sym)
+    except market.MarketError as exc:
+        log(f"  employee history {sym}: {exc}")
+        return False
+    try:
+        store.upsert_company_extras(sym, None, None, None, None, None, emp_hist)
+    except store.StoreError as exc:
+        log(f"  employee history write {sym}: {exc}")
+        return False
+    log(f"employee history {sym}: {len(emp_hist)} year(s)")
+    return True
+
+
 def drain_profiles(max_items: int = 15) -> int:
     """Fill About-card profiles for symbols that already have prices."""
     try:
@@ -472,6 +491,17 @@ def drain_profiles(max_items: int = 15) -> int:
         log(f"  profile queue unavailable (apply 0031_pending_profiles.sql): {exc}")
         return 0
     return sum(1 for sym in pending if fill_company_profile(sym))
+
+
+def drain_employee_history(max_items: int = 15) -> int:
+    """Fill headcount history for symbols missing the revenue / employee series."""
+    try:
+        pending = store.pending_employee_history(max_items)
+    except store.StoreError as exc:
+        log(f"  employee-history queue unavailable "
+            f"(apply 0033_pending_employee_history.sql): {exc}")
+        return 0
+    return sum(1 for sym in pending if fill_employee_history(sym))
 
 
 def fetch_analyst(symbol: str) -> bool:
@@ -746,6 +776,8 @@ def run() -> None:
                 continue
             if drain_profiles():
                 continue
+            if drain_employee_history():
+                continue
             if drain_intraday():
                 continue
             if drain_analyst():
@@ -833,6 +865,14 @@ def main(argv: list[str]) -> int:
             n = drain_profiles(40)
             log(f"filled {n} company profile(s)" if n
                 else "no profiles pending (apply 0031, or none missing)")
+    elif cmd == "employees":
+        if len(argv) > 1:
+            for sym in argv[1:]:
+                log(f"{sym}: {'ok' if fill_employee_history(sym.upper()) else 'failed'}")
+        else:
+            n = drain_employee_history(40)
+            log(f"filled {n} employee history series" if n
+                else "no employee history pending (apply 0033, or none missing)")
     elif cmd == "intraday":
         if len(argv) < 2:
             print("usage: python worker.py intraday TICKER")
