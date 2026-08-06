@@ -66,7 +66,9 @@
   font-size: 17px; font-weight: 600; letter-spacing: -.015em;
 }
 .nav-mark {
-  width: 26px; height: 26px; flex-shrink: 0;
+  /* Sized a touch above the old 26px chip so the padded full mark
+     still reads at a similar visual weight without side cropping. */
+  width: 30px; height: 30px; flex-shrink: 0;
   display: block; object-fit: contain;
 }
 
