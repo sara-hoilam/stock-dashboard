@@ -9,6 +9,8 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py market             refresh prices, movers and sectors
     python worker.py sections           refresh heatmap, rotation and trades
     python worker.py news               refresh market news
+    python worker.py earnings           refresh earnings calendar
+    python worker.py economics          refresh US economic calendar
     python worker.py prices [TICKER...] fill price requests, or named symbols
     python worker.py analyst [TICKER...] fill coverage requests, or named symbols
     python worker.py intraday TICKER    refresh one chart series
@@ -743,6 +745,31 @@ def refresh_earnings() -> bool:
     return True
 
 
+def refresh_economic_calendar() -> bool:
+    """FMP US economic releases for the portfolio Calendar panel."""
+    if not market.configured():
+        return False
+    start = dt.date.today() - dt.timedelta(days=14)
+    end = dt.date.today() + dt.timedelta(days=60)
+    try:
+        rows = market.economic_calendar(start, end, country="US")
+    except market.MarketError as exc:
+        log(f"  economic calendar: {exc}")
+        return False
+    if not rows:
+        log(f"economic calendar: FMP returned no US rows for "
+            f"{start.isoformat()} → {end.isoformat()}")
+        return False
+    try:
+        n = store.replace_economic_calendar(rows)
+    except store.StoreError as exc:
+        log(f"  economic calendar write failed: {exc}")
+        return False
+    log(f"economic calendar: {len(rows)} US events ({n} written), "
+        f"{start.isoformat()} → {end.isoformat()}")
+    return True
+
+
 def refresh_intraday(symbol: str) -> bool:
     """Fetch one symbol's chart series on demand."""
     if not market.configured():
@@ -832,6 +859,10 @@ def run() -> None:
                     refresh_earnings()
                 except market.MarketError as exc:
                     log(f"earnings refresh failed (continuing): {exc}")
+                try:
+                    refresh_economic_calendar()
+                except market.MarketError as exc:
+                    log(f"economic calendar refresh failed (continuing): {exc}")
                 last_market = now
 
             if now - last_sections > sections_every:
@@ -935,6 +966,9 @@ def main(argv: list[str]) -> int:
     elif cmd == "earnings":
         log("earnings refreshed" if refresh_earnings()
             else "earnings unavailable (check FMP_API_KEY / plan / migration)")
+    elif cmd == "economics" or cmd == "economic-calendar":
+        log("economic calendar refreshed" if refresh_economic_calendar()
+            else "economic calendar unavailable (check FMP_API_KEY / plan / migration)")
     elif cmd == "profiles":
         if len(argv) > 1:
             for sym in argv[1:]:

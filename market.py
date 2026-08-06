@@ -862,6 +862,62 @@ def earnings_calendar(start: dt.date | None = None,
 
 
 # ---------------------------------------------------------------------------
+# Economic calendar (US macro releases — jobs, CPI, FOMC, etc.)
+# ---------------------------------------------------------------------------
+
+def economic_calendar(start: dt.date | None = None,
+                      end: dt.date | None = None,
+                      country: str = "US") -> list[dict]:
+    """Scheduled economic data releases from FMP ``economic-calendar``.
+
+    Same shape as MarketWatch's economy calendar: unemployment, CPI, Fed
+    decisions, GDP, and other high-impact prints. FMP caps the window at
+    about 90 days; the worker keeps a month behind and ~two months ahead.
+    """
+    start = start or (dt.date.today() - dt.timedelta(days=14))
+    end = end or (dt.date.today() + dt.timedelta(days=60))
+    if end < start:
+        start, end = end, start
+
+    rows = _get("economic-calendar",
+                **{"from": start.isoformat(), "to": end.isoformat()}) or []
+    want = (country or "US").upper()
+    out: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+    for r in rows:
+        ctry = (r.get("country") or "").upper().strip() or "US"
+        if want and ctry != want:
+            continue
+        raw = (r.get("date") or "").strip()
+        day = raw[:10]
+        if not day or len(day) < 10:
+            continue
+        time_part = raw[11:16] if len(raw) >= 16 else None
+        event = (r.get("event") or "").strip()
+        if not event:
+            continue
+        key = (day, ctry, event)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "date": day,
+            "time": time_part,
+            "country": ctry,
+            "currency": (r.get("currency") or "")[:8] or None,
+            "event": event[:200],
+            "impact": (r.get("impact") or "")[:16] or None,
+            "previous": r.get("previous"),
+            "estimate": r.get("estimate"),
+            "actual": r.get("actual"),
+            "change": r.get("change"),
+            "changePct": r.get("changePercentage"),
+        })
+    out.sort(key=lambda x: (x["date"], x["event"]))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # News
 # ---------------------------------------------------------------------------
 

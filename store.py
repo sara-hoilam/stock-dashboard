@@ -201,6 +201,10 @@ def replace_earnings(rows: list[dict]) -> int:
     return rpc("replace_earnings", {"p_rows": rows}) or 0
 
 
+def replace_economic_calendar(rows: list[dict]) -> int:
+    return rpc("replace_economic_calendar", {"p_rows": rows}) or 0
+
+
 def replace_symbol_dividends(symbol: str, rows: list[dict]) -> int:
     return rpc("replace_symbol_dividends", {
         "p_symbol": symbol,
