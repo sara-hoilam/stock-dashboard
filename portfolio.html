@@ -2874,7 +2874,6 @@ function renderCalWeek(){
   host.querySelectorAll(".cal-daycard").forEach(btn => {
     btn.onclick = () => {
       CAL.selected = btn.dataset.iso;
-      CAL.showAll = false;
       renderCalWeek();
       renderCalDay();
     };
