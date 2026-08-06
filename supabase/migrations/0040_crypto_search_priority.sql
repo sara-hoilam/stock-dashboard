@@ -28,7 +28,7 @@ as $$
       ('polkadot', 'DOTUSD'), ('dot', 'DOTUSD'), ('dotusd', 'DOTUSD'),
       ('chainlink', 'LINKUSD'), ('link', 'LINKUSD'), ('linkusd', 'LINKUSD'),
       ('litecoin', 'LTCUSD'), ('ltc', 'LTCUSD'), ('ltcusd', 'LTCUSD'),
-      ('polygon', 'MATICUSD'), ('matic', 'MATICUSD'), ('maticusd', 'MATICUSD'),
+      ('polygon', 'POLUSD'), ('matic', 'POLUSD'), ('pol', 'POLUSD'), ('polusd', 'POLUSD'),
       ('binance', 'BNBUSD'), ('bnb', 'BNBUSD'), ('bnbusd', 'BNBUSD'),
       ('toncoin', 'TONUSD'), ('ton', 'TONUSD'), ('tonusd', 'TONUSD'),
       ('shiba', 'SHIBUSD'), ('shib', 'SHIBUSD'), ('shibusd', 'SHIBUSD')
