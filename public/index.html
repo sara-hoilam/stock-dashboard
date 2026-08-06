@@ -185,17 +185,19 @@ svg{display:block;max-width:100%}
 .info-i:hover, .info-i:focus-visible{
   color:var(--accent); border-color:var(--accent); outline:none;
 }
-/* Fixed so .panel overflow:hidden cannot crop the bubble. */
-.info-i .info-tip{
+/* Fixed so .panel overflow:hidden cannot crop the bubble.
+   Opaque fill is required — without it the tip text sits on the table. */
+.info-i .info-bubble, .info-bubble{
   position:fixed; z-index:200; left:0; top:0;
-  width:min(300px, 72vw); padding:9px 11px;
-  background:var(--card); color:var(--ink-2); border:1px solid var(--rule);
+  width:min(300px, 72vw); height:auto; padding:9px 11px;
+  background-color:var(--card); background:var(--card);
+  color:var(--ink-2); border:1px solid var(--rule);
   border-radius:8px; box-shadow:var(--shadow);
   font-size:12px; font-weight:400; line-height:1.45; text-align:left;
   opacity:0; visibility:hidden; pointer-events:none;
   transform:translateY(-3px); transition:opacity .12s ease, transform .12s ease;
 }
-.info-i:hover .info-tip, .info-i:focus-visible .info-tip, .info-i .info-tip.on{
+.info-i:hover .info-bubble, .info-i:focus-visible .info-bubble, .info-bubble.on{
   opacity:1; visibility:visible; transform:none;
 }
 .grid2 > .panel{overflow:visible}
@@ -461,7 +463,7 @@ svg{display:block;max-width:100%}
   /* Heatmap: edge-to-edge, compact chrome, taller plot. */
   #heatmap{padding:0;overflow:hidden}
   .hmhead{padding:14px 14px 6px;gap:8px}
-  .info-i .info-tip{width:min(260px, 78vw); font-size:11.5px}
+  .info-i .info-bubble, .info-bubble{width:min(260px, 78vw); font-size:11.5px}
   #hm-legend.legend{
     padding:0;gap:5px 9px;font-size:11px;width:100%;
   }
@@ -597,7 +599,7 @@ svg{display:block;max-width:100%}
         <h3>Market Heatmap</h3>
         <button type="button" class="info-i" aria-label="About Market Heatmap">
           <span aria-hidden="true">i</span>
-          <span class="info-tip">Every tile is a company, sized by market capitalisation and coloured by today's move. Click one to open its filed financials.</span>
+          <span class="info-bubble">Every tile is a company, sized by market capitalisation and coloured by today's move. Click one to open its filed financials.</span>
         </button>
       </div>
       <div class="legend" id="hm-legend"></div>
@@ -613,7 +615,7 @@ svg{display:block;max-width:100%}
           <h3>Sector Rotations</h3>
           <button type="button" class="info-i" aria-label="About Sector Rotations">
             <span aria-hidden="true">i</span>
-            <span class="info-tip" id="rot-sub">Cumulative performance per sector.</span>
+            <span class="info-bubble" id="rot-sub">Cumulative performance per sector.</span>
           </button>
         </div>
         <div class="seg" id="rot-range">
@@ -633,7 +635,7 @@ svg{display:block;max-width:100%}
           <h3>Sector Performance</h3>
           <button type="button" class="info-i" aria-label="About Sector Performance">
             <span aria-hidden="true">i</span>
-            <span class="info-tip">Where each sector finished on the last trading day.</span>
+            <span class="info-bubble">Where each sector finished on the last trading day.</span>
           </button>
         </div>
       </div>
@@ -672,7 +674,7 @@ svg{display:block;max-width:100%}
           <h3>Insider Transactions</h3>
           <button type="button" class="info-i" aria-label="About Insider Transactions">
             <span aria-hidden="true">i</span>
-            <span class="info-tip">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
+            <span class="info-bubble">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
           </button>
         </div>
       </div>
@@ -695,7 +697,7 @@ svg{display:block;max-width:100%}
           <h3>Congress Trades</h3>
           <button type="button" class="info-i" aria-label="About Congress Trades">
             <span aria-hidden="true">i</span>
-            <span class="info-tip">Trades disclosed by members of the House and Senate over the last 14 days. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
+            <span class="info-bubble">Trades disclosed by members of the House and Senate over the last 14 days. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
           </button>
         </div>
       </div>
@@ -2271,12 +2273,13 @@ function bootTrades(){
   wirePanelInfoTips();
 }
 
-/** Pin .info-i bubbles with position:fixed so panel overflow cannot crop them. */
+/** Pin .info-i bubbles on document.body so panel/button overflow cannot crop them. */
 function wirePanelInfoTips(root){
   (root || document).querySelectorAll(".info-i").forEach(btn => {
-    const tip = btn.querySelector(".info-tip");
+    const tip = btn.querySelector(".info-bubble");
     if (!tip || btn.dataset.tipWired) return;
     btn.dataset.tipWired = "1";
+    document.body.appendChild(tip);
     const place = () => {
       tip.classList.add("on");
       const r = btn.getBoundingClientRect();
