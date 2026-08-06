@@ -293,6 +293,20 @@ tr.on td{background:var(--accent-soft)}
   background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;
   font-size:13px;z-index:90;box-shadow:var(--shadow)
 }
+#chart{position:relative}
+#chart-tip{
+  position:absolute;z-index:5;pointer-events:none;opacity:0;
+  background:var(--card);border:1px solid var(--rule);border-radius:8px;
+  box-shadow:var(--shadow);padding:8px 10px;font-size:11.5px;min-width:120px;
+  transition:opacity .08s ease
+}
+#chart-tip.on{opacity:1}
+#chart-tip b{display:block;font-size:12px;margin-bottom:4px;font-weight:600}
+#chart-tip .r{display:flex;justify-content:space-between;gap:14px;align-items:center;
+  color:var(--ink-2);margin-top:2px}
+#chart-tip .r span:last-child{font-family:"IBM Plex Mono",monospace;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+#chart-tip .sw{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:6px}
 
 @media (max-width:980px){
   .pulse{grid-template-columns:1fr 1fr}
@@ -1400,17 +1414,8 @@ async function drawRightChart(){
          · ${esc(String(Number(pos.quantity.toFixed(4))))} shares
          · avg ${esc(priceFmt(pos.avgCost))}`
       : "";
-    // Prefer intraday when available; fall back to daily.
-    try {
-      const intra = await rpc("get_intraday", { p_symbol: S.selected });
-      if (intra && intra.points && intra.points.length > 2) {
-        drawLineChart(host, [{
-          id: S.selected, colour: "var(--accent)",
-          points: intra.points.map(p => ({ d: p.t, c: p.c })),
-        }], { unit: "price" });
-        return;
-      }
-    } catch {}
+    // Daily bars for the selected range (1W / 1M / YTD / 1Y). Intraday is
+    // only a few sessions and was ignoring the range filter.
     const bars = await seriesForSymbol(S.selected, from);
     drawLineChart(host, [{ id: S.selected, colour: "var(--accent)", points: bars }], { unit: "price" });
     return;
@@ -1449,18 +1454,34 @@ async function drawRightChart(){
   drawLineChart(host, lines, { unit: "pct" });
 }
 
+const CHART_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun",
+                      "Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function formatChartDate(iso){
+  if (!iso || iso.length < 10) return iso || "";
+  const y = iso.slice(0, 4), m = +iso.slice(5, 7), day = iso.slice(8, 10);
+  const mon = CHART_MONTHS[m - 1] || iso.slice(5, 7);
+  // Include time when the key is an intraday timestamp.
+  const time = iso.length >= 16 ? `  ${iso.slice(11, 16)}` : "";
+  return `${day} ${mon} '${y.slice(2)}${time}`;
+}
+
+function formatChartValue(v, unit){
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (unit === "pct") return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+  return Number(v).toFixed(2);
+}
+
 function drawLineChart(host, lines, { unit }){
-  const W = 900, H = 380, pad = { l: 54, r: 16, t: 16, b: 36 };
+  const W = 900, H = 380, pad = { l: 54, r: 64, t: 16, b: 36 };
   const all = lines.flatMap(l => l.points);
   if (!all.length) {
     host.innerHTML = `<div class="note">No price history yet — it will appear once daily bars are available.</div>`;
     return;
   }
-  const xs = all.map(p => p.d);
-  const ys = all.map(p => p.c);
-  const x0 = xs[0], x1 = xs[xs.length - 1];
   // Use chronological index per series; align by date string order.
-  const dates = [...new Set(xs)].sort();
+  const dates = [...new Set(all.map(p => p.d))].sort();
+  const ys = all.map(p => p.c);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
   const span = maxY - minY || 1;
   const yMin = minY - span * 0.08, yMax = maxY + span * 0.08;
@@ -1475,9 +1496,7 @@ function drawLineChart(host, lines, { unit }){
   for (let i = 0; i <= 4; i++) {
     const v = yMin + (i / 4) * (yMax - yMin);
     const y = yAt(v);
-    const label = unit === "pct"
-      ? `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`
-      : priceFmt(v);
+    const label = formatChartValue(v, unit);
     grid.push(`<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}"
       stroke="var(--rule-2)" stroke-width="1"/>
       <text x="${pad.l - 8}" y="${y + 4}" text-anchor="end" fill="var(--ink-3)"
@@ -1488,20 +1507,137 @@ function drawLineChart(host, lines, { unit }){
     if (l.points.length < 2) return "";
     const d = l.points.map((p, i) =>
       `${i ? "L" : "M"}${xAt(p.d).toFixed(1)},${yAt(p.c).toFixed(1)}`).join(" ");
-    return `<path d="${d}" fill="none" stroke="${l.colour}" stroke-width="2"/>`;
+    return `<path d="${d}" fill="none" stroke="${l.colour}" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"/>`;
   }).join("");
 
   const xLabels = [dates[0], dates[Math.floor(dates.length / 2)], dates[dates.length - 1]]
     .filter(Boolean)
     .map(d => `<text x="${xAt(d)}" y="${H - 10}" text-anchor="middle" fill="var(--ink-3)"
-      font-size="11">${esc(d)}</text>`).join("");
+      font-size="11">${esc(formatChartDate(d))}</text>`).join("");
 
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%"
     preserveAspectRatio="none" role="img" aria-label="Performance chart">
-    ${grid.join("")}${paths}${xLabels}
+    ${grid.join("")}
     ${unit === "pct" ? `<line x1="${pad.l}" y1="${yAt(0)}" x2="${W - pad.r}" y2="${yAt(0)}"
       stroke="var(--ink-3)" stroke-dasharray="4 4" stroke-width="1" opacity=".5"/>` : ""}
-  </svg>`;
+    ${paths}${xLabels}
+    <g id="pf-cross" style="display:none;pointer-events:none">
+      <line id="pf-cx" y1="${pad.t}" y2="${H - pad.b}" stroke="var(--ink-3)"
+            stroke-width="1" stroke-dasharray="4 4"></line>
+      <line id="pf-cy" x1="${pad.l}" x2="${W - pad.r}" stroke="var(--ink-3)"
+            stroke-width="1" stroke-dasharray="4 4"></line>
+      <circle id="pf-dot" r="4" fill="var(--ink-2)" stroke="var(--card)" stroke-width="2"></circle>
+      <g id="pf-plab">
+        <rect x="${W - pad.r + 2}" width="56" height="18" rx="4" fill="var(--ink)"></rect>
+        <text x="${W - pad.r + 30}" text-anchor="middle" font-size="11"
+              font-family="IBM Plex Mono,monospace" fill="var(--card)" font-weight="600"></text>
+      </g>
+      <g id="pf-tlab">
+        <rect height="18" rx="4" fill="var(--ink)"></rect>
+        <text text-anchor="middle" font-size="10.5"
+              font-family="IBM Plex Mono,monospace" fill="var(--card)" font-weight="600"></text>
+      </g>
+    </g>
+    <rect id="pf-hit" x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}"
+          height="${H - pad.t - pad.b}" fill="transparent" style="cursor:crosshair"></rect>
+  </svg>
+  <div id="chart-tip" role="status" aria-live="polite"></div>`;
+
+  wirePortfolioCrosshair({ host, lines, dates, xAt, yAt, W, H, pad, unit });
+}
+
+/** Crosshair + date/price readout, matching the Markets chart interaction. */
+function wirePortfolioCrosshair({ host, lines, dates, xAt, yAt, W, H, pad, unit }){
+  const svg = host.querySelector("svg");
+  const hit = svg && svg.querySelector("#pf-hit");
+  const cross = svg && svg.querySelector("#pf-cross");
+  const tip = host.querySelector("#chart-tip");
+  if (!svg || !hit || !cross || !dates.length) return;
+
+  const cx = svg.querySelector("#pf-cx");
+  const cy = svg.querySelector("#pf-cy");
+  const dot = svg.querySelector("#pf-dot");
+  const pRect = svg.querySelector("#pf-plab rect");
+  const pText = svg.querySelector("#pf-plab text");
+  const tRect = svg.querySelector("#pf-tlab rect");
+  const tText = svg.querySelector("#pf-tlab text");
+
+  const byLine = lines.map(l => {
+    const map = new Map(l.points.map(p => [p.d, p.c]));
+    return { id: l.id, colour: l.colour, map };
+  });
+
+  const toLocalX = ev => {
+    const b = svg.getBoundingClientRect();
+    return (ev.clientX - b.left) * (W / Math.max(1, b.width));
+  };
+
+  const hide = () => {
+    cross.style.display = "none";
+    if (tip) tip.classList.remove("on");
+  };
+
+  hit.addEventListener("mousemove", ev => {
+    const px = toLocalX(ev);
+    const step = (W - pad.l - pad.r) / Math.max(1, dates.length - 1);
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round((px - pad.l) / step)));
+    const d = dates[i];
+    const X = xAt(d);
+
+    // Prefer the first series (ticker or Portfolio) for the Y crosshair.
+    let primary = null;
+    for (const l of byLine) {
+      if (l.map.has(d)) { primary = { id: l.id, colour: l.colour, c: l.map.get(d) }; break; }
+    }
+    if (!primary) { hide(); return; }
+
+    const Y = yAt(primary.c);
+    cross.style.display = "";
+    cx.setAttribute("x1", X); cx.setAttribute("x2", X);
+    cy.setAttribute("y1", Y); cy.setAttribute("y2", Y);
+    dot.setAttribute("cx", X); dot.setAttribute("cy", Y);
+    dot.setAttribute("fill", primary.colour || "var(--ink-2)");
+
+    const valLabel = formatChartValue(primary.c, unit);
+    const pw = Math.max(56, valLabel.length * 7.2 + 12);
+    pRect.setAttribute("width", pw);
+    pRect.setAttribute("x", W - pad.r + 2);
+    pRect.setAttribute("y", Y - 9);
+    pText.setAttribute("x", W - pad.r + 2 + pw / 2);
+    pText.setAttribute("y", Y + 4);
+    pText.textContent = valLabel;
+
+    const dateLabel = formatChartDate(d);
+    const tw = Math.max(96, dateLabel.length * 6.2);
+    const lx = Math.min(Math.max(X - tw / 2, pad.l), W - pad.r - tw);
+    tRect.setAttribute("x", lx); tRect.setAttribute("width", tw);
+    tRect.setAttribute("y", H - pad.b + 2);
+    tText.setAttribute("x", lx + tw / 2);
+    tText.setAttribute("y", H - pad.b + 15);
+    tText.textContent = dateLabel;
+
+    if (tip && byLine.length > 1) {
+      const rows = byLine
+        .filter(l => l.map.has(d))
+        .map(l => `<div class="r"><span><i class="sw" style="background:${l.colour}"></i>${esc(l.id)}</span>
+          <span>${esc(formatChartValue(l.map.get(d), unit))}</span></div>`);
+      tip.innerHTML = `<b>${esc(dateLabel)}</b>${rows.join("")}`;
+      tip.classList.add("on");
+      const box = host.getBoundingClientRect();
+      const tipW = tip.offsetWidth || 140;
+      const tipH = tip.offsetHeight || 60;
+      let left = (X / W) * box.width + 12;
+      let top = (Y / H) * box.height - tipH / 2;
+      if (left + tipW > box.width - 8) left = (X / W) * box.width - tipW - 12;
+      tip.style.left = Math.max(8, left) + "px";
+      tip.style.top = Math.max(8, Math.min(box.height - tipH - 8, top)) + "px";
+    } else if (tip) {
+      tip.classList.remove("on");
+    }
+  });
+
+  hit.addEventListener("mouseleave", hide);
 }
 
 /* ---- add / sell / edit modal -------------------------------------------- */
