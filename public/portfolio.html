@@ -698,21 +698,21 @@ function volatilityScore(positions){
 /* ---- half-donut ---------------------------------------------------------- */
 function halfDonutSvg(parts){
   const live = parts.filter(p => p.value > 0);
+  const R = 50, CX = 60, CY = 60, SW = 12;
   if (!live.length) {
     return `<svg class="donut" viewBox="0 0 120 70" aria-hidden="true">
-      <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="var(--rule)" stroke-width="12"
-        stroke-linecap="butt"/></svg>`;
+      <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="var(--rule)"
+        stroke-width="${SW}" stroke-linecap="butt"/></svg>`;
   }
-  const R = 50, CX = 60, CY = 60, SW = 12;
-  const circ = Math.PI * R;
+  // Semicircle path length = πR. Dash along that arc left→right.
+  const half = Math.PI * R;
   let offset = 0;
   const arcs = live.map(p => {
-    const len = (p.pct / 100) * circ;
-    const el = `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none"
+    const len = Math.max(0, (p.pct / 100) * half);
+    const el = `<path d="M10 60 A50 50 0 0 1 110 60" fill="none"
       stroke="${p.colour}" stroke-width="${SW}"
-      stroke-dasharray="${len} ${circ - len}"
+      stroke-dasharray="${len} ${half}"
       stroke-dashoffset="${-offset}"
-      transform="rotate(180 ${CX} ${CY})"
       stroke-linecap="butt"/>`;
     offset += len;
     return el;
