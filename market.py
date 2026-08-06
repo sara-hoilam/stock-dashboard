@@ -245,6 +245,9 @@ INDEXES = {
         "fmp_constituent": "sp500-constituent",
         "slickcharts": "https://www.slickcharts.com/sp500",
         "wikipedia": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+        # Forward P/E history (History of Market public JSON).
+        "pe_api": "https://historyofmarket.com/api/sp500/forward-pe.json",
+        "pe_label": "S&P 500",
     },
     "IXIC": {
         "fmp": "^IXIC",
@@ -255,6 +258,9 @@ INDEXES = {
         "weighting": "market_cap",
         "fmp_constituent": "nasdaq-constituent",
         "slickcharts": "https://www.slickcharts.com/nasdaq100",
+        # Composite price; Nasdaq-100 forward P/E is the useful valuation series.
+        "pe_api": "https://historyofmarket.com/api/ndx/forward-pe.json",
+        "pe_label": "NASDAQ",
     },
     "DJI": {
         "fmp": "^DJI",
@@ -265,6 +271,7 @@ INDEXES = {
         "fmp_constituent": "dowjones-constituent",
         "slickcharts": "https://www.slickcharts.com/dowjones",
         "wikipedia": "https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average",
+        "pe_label": "Dow",
     },
 }
 
@@ -609,6 +616,116 @@ def _enrich_holdings_meta(rows: list[dict], weighting: str) -> list[dict]:
         if caps.get(r["symbol"]):
             r["marketCap"] = caps[r["symbol"]]
     return rows
+
+
+def index_forward_pe_history(alias: str, years: int = 10) -> list[dict]:
+    """Forward P/E history for an index, as ``[{d, pe}, …]`` oldest first.
+
+    Prefers History of Market's published forward series (SPX / NDX). For the
+    Dow (no public forward series on that feed), builds a price-scaled path
+    from today's price-weighted constituent TTM P/E so the comparison chart
+    still has a Dow line.
+    """
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return []
+    api = meta.get("pe_api")
+    if api:
+        try:
+            raw = _http_get_text(api, timeout=30)
+            data = json.loads(raw)
+        except Exception:
+            data = None
+        pts = []
+        if isinstance(data, dict):
+            series = data.get("forward") or data.get("trailing") or []
+            cutoff = (dt.date.today() - dt.timedelta(days=int(years) * 365)).isoformat()
+            for row in series:
+                d = (row.get("date") or "")[:10]
+                try:
+                    pe = float(row.get("value"))
+                except (TypeError, ValueError):
+                    continue
+                if d and pe > 0 and d >= cutoff:
+                    pts.append({"d": d, "pe": round(pe, 4)})
+            pts.sort(key=lambda p: p["d"])
+            if len(pts) >= 2:
+                return pts
+
+    # Dow (and any index without a public forward series): spot from holdings,
+    # then scale along the index price path.
+    return _index_pe_from_price_path(alias.upper(), years=years)
+
+
+def _index_pe_spot(alias: str) -> float | None:
+    """Weighted TTM P/E from current constituents + FMP quote P/Es.
+
+    Uses each holding's published weight (Slickcharts methodology), so the Dow
+    stays price-weighted and the S&P / NDX stay float market-cap weighted.
+    """
+    if (alias or "").upper() not in INDEXES:
+        return None
+    rows = index_holdings(alias)
+    if not rows:
+        return None
+    # Need P/E per name — quote_detail carries ratios-ttm pe when available.
+    num = den = 0.0  # Σ w / Σ(w/PE) ≡ weight-weighted harmonic mean of P/Es
+    for r in rows:
+        sym = r.get("symbol")
+        w = r.get("weightPct")
+        if not sym or not w:
+            continue
+        try:
+            q = quote_detail(sym)
+        except MarketError:
+            q = None
+        pe = (q or {}).get("pe")
+        try:
+            pe_f = float(pe) if pe is not None else 0.0
+        except (TypeError, ValueError):
+            pe_f = 0.0
+        if pe_f <= 0:
+            continue
+        # weightPct already encodes methodology (Slickcharts).
+        num += float(w)
+        den += float(w) / pe_f
+    if den <= 0:
+        return None
+    return num / den
+
+
+def _index_pe_from_price_path(alias: str, years: int = 10) -> list[dict]:
+    """Approximate PE history: spot_pe × price(t) / price_now."""
+    spot = _index_pe_spot(alias)
+    if not spot or spot <= 0:
+        return []
+    meta = INDEXES[alias]
+    try:
+        bars = closes(meta["fmp"], years) or []
+    except MarketError:
+        bars = []
+    if len(bars) < 2:
+        try:
+            bars = [{"d": b["d"], "c": b["c"]} for b in index_history(alias, 420)]
+        except Exception:
+            bars = []
+    bars = [b for b in bars if b.get("d") and b.get("c")]
+    if len(bars) < 2:
+        return [{"d": dt.date.today().isoformat(), "pe": round(spot, 4)}]
+    last = float(bars[-1]["c"])
+    if last <= 0:
+        return []
+    # Monthly points keep the series light and aligned with seasonality.
+    by_month: dict[str, dict] = {}
+    for b in bars:
+        by_month[b["d"][:7]] = b
+    out = []
+    for k in sorted(by_month):
+        b = by_month[k]
+        pe = spot * (float(b["c"]) / last)
+        if pe > 0:
+            out.append({"d": b["d"], "pe": round(pe, 4)})
+    return out
 
 
 def index_holdings(alias: str) -> list[dict]:
