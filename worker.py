@@ -624,17 +624,45 @@ def refresh_sections() -> bool:
         hist = []
 
     try:
-        # Insiders: last week of material Form 4s. Congress: two weeks of
-        # disclosures so the panel has enough >$0.5M rows to scroll.
-        ins = market.insider_trades(days=7)
-        con = market.congress_trades(days=14)
+        # Pull sixty days once. The tables still show the short recent window
+        # (collapsed for insiders); the bar charts under them need the full
+        # daily buy/sell sums.
+        flow_days = 60
+        ins_all = market.insider_trades(
+            days=flow_days, store_cap=2500, collapse=False)
+        con_all = market.congress_trades(days=flow_days, store_cap=2500)
+
+        cut_ins = (dt.date.today() - dt.timedelta(days=7)).isoformat()
+        cut_con = (dt.date.today() - dt.timedelta(days=14)).isoformat()
+        ins_week = [r for r in ins_all if (r.get("filed") or "") >= cut_ins]
+        con_two = [r for r in con_all if (r.get("disclosed") or "") >= cut_con]
+
+        # Table view: one largest Form 4 per company in the week.
+        best: dict[str, dict] = {}
+        for r in ins_week:
+            prev = best.get(r["symbol"])
+            if prev is None or abs(r.get("amount") or 0) > abs(prev.get("amount") or 0):
+                best[r["symbol"]] = r
+        ins = sorted(best.values(),
+                     key=lambda r: (r.get("filed") or "", abs(r.get("amount") or 0)),
+                     reverse=True)[:400]
+        con = con_two[:400]
         store.replace_trades(ins, con)
+
+        flow = market.trade_flow_daily(ins_all, con_all, days=flow_days)
+        store.replace_trade_flow(flow)
     except market.MarketError as exc:
         log(f"  trades: {exc}")
         ins = con = []
+        flow = []
+    except Exception as exc:
+        # Flow RPC may not be applied yet; keep the tables writing.
+        log(f"  trade flow: {exc}")
+        flow = []
 
     log(f"sections: {len(rows)} heatmap, {len(hist)} sector series, "
         f"{len(ins)} insider (7d), {len(con)} congress (14d), "
+        f"{len(flow)} flow days, "
         f"{time.time()-started:.1f}s")
     return True
 
