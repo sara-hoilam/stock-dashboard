@@ -100,8 +100,14 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
   cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;
   white-space:nowrap;min-height:44px
 }
-.btn-primary{background:var(--ink);color:#fff}
+/* Keep the CTA dark in both themes — --ink flips to light in dark mode,
+   which washed the button out to near-white. */
+.btn-primary{background:#111820;color:#fff}
 .btn-primary:hover{opacity:.9}
+:root[data-theme="dark"] .btn-primary{
+  background:#243141;color:var(--ink);border:1px solid var(--rule);
+}
+:root[data-theme="dark"] .btn-primary:hover{background:#2c3a4d;opacity:1}
 .btn-ghost{background:transparent;border:1px solid var(--rule);color:var(--ink-2)}
 .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
 .empty-foot{font-size:12px;color:var(--ink-3)}
@@ -267,14 +273,14 @@ tr:hover .row-actions,tr.on .row-actions{opacity:1}
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="add-title">
     <button type="button" class="modal-x" id="add-x" aria-label="Close">×</button>
     <h2 id="add-title">Add to portfolio</h2>
-    <p class="sub" id="add-sub">Enter how many shares you bought and when. Price is filled from the close on that date — edit it if yours differs.</p>
+    <p class="sub" id="add-sub">Enter your current holding as of today — quantity, average buy price, and P/L from your brokerage.</p>
     <form id="add-form">
       <div class="field">
         <label for="f-symbol">Ticker</label>
         <input id="f-symbol" name="symbol" autocomplete="off" required maxlength="10" placeholder="e.g. AAPL">
       </div>
       <div class="field">
-        <label for="f-date">Buy date</label>
+        <label for="f-date">Today's date</label>
         <input id="f-date" name="date" type="date" required>
       </div>
       <div class="field">
@@ -282,9 +288,17 @@ tr:hover .row-actions,tr.on .row-actions{opacity:1}
         <input id="f-qty" name="qty" type="number" step="any" min="0" required placeholder="Shares">
       </div>
       <div class="field">
-        <label for="f-price">Price per share</label>
+        <label for="f-price">Average buy price per share</label>
         <input id="f-price" name="price" type="number" step="any" min="0" required placeholder="USD">
-        <div class="hint" id="f-price-hint">Looking up close price…</div>
+        <div class="hint" id="f-price-hint">Your cost basis per share from your brokerage.</div>
+      </div>
+      <div class="field" id="f-unrealized-wrap">
+        <label for="f-unrealized">Unrealized P/L (in USD)</label>
+        <input id="f-unrealized" name="unrealized" type="number" step="any" placeholder="USD">
+      </div>
+      <div class="field" id="f-realized-wrap">
+        <label for="f-realized">Realized P/L (in USD)</label>
+        <input id="f-realized" name="realized" type="number" step="any" placeholder="USD">
       </div>
       <div class="err" id="add-err"></div>
       <div class="modal-actions">
@@ -397,6 +411,7 @@ function positionsFromTxns(txns){
     if (!map[sym]) map[sym] = {
       symbol: sym, quantity: 0, costIn: 0, proceeds: 0, dividends: 0,
       firstTrade: t.tradeDate, lastTrade: t.tradeDate,
+      unrealizedPl: null, realizedPl: 0, _hasRealized: false,
     };
     const p = map[sym];
     const q = Number(t.quantity) || 0;
@@ -411,15 +426,27 @@ function positionsFromTxns(txns){
     } else if (t.kind === "dividend") {
       p.dividends += px || 0;
     }
+    // Latest non-null unrealized snapshot; sum realized across entries.
+    if (t.unrealizedPl != null && t.unrealizedPl !== "") {
+      p.unrealizedPl = Number(t.unrealizedPl);
+    }
+    if (t.realizedPl != null && t.realizedPl !== "") {
+      p.realizedPl = (p._hasRealized ? p.realizedPl : 0) + Number(t.realizedPl);
+      p._hasRealized = true;
+    }
     if (t.tradeDate < p.firstTrade) p.firstTrade = t.tradeDate;
     if (t.tradeDate > p.lastTrade) p.lastTrade = t.tradeDate;
   }
   return Object.values(map)
     .filter(p => Math.abs(p.quantity) > 1e-9)
-    .map(p => ({
-      ...p,
-      avgCost: p.quantity ? p.costIn / p.quantity : null,
-    }));
+    .map(p => {
+      const { _hasRealized, ...rest } = p;
+      return {
+        ...rest,
+        avgCost: p.quantity ? p.costIn / p.quantity : null,
+        realizedPl: _hasRealized ? p.realizedPl : null,
+      };
+    });
 }
 
 async function loadPortfolio(){
@@ -437,6 +464,8 @@ async function loadPortfolio(){
           price: Number(t.price),
           fee: Number(t.fee) || 0,
           note: t.note,
+          unrealizedPl: t.unrealizedPl != null ? Number(t.unrealizedPl) : null,
+          realizedPl: t.realizedPl != null ? Number(t.realizedPl) : null,
         }));
         S.positions = (d.positions || []).map(p => ({
           symbol: p.symbol,
@@ -452,6 +481,8 @@ async function loadPortfolio(){
           changePct: p.changePct != null ? Number(p.changePct) : null,
           previousClose: p.previousClose != null ? Number(p.previousClose) : null,
           marketCap: p.marketCap,
+          unrealizedPl: p.unrealizedPl != null ? Number(p.unrealizedPl) : null,
+          realizedPl: p.realizedPl != null ? Number(p.realizedPl) : null,
         }));
         return;
       }
@@ -478,6 +509,8 @@ async function mergeLocalIfNeeded(){
         price: t.price,
         fee: t.fee || 0,
         note: t.note || null,
+        unrealizedPl: t.unrealizedPl != null ? t.unrealizedPl : null,
+        realizedPl: t.realizedPl != null ? t.realizedPl : null,
       })),
     });
     if (d && d.merged >= 0) {
@@ -489,7 +522,8 @@ async function mergeLocalIfNeeded(){
   }
 }
 
-async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee }){
+async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee,
+                                unrealizedPl, realizedPl }){
   const row = {
     symbol: String(symbol).toUpperCase().trim(),
     kind: kind || "buy",
@@ -497,6 +531,8 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee })
     quantity: Number(quantity),
     price: Number(price),
     fee: Number(fee) || 0,
+    unrealizedPl: unrealizedPl === "" || unrealizedPl == null ? null : Number(unrealizedPl),
+    realizedPl: realizedPl === "" || realizedPl == null ? null : Number(realizedPl),
   };
   if (signedIn()) {
     const d = await rpc("add_portfolio_transaction", {
@@ -506,6 +542,8 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee })
       p_quantity: row.quantity,
       p_price: row.price,
       p_fee: row.fee,
+      p_unrealized_pl: row.unrealizedPl,
+      p_realized_pl: row.realizedPl,
     });
     if (d && d.error) throw new Error(d.error);
   } else {
@@ -773,7 +811,7 @@ function renderEmpty(){
             Add Asset
           </button>
         </div>
-        <p class="empty-foot">Stocks only for now · Price filled from the buy-date close</p>
+        <p class="empty-foot">Stocks only for now · Enter average buy price and P/L from your brokerage</p>
       </div>
     </section>`;
 
@@ -1184,7 +1222,6 @@ function drawLineChart(host, lines, { unit }){
 
 /* ---- add / sell modal ---------------------------------------------------- */
 let addKind = "buy";
-let priceLookupTimer = null;
 
 function openAddModal(symbol, kind){
   addKind = kind === "sell" ? "sell" : "buy";
@@ -1192,46 +1229,36 @@ function openAddModal(symbol, kind){
   const title = document.getElementById("add-title");
   const sub = document.getElementById("add-sub");
   const save = document.getElementById("add-save");
+  const priceHint = document.getElementById("f-price-hint");
+  const plBuy = addKind === "buy";
   title.textContent = addKind === "sell" ? "Sell shares" : "Add to portfolio";
   sub.textContent = addKind === "sell"
     ? "Record a sale. Quantity cannot exceed what you currently hold."
-    : "Enter how many shares you bought and when. Price is filled from the close on that date — edit it if yours differs.";
+    : "Enter your current holding as of today — quantity, average buy price, and P/L from your brokerage.";
   save.textContent = addKind === "sell" ? "Record sale" : "Add holding";
+  document.querySelector('label[for="f-price"]').textContent =
+    addKind === "sell" ? "Sale price per share" : "Average buy price per share";
+  priceHint.textContent = addKind === "sell"
+    ? "Price you sold at."
+    : "Your cost basis per share from your brokerage.";
+  document.getElementById("f-unrealized-wrap").hidden = !plBuy;
+  document.getElementById("f-realized-wrap").hidden = false;
 
   document.getElementById("f-symbol").value = symbol || "";
   document.getElementById("f-date").value = todayISO();
   document.getElementById("f-date").max = todayISO();
   document.getElementById("f-qty").value = "";
   document.getElementById("f-price").value = "";
-  document.getElementById("f-price-hint").textContent = "";
+  document.getElementById("f-unrealized").value = "";
+  document.getElementById("f-realized").value = "";
   document.getElementById("add-err").textContent = "";
   modal.hidden = false;
-  if (symbol) {
-    document.getElementById("f-qty").focus();
-    refreshModalPrice();
-  } else {
-    document.getElementById("f-symbol").focus();
-  }
+  if (symbol) document.getElementById("f-qty").focus();
+  else document.getElementById("f-symbol").focus();
 }
 
 function closeAddModal(){
   document.getElementById("add-modal").hidden = true;
-}
-
-async function refreshModalPrice(){
-  const sym = document.getElementById("f-symbol").value.trim().toUpperCase();
-  const date = document.getElementById("f-date").value;
-  const hint = document.getElementById("f-price-hint");
-  const priceEl = document.getElementById("f-price");
-  if (!sym || !date) { hint.textContent = ""; return; }
-  hint.textContent = "Looking up close price…";
-  const px = await lookupBuyPrice(sym, date);
-  if (px != null) {
-    priceEl.value = String(Number(px.toFixed(4)));
-    hint.textContent = `Filled from close on or before ${date}. Edit if your fill differs.`;
-  } else {
-    hint.textContent = "No close found for that date yet — enter the price you paid.";
-  }
 }
 
 function wireModal(){
@@ -1243,34 +1270,32 @@ function wireModal(){
     if (e.key === "Escape" && !modal.hidden) closeAddModal();
   });
 
-  const bump = () => {
-    clearTimeout(priceLookupTimer);
-    priceLookupTimer = setTimeout(refreshModalPrice, 280);
-  };
-  document.getElementById("f-symbol").addEventListener("change", bump);
-  document.getElementById("f-symbol").addEventListener("blur", bump);
-  document.getElementById("f-date").addEventListener("change", bump);
-
   document.getElementById("add-form").onsubmit = async e => {
     e.preventDefault();
     const err = document.getElementById("add-err");
     err.textContent = "";
     const symbol = document.getElementById("f-symbol").value.trim().toUpperCase();
-    const tradeDate = document.getElementById("f-date").value;
+    const tradeDate = document.getElementById("f-date").value || todayISO();
     const quantity = Number(document.getElementById("f-qty").value);
     const price = Number(document.getElementById("f-price").value);
+    const unrealizedRaw = document.getElementById("f-unrealized").value;
+    const realizedRaw = document.getElementById("f-realized").value;
     if (!/^[A-Z][A-Z.\-]{0,9}$/.test(symbol)) {
       err.textContent = "Enter a valid ticker.";
       return;
     }
     if (!(quantity > 0) || !(price >= 0)) {
-      err.textContent = "Quantity and price are required.";
+      err.textContent = "Quantity and average buy price are required.";
       return;
     }
     const save = document.getElementById("add-save");
     save.disabled = true;
     try {
-      await addTransaction({ symbol, kind: addKind, tradeDate, quantity, price });
+      await addTransaction({
+        symbol, kind: addKind, tradeDate, quantity, price,
+        unrealizedPl: addKind === "buy" ? unrealizedRaw : null,
+        realizedPl: realizedRaw,
+      });
       closeAddModal();
       toast(addKind === "sell" ? `Sold ${quantity} ${symbol}` : `Added ${quantity} ${symbol}`);
       await boot(false);
