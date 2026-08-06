@@ -386,15 +386,15 @@ tr.on td{background:var(--accent-soft)}
   .pulse .scale{margin-top:7px;height:5px;flex-shrink:0}
   .pulse .scale i{width:10px;height:10px}
   .donut-wrap{
-    flex-direction:column;align-items:stretch;gap:8px;margin-top:8px;flex:1;
-    justify-content:center;min-height:0
+    flex-direction:column;align-items:stretch;gap:6px;margin-top:6px;flex:1;
+    justify-content:flex-start;min-height:0
   }
-  .donut{width:min(100%,132px);height:auto;aspect-ratio:120 / 70;align-self:center}
+  .donut{width:min(100%,128px);height:auto;aspect-ratio:120 / 70;align-self:center;flex-shrink:0}
   .donut-legend{
-    grid-template-columns:1fr 1fr;gap:2px 8px;font-size:10px;width:100%
+    grid-template-columns:1fr 1fr;gap:1px 6px;font-size:9.5px;width:100%;line-height:1.25
   }
-  .donut-legend span{gap:4px;min-width:0;overflow:hidden}
-  .donut-legend b{font-size:10px;flex-shrink:0}
+  .donut-legend span{gap:3px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .donut-legend b{font-size:9.5px;flex-shrink:0;margin-left:2px}
   .split{grid-template-columns:1fr;min-height:0}
   .rows{border-right:0;max-height:none}
   .rows th,.rows td{padding:8px 6px}
