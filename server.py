@@ -113,9 +113,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._file("clarity-init.js", "application/javascript")
 
             if route == "/config.js":
-                # Deployed builds ship a real config.js pointing at Supabase.
-                # Locally the page talks to this server instead, so an empty
-                # file is the correct answer rather than a 404.
+                # Prefer public/config.js when present so Markets / Portfolio
+                # can reach Supabase during local development. Fall back to
+                # an empty file (not a 404) when it is absent.
+                if os.path.isfile(os.path.join(HERE, "public", "config.js")):
+                    return self._file(os.path.join("public", "config.js"),
+                                      "application/javascript")
                 return self._send(200, b"", "application/javascript")
 
             if route == "/api/search":
