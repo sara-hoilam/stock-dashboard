@@ -1434,8 +1434,11 @@ function wireWatchSearch(){
       let items = [];
       try { items = await rpc("search_companies", { q: term }) || []; } catch {}
       if (!items.length) return close();
-      ac.innerHTML = items.slice(0, 6).map(x =>
-        `<div data-s="${esc(x.ticker)}"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`).join("");
+      ac.innerHTML = items.slice(0, 6).map(x => {
+        const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
+        return `<div data-s="${esc(x.ticker)}"><b>${esc(x.ticker)}</b>` +
+          `<span>${esc(x.name)}${esc(kind)}</span></div>`;
+      }).join("");
       ac.classList.add("open");
       ac.querySelectorAll("[data-s]").forEach(d => d.onmousedown = async e => {
         e.preventDefault();
@@ -2382,8 +2385,11 @@ qEl.addEventListener("input", () => {
       acItems = await rpc("search_companies", { q: term }) || [];
       acIdx = -1;
       if (!acItems.length) return closeAc();
-      acEl.innerHTML = acItems.map((x,i) =>
-        `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`).join("");
+      acEl.innerHTML = acItems.map((x,i) => {
+        const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
+        return `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b>` +
+          `<span>${esc(x.name)}${esc(kind)}</span></div>`;
+      }).join("");
       acEl.classList.add("open");
       qEl.setAttribute("aria-expanded","true");
     } catch { closeAc(); }

@@ -982,9 +982,11 @@ function wireSearch(input, ac){
         items = (await API.search(term)) || [];
         idx = -1;
         if (!items.length) return close();
-        ac.innerHTML = items.map((x,i) =>
-          `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`
-        ).join("");
+        ac.innerHTML = items.map((x,i) => {
+          const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
+          return `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b>` +
+            `<span>${esc(x.name)}${esc(kind)}</span></div>`;
+        }).join("");
         ac.classList.add("open");
         input.setAttribute("aria-expanded","true");
       } catch { close(); }
@@ -1146,6 +1148,7 @@ async function loadExtras(){
   if (EXTRA.symbol !== sym) {
     EXTRA.symbol = sym;
     EXTRA.data = null;
+    EXTRA._askingExtras = false;
     try { EXTRA.data = await API.extras(sym); } catch { return; }
   }
   if (!EXTRA.data) return;
@@ -1958,6 +1961,25 @@ function openReport(ticker){
   GA.pageView(location.pathname + location.search);
 }
 
+/** ETF / crypto from FMP — chart only, no SEC backfill. */
+async function marketSymbolMeta(ticker){
+  if (!HOSTED) return null;
+  try {
+    const meta = await rpc("get_market_symbol", { p_symbol: ticker });
+    if (meta && (meta.kind === "etf" || meta.kind === "crypto")) return meta;
+  } catch {}
+  return null;
+}
+
+function openMarketSymbol(ticker, meta){
+  const kind = meta.kind === "crypto" ? "cryptocurrency" : "ETF/fund";
+  return marketOnly(ticker, {
+    ticker: meta.symbol || ticker,
+    name: meta.name,
+    exchange: meta.exchange,
+  }, `${ticker} is a ${kind} — only market prices are available (no SEC company filings).`);
+}
+
 async function load(ticker, source){
   S.ticker = ticker;
   GA.track("view_ticker", { ticker, source });
@@ -1972,9 +1994,21 @@ async function load(ticker, source){
     if (!j || !j.quarters || !j.quarters.length) {
       if (!HOSTED)
         return fail(`No quarterly income-statement data found for ${ticker} in SEC XBRL filings.`);
+
+      // Not in the SEC directory (or no company row yet): serve FMP ETF/crypto
+      // as a price chart instead of queuing a doomed EDGAR backfill.
+      if (!j || !j.ticker) {
+        const meta = await marketSymbolMeta(ticker);
+        if (meta) return openMarketSymbol(ticker, meta);
+      }
+
       busy(`${ticker} has not been read yet — fetching it from SEC EDGAR…`);
       const got = await waitForBackfill(ticker);
-      if (got.refused) return fail(`${ticker}: ${got.refused}.`);
+      if (got.refused) {
+        const meta = await marketSymbolMeta(ticker);
+        if (meta) return openMarketSymbol(ticker, meta);
+        return fail(`${ticker}: ${got.refused}.`);
+      }
       // No filings to read is not the same as nothing to show. The market
       // still prices these companies, so fall back to what FMP knows and say
       // plainly which half is missing.

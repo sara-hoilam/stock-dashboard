@@ -53,7 +53,40 @@ def sync_directory() -> int:
     rows = edgar.ticker_directory()
     n = store.upsert_directory(rows)
     log(f"directory: {len(rows):,} tickers upserted ({n:,} rows written)")
+    # ETF + crypto lists power portfolio / nav search for symbols the SEC
+    # directory does not carry (VOO, BTCUSD, …).
+    try:
+        sync_market_symbols()
+    except Exception as exc:
+        log(f"  market symbols: {exc}")
     return len(rows)
+
+
+def sync_market_symbols() -> int:
+    """Refresh FMP ETF and cryptocurrency symbol directories."""
+    if not market.configured():
+        log("market symbols: FMP_API_KEY not set — skipped")
+        return 0
+    total = 0
+    try:
+        etfs = market.etf_list()
+        n = store.upsert_market_symbols(etfs)
+        total += n
+        log(f"market symbols: {len(etfs):,} ETFs ({n:,} rows written)")
+    except market.MarketError as exc:
+        log(f"  etf-list: {exc}")
+    except store.StoreError as exc:
+        log(f"  etf-list write: {exc}")
+    try:
+        coins = market.crypto_list()
+        n = store.upsert_market_symbols(coins)
+        total += n
+        log(f"market symbols: {len(coins):,} crypto ({n:,} rows written)")
+    except market.MarketError as exc:
+        log(f"  cryptocurrency-list: {exc}")
+    except store.StoreError as exc:
+        log(f"  cryptocurrency-list write: {exc}")
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -851,6 +884,8 @@ def main(argv: list[str]) -> int:
 
     if cmd == "sync-directory":
         sync_directory()
+    elif cmd == "sync-market-symbols":
+        sync_market_symbols()
     elif cmd == "seed":
         seed(int(argv[1]) if len(argv) > 1 else 500)
     elif cmd == "ingest":
