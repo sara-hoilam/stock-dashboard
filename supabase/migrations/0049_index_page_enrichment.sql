@@ -44,7 +44,7 @@ as $$
              else (
                select case
                  when min_c.c is null or min_c.c = 0 or last_c.c is null then null
-                 else round(((last_c.c / min_c.c) - 1.0) * 100.0, 4)
+                 else round((((last_c.c / min_c.c) - 1.0) * 100.0)::numeric, 4)
                end
                from lateral (
                  select nullif(e->>'c', '')::double precision as c
