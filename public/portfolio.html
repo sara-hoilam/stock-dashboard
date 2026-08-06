@@ -298,6 +298,13 @@ tr.on td{background:var(--accent-soft)}
 }
 .field input:focus{border-color:var(--accent);background:var(--card)}
 .field .hint{font-size:11.5px;color:var(--ink-3);margin-top:4px}
+.field-check{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;
+  padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--sunk)}
+.field-check input{width:16px;height:16px;margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
+.field-check label{font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0;
+  text-transform:none;line-height:1.35;cursor:pointer}
+.field-check .hint{font-size:11.5px;color:var(--ink-3);margin-top:3px;font-weight:400}
+.cash-row td{background:color-mix(in srgb, var(--sunk) 70%, transparent)}
 .err{color:var(--down);font-size:12.5px;margin-top:8px;min-height:1.2em}
 
 .toast{
@@ -629,6 +636,20 @@ tr.on td{background:var(--accent-soft)}
         <input id="f-price" name="price" type="number" step="any" min="0" required placeholder="USD">
         <div class="hint" id="f-price-hint">Your cost basis per share from your brokerage.</div>
       </div>
+      <div id="cash-fields" hidden>
+        <div class="field-check">
+          <input type="checkbox" id="f-deduct-cash" name="deductCash">
+          <div>
+            <label for="f-deduct-cash">Deduct portfolio cash for buying</label>
+            <div class="hint" id="f-deduct-hint">Reduce Cash by quantity × price. Turn off when logging a holding you already paid for outside this portfolio.</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-extra-cash">Additional cash</label>
+          <input id="f-extra-cash" name="extraCash" type="number" step="any" min="0" placeholder="0.00">
+          <div class="hint">Optional. Money you are adding now that was not logged on the platform yet — deposited to Cash before the purchase is deducted.</div>
+        </div>
+      </div>
       <div class="err" id="add-err"></div>
       <div class="modal-actions">
         <div class="grow">
@@ -769,8 +790,10 @@ const localPort = {
 function positionsFromTxns(txns){
   const map = {};
   for (const t of txns) {
+    // Cash ledger rows (deposit/withdrawal) are not holdings.
+    if (t.kind === "deposit" || t.kind === "withdrawal") continue;
     const sym = String(t.symbol || "").toUpperCase();
-    if (!sym) continue;
+    if (!sym || sym === "CASH") continue;
     if (!map[sym]) map[sym] = {
       symbol: sym, quantity: 0, costIn: 0, proceeds: 0, dividends: 0,
       firstTrade: t.tradeDate, lastTrade: t.tradeDate,
@@ -784,6 +807,12 @@ function positionsFromTxns(txns){
       p.quantity += q;
       p.costIn += q * px + fee;
     } else if (t.kind === "sell") {
+      // Reduce cost basis for shares sold so avg cost stays meaningful.
+      if (p.quantity > 1e-9 && q > 0) {
+        const sold = Math.min(q, p.quantity);
+        const avg = p.costIn / p.quantity;
+        p.costIn = Math.max(0, p.costIn - avg * sold);
+      }
       p.quantity -= q;
       p.proceeds += q * px - fee;
     } else if (t.kind === "dividend") {
@@ -810,6 +839,19 @@ function positionsFromTxns(txns){
         realizedPl: _hasRealized ? p.realizedPl : null,
       };
     });
+}
+
+/** Spendable cash from deposits and withdrawals (buys/sells write these). */
+function cashBalance(txns = S.transactions){
+  let c = 0;
+  for (const t of txns || []) {
+    const px = Number(t.price) || 0;
+    if (t.kind === "deposit") c += px;
+    else if (t.kind === "withdrawal") c -= Math.abs(px);
+  }
+  // Avoid noisy −0 in the UI.
+  if (Math.abs(c) < 1e-9) return 0;
+  return c;
 }
 
 function mapRemoteTxns(list){
@@ -892,12 +934,27 @@ async function loadPortfolio(){
       const remotePos = mapRemotePositions(d.positions);
       // Remote empty but local still has drafts — keep showing local and
       // retry merge next time rather than bouncing to the empty state.
-      if (!remotePos.length && local.length) {
+      if (!remotePos.length && !remoteTx.length && local.length) {
         applyLocalPortfolio();
         return;
       }
       S.transactions = remoteTx;
-      S.positions = remotePos;
+      // Derive holdings (and correct avg cost after sells) from transactions;
+      // layer live quotes / names from the remote position payload.
+      const quotes = Object.fromEntries((remotePos || []).map(p => [p.symbol, p]));
+      S.positions = positionsFromTxns(remoteTx).map(p => {
+        const q = quotes[p.symbol];
+        if (!q) return p;
+        return {
+          ...p,
+          name: q.name || p.name,
+          assetKind: q.assetKind || p.assetKind || null,
+          price: q.price,
+          changePct: q.changePct,
+          previousClose: q.previousClose,
+          marketCap: q.marketCap,
+        };
+      });
       // Mirror remote into local so a reload before auth is ready still works.
       if (remoteTx.length) mirrorRemoteToLocal(remoteTx);
       return;
@@ -1329,10 +1386,13 @@ function allocation(positions){
     totals[cls] += v;
     sum += v;
   }
+  const cash = Math.max(0, cashBalance());
+  totals.Cash = cash;
+  sum += cash;
   const parts = Object.entries(totals).map(([name, value]) => ({
     name, value, pct: sum ? (value / sum) * 100 : 0, colour: ASSET_COLORS[name],
   }));
-  return { sum, parts };
+  return { sum, parts, cash };
 }
 
 function dailyReturn(positions){
@@ -1756,10 +1816,12 @@ async function renderList(){
       <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
     const plTip = "Includes both stock return and total dividend received, in USD.";
     const divTip = "Dividend received (credited on the ex-dividend date if the stock was logged by then), in USD before tax.";
-    const totalMv = rows.reduce((s, r) => {
+    const holdingsMv = rows.reduce((s, r) => {
       const px = markPrice(r);
       return s + ((px != null && r.quantity) ? px * r.quantity : 0);
     }, 0);
+    const cash = cashBalance();
+    const totalMv = holdingsMv + Math.max(0, cash);
     let totalQty = 0, totalDay = 0, dayN = 0, totalPl = 0, plN = 0;
     let totalCost = 0, totalDiv = 0;
     for (const r of rows) {
@@ -1772,7 +1834,9 @@ async function renderList(){
       totalDiv += holdingDiv(r);
     }
     const totalRet = totalCost > 0 && plN ? (totalPl / totalCost) * 100 : null;
-    const totalDivRet = totalMv > 0 && totalDiv > 0 ? (totalDiv / totalMv) * 100 : null;
+    const totalDivRet = holdingsMv > 0 && totalDiv > 0 ? (totalDiv / holdingsMv) * 100 : null;
+    const cashWeight = totalMv > 0 ? (Math.max(0, cash) / totalMv) * 100 : null;
+    const dash = `<div class="stack-cell"><span class="top">—</span><span class="bot">—</span></div>`;
     host.innerHTML = `<table>
       <thead><tr>
         <th class="idcol">Symbol</th>
@@ -1792,10 +1856,7 @@ async function renderList(){
             <span class="top">${esc(money(totalMv || null))}</span>
             <span class="bot">${esc(String(Number(totalQty.toFixed(4))))}</span>
           </div></td>
-          <td class="col-px"><div class="stack-cell">
-            <span class="top">—</span>
-            <span class="bot">—</span>
-          </div></td>
+          <td class="col-px">${dash}</td>
           <td class="col-num num">${totalMv > 0 ? "100.0%" : "—"}</td>
           <td class="col-num num ${dayN ? dir(totalDay) : ""}">${dayN ? esc(moneySigned(totalDay)) : "—"}</td>
           <td class="col-num"><div class="stack-cell">
@@ -1806,6 +1867,20 @@ async function renderList(){
             <span class="top ${totalDiv > 0 ? "up" : ""}">${totalDiv > 0 ? esc(moneySigned(totalDiv)) : "—"}</span>
             <span class="bot ${dir(totalDivRet)}">${totalDiv > 0 ? esc(retPct(totalDivRet)) : ""}</span>
           </div></td>
+          <td class="col-act"></td>
+        </tr>
+        <tr data-sym="CASH" class="cash-row ${S.selected === "CASH" ? "on" : ""}">
+          <td class="idcol"><span class="tsym"><span class="tsym-t">Cash</span>
+            <span class="tsym-n">Available balance</span></span></td>
+          <td class="col-num"><div class="stack-cell">
+            <span class="top">${esc(money(cash))}</span>
+            <span class="bot">—</span>
+          </div></td>
+          <td class="col-px">${dash}</td>
+          <td class="col-num num">${cashWeight != null ? esc(cashWeight.toFixed(1) + "%") : "—"}</td>
+          <td class="col-num num">—</td>
+          <td class="col-num">${dash}</td>
+          <td class="col-num">${dash}</td>
           <td class="col-act"></td>
         </tr>
         ${rows.map(r => {
@@ -1965,7 +2040,7 @@ async function drawRightChart(){
 
   const from = rangeStartISO(S.range);
 
-  if (S.selected && S.selected !== "PORTFOLIO") {
+  if (S.selected && S.selected !== "PORTFOLIO" && S.selected !== "CASH") {
     idxBar.hidden = true;
     symEl.textContent = S.selected;
     const pos = S.positions.find(p => p.symbol === S.selected);
@@ -2234,6 +2309,10 @@ function setModalMode(kind, symbol, prefill){
   const del = document.getElementById("add-delete");
   const priceHint = document.getElementById("f-price-hint");
   const symEl = document.getElementById("f-symbol");
+  const cashFields = document.getElementById("cash-fields");
+  const deduct = document.getElementById("f-deduct-cash");
+  const extra = document.getElementById("f-extra-cash");
+  const deductHint = document.getElementById("f-deduct-hint");
 
   if (kind === "edit") {
     title.textContent = "Edit holding";
@@ -2243,13 +2322,13 @@ function setModalMode(kind, symbol, prefill){
     symEl.readOnly = true;
   } else if (kind === "sell") {
     title.textContent = "Sell shares";
-    sub.textContent = "Record a sale. Quantity cannot exceed what you currently hold.";
+    sub.textContent = "Record a sale. Proceeds (quantity × price) are added to Cash. Quantity cannot exceed what you currently hold.";
     save.textContent = "Record sale";
     del.hidden = true;
     symEl.readOnly = false;
   } else {
     title.textContent = "Add to portfolio";
-    sub.textContent = "Enter your current holding as of today — ticker, quantity, and average buy price. P/L is calculated from live price.";
+    sub.textContent = "Enter ticker, quantity, and buy price. Optionally fund the purchase from Cash or add money you are bringing in now.";
     save.textContent = "Add holding";
     del.hidden = true;
     symEl.readOnly = false;
@@ -2258,8 +2337,22 @@ function setModalMode(kind, symbol, prefill){
   document.querySelector('label[for="f-price"]').textContent =
     kind === "sell" ? "Sale price per share" : "Average buy price per share";
   priceHint.textContent = kind === "sell"
-    ? "Price you sold at."
+    ? "Price you sold at. Sale proceeds go to Cash."
     : "Your cost basis per share from your brokerage.";
+
+  // Cash funding controls only apply when buying / adding.
+  const showCash = kind === "buy";
+  if (cashFields) cashFields.hidden = !showCash;
+  if (deduct) {
+    const bal = cashBalance();
+    deduct.checked = showCash && bal > 0;
+    if (deductHint) {
+      deductHint.textContent = bal > 0
+        ? `Reduce Cash by quantity × price. Available now: ${money(bal)}.`
+        : "Reduce Cash by quantity × price. Turn off when logging a holding you already paid for outside this portfolio.";
+    }
+  }
+  if (extra) extra.value = "";
 
   symEl.value = (prefill && prefill.symbol) || symbol || "";
   document.getElementById("f-date").value = (prefill && prefill.tradeDate) || todayISO();
@@ -2373,7 +2466,7 @@ function wireModal(){
     const tradeDate = document.getElementById("f-date").value || todayISO();
     const quantity = Number(document.getElementById("f-qty").value);
     const price = Number(document.getElementById("f-price").value);
-    if (!/^[A-Z][A-Z.\-]{0,9}$/.test(symbol)) {
+    if (!/^[A-Z][A-Z.\-]{0,9}$/.test(symbol) || symbol === "CASH") {
       err.textContent = "Enter a valid ticker.";
       return;
     }
@@ -2390,10 +2483,81 @@ function wireModal(){
         await replaceHolding({ symbol, tradeDate, quantity, price });
         closeAddModal();
         toast(`Updated ${symbol}`);
-      } else {
-        await addTransaction({ symbol, kind: addKind, tradeDate, quantity, price });
+      } else if (addKind === "sell") {
+        const proceeds = quantity * price;
+        await addTransaction({
+          symbol, kind: "sell", tradeDate, quantity, price, reload: false,
+        });
+        // Sale proceeds become spendable cash.
+        if (proceeds > 0) {
+          await addTransaction({
+            symbol: "CASH",
+            kind: "deposit",
+            tradeDate,
+            quantity: 1,
+            price: proceeds,
+            note: `proceeds:${symbol}`,
+            quiet: true,
+            reload: false,
+          });
+        }
+        await loadPortfolio();
         closeAddModal();
-        toast(addKind === "sell" ? `Sold ${quantity} ${symbol}` : `Added ${quantity} ${symbol}`);
+        toast(`Sold ${quantity} ${symbol} · ${money(proceeds)} to Cash`);
+      } else {
+        const deduct = !!(document.getElementById("f-deduct-cash")
+          && document.getElementById("f-deduct-cash").checked);
+        const extraRaw = document.getElementById("f-extra-cash")
+          ? document.getElementById("f-extra-cash").value : "";
+        const extraCash = Number(extraRaw);
+        const extra = Number.isFinite(extraCash) && extraCash > 0 ? extraCash : 0;
+        const cost = quantity * price;
+
+        if (deduct) {
+          const available = cashBalance() + extra;
+          if (cost > available + 1e-6) {
+            err.textContent = `Not enough cash. Need ${money(cost)}, have ${money(available)}`
+              + (extra ? " including additional cash." : ". Add additional cash or turn off deduct.");
+            return;
+          }
+        }
+
+        // Optional top-up before the buy so the withdrawal can cover the cost.
+        if (extra > 0) {
+          await addTransaction({
+            symbol: "CASH",
+            kind: "deposit",
+            tradeDate,
+            quantity: 1,
+            price: extra,
+            note: `funding:${symbol}`,
+            quiet: true,
+            reload: false,
+          });
+        }
+
+        await addTransaction({
+          symbol, kind: "buy", tradeDate, quantity, price, reload: false,
+        });
+
+        if (deduct && cost > 0) {
+          await addTransaction({
+            symbol: "CASH",
+            kind: "withdrawal",
+            tradeDate,
+            quantity: 1,
+            price: cost,
+            note: `buy:${symbol}`,
+            quiet: true,
+            reload: false,
+          });
+        }
+
+        await loadPortfolio();
+        closeAddModal();
+        toast(deduct
+          ? `Bought ${quantity} ${symbol} · ${money(cost)} from Cash`
+          : `Added ${quantity} ${symbol}`);
       }
       await boot(false);
     } catch (ex) {
