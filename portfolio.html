@@ -45,9 +45,9 @@ body{
 main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .up{color:var(--up)} .down{color:var(--down)}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
-/* Table needs enough width for Dividend + Buy/Sell without a horizontal scroll;
-   chart still gets a generous share of the remaining space. */
-.split{display:grid;grid-template-columns:minmax(520px,1.2fr) minmax(300px,1.15fr);min-height:520px}
+/* Table needs enough width for %Portfolio + Dividend + actions without a
+   horizontal scroll; chart keeps a solid but smaller share. */
+.split{display:grid;grid-template-columns:minmax(600px,1.35fr) minmax(280px,1fr);min-height:520px}
 .note{padding:28px 20px;color:var(--ink-3);text-align:center}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--rule);
   border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
@@ -1258,11 +1258,16 @@ async function renderList(){
       <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
     const plTip = "Includes both stock return and total dividend received, in USD.";
     const divTip = "Dividend received (credited on the ex-dividend date if the stock was logged by then), in USD before tax.";
+    const totalMv = rows.reduce((s, r) => {
+      const px = markPrice(r);
+      return s + ((px != null && r.quantity) ? px * r.quantity : 0);
+    }, 0);
     host.innerHTML = `<table>
       <thead><tr>
         <th class="idcol">Symbol</th>
         <th class="col-num">MV/Qty</th>
         <th class="col-px">Price/Cost</th>
+        <th class="col-num">%Portfolio</th>
         <th class="col-num">Today's P/L</th>
         <th class="col-num"><span class="th-with-tip">P/L ${infoTip(plTip)}</span></th>
         <th class="col-num"><span class="th-with-tip">Dividend ${infoTip(divTip)}</span></th>
@@ -1270,7 +1275,7 @@ async function renderList(){
       </tr></thead>
       <tbody>
         <tr data-sym="PORTFOLIO" class="${S.selected === "PORTFOLIO" ? "on" : ""}">
-          <td colspan="6"><b style="font-size:12.5px">Portfolio total</b>
+          <td colspan="7"><b style="font-size:12.5px">Portfolio total</b>
             <div style="font-size:11px;color:var(--ink-3)">vs indexes on the chart</div></td>
           <td class="col-act"></td>
         </tr>
@@ -1278,6 +1283,7 @@ async function renderList(){
           const livePx = r.price != null ? r.price : null;
           const avg = r.avgCost != null ? r.avgCost : null;
           const val = markPrice(r) != null ? markPrice(r) * r.quantity : null;
+          const weight = (val != null && totalMv > 0) ? (val / totalMv) * 100 : null;
           const day = todayPl(r);
           const pl = holdingPl(r);
           const ret = holdingRetPct(r);
@@ -1295,6 +1301,7 @@ async function renderList(){
               <span class="top">${esc(priceFmt(livePx != null ? livePx : markPrice(r)))}</span>
               <span class="bot">${avg != null ? esc(priceFmt(avg)) : "—"}</span>
             </div></td>
+            <td class="col-num num">${weight != null ? esc(weight.toFixed(1) + "%") : "—"}</td>
             <td class="col-num num ${dir(day)}">${esc(moneySigned(day))}</td>
             <td class="col-num"><div class="stack-cell">
               <span class="top ${dir(pl)}">${esc(moneySigned(pl))}</span>
