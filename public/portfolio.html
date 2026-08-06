@@ -443,20 +443,6 @@ tr.on td{background:var(--accent-soft)}
 #insiders .trade-more, #congress .trade-more{
   text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
 }
-.flow{padding:4px 18px 16px; border-top:1px solid var(--rule-2)}
-.flow-head{
-  display:flex; justify-content:space-between; align-items:baseline;
-  gap:10px; margin-bottom:6px; flex-wrap:wrap;
-}
-.flow-head h4{margin:0; font-size:12px; font-weight:600; color:var(--ink-2)}
-.flow-leg{display:flex; gap:12px; font-size:11px; color:var(--ink-3); align-items:center}
-.flow-leg i{width:8px; height:8px; border-radius:2px; display:inline-block; margin-right:5px;
-  vertical-align:-1px}
-.flow-leg .in i{background:var(--up)}
-.flow-leg .out i{background:var(--down)}
-.flow-chart{width:100%; height:120px}
-.flow-chart svg{width:100%; height:100%}
-.flow-empty{font-size:12px; color:var(--ink-3); padding:18px 0; text-align:center}
 .mini{width:100%;border-collapse:collapse;font-size:12.5px}
 .mini thead th{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
   font-weight:600;text-align:right;padding:0 0 7px 8px;border-bottom:1px solid var(--rule)}
@@ -1658,16 +1644,6 @@ function renderDashboard(){
         </div>
         <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
           <div class="note"><span class="load"></span></div></div>
-        <div class="flow" id="insider-flow" aria-label="Insider daily volume">
-          <div class="flow-head">
-            <h4>Daily volume · 60 days</h4>
-            <div class="flow-leg"><span class="in"><i></i>Inflow</span>
-              <span class="out"><i></i>Outflow</span></div>
-          </div>
-          <div class="flow-chart" id="insider-flow-chart">
-            <div class="flow-empty"><span class="load"></span></div>
-          </div>
-        </div>
       </section>
       <section class="panel">
         <div class="hmhead">
@@ -1681,16 +1657,6 @@ function renderDashboard(){
         </div>
         <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
           <div class="note"><span class="load"></span></div></div>
-        <div class="flow" id="congress-flow" aria-label="Congress daily volume">
-          <div class="flow-head">
-            <h4>Daily volume · 60 days</h4>
-            <div class="flow-leg"><span class="in"><i></i>Inflow</span>
-              <span class="out"><i></i>Outflow</span></div>
-          </div>
-          <div class="flow-chart" id="congress-flow-chart">
-            <div class="flow-empty"><span class="load"></span></div>
-          </div>
-        </div>
       </section>
     </div>`;
 
@@ -3405,7 +3371,6 @@ function bootTrades(){
   resetTrades();
   loadTrades("insider");
   loadTrades("congress");
-  loadTradeFlow();
   wirePanelInfoTips();
 }
 
@@ -3439,184 +3404,6 @@ function wirePanelInfoTips(root){
     btn.addEventListener("mouseleave", hide);
     btn.addEventListener("blur", hide);
   });
-}
-
-async function fetchTradePages(kind, days){
-  const key = kind === "insider" ? "insiders" : "congress";
-  const totalKey = kind === "insider" ? "insidersTotal" : "congressTotal";
-  const rows = [];
-  let offset = 0;
-  for (let i = 0; i < 25; i++) {
-    const d = await rpc("get_trades", {
-      p_limit: 100, p_offset: offset, p_days: days, p_kind: kind,
-    });
-    const chunk = (d && d[key]) || [];
-    rows.push(...chunk);
-    offset += chunk.length;
-    const total = (d && d[totalKey]) || 0;
-    if (!chunk.length || chunk.length < 100 || (total > 0 && rows.length >= total)) break;
-  }
-  return rows;
-}
-
-const FLOW_DAYS = 60;
-const FLOW_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun",
-                     "Jul","Aug","Sep","Oct","Nov","Dec"];
-
-function flowDayLabel(iso){
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  return `${d} ${FLOW_MONTHS[m - 1]} ${y}`;
-}
-function flowDayKey(raw){ return String(raw || "").slice(0, 10); }
-function localISODate(d){
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-function fillFlowDays(rows, days){
-  const by = {};
-  (rows || []).forEach(r => {
-    const day = flowDayKey(r && r.day);
-    if (!day) return;
-    by[day] = { day, inflow: Number(r.inflow) || 0, outflow: Number(r.outflow) || 0 };
-  });
-  const out = [];
-  const end = new Date();
-  end.setHours(12, 0, 0, 0);
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(end);
-    d.setDate(end.getDate() - i);
-    const iso = localISODate(d);
-    out.push(by[iso] || { day: iso, inflow: 0, outflow: 0 });
-  }
-  return out;
-}
-function flowHasVolume(rows){
-  return (rows || []).some(r => (Number(r.inflow) || 0) > 0 || (Number(r.outflow) || 0) > 0);
-}
-function congressAmountMid(raw){
-  const nums = String(raw || "").match(/[\d,]+/g);
-  if (!nums || !nums.length) return 0;
-  const vals = nums.map(n => +n.replace(/,/g, "")).filter(Number.isFinite);
-  if (!vals.length) return 0;
-  return (Math.min(...vals) + Math.max(...vals)) / 2;
-}
-function aggregateInsiderFlow(rows){
-  const by = {};
-  (rows || []).forEach(r => {
-    const day = flowDayKey(r.filed);
-    if (!day) return;
-    if (!by[day]) by[day] = { day, inflow: 0, outflow: 0 };
-    const amt = Number(r.amount) || 0;
-    if (amt > 0) by[day].inflow += amt;
-    else if (amt < 0) by[day].outflow += Math.abs(amt);
-  });
-  return Object.values(by).sort((a, b) => a.day.localeCompare(b.day));
-}
-function aggregateCongressFlow(rows){
-  const by = {};
-  (rows || []).forEach(r => {
-    const day = flowDayKey(r.disclosed);
-    if (!day) return;
-    const mid = congressAmountMid(r.amount);
-    if (!(mid > 0)) return;
-    if (!by[day]) by[day] = { day, inflow: 0, outflow: 0 };
-    const s = String(r.side || "").toLowerCase();
-    if (/^(buy|purchase|receive)/.test(s) || s.includes("purchase") || s.includes("receive")) {
-      by[day].inflow += mid;
-    } else if (/^(sell|sale)/.test(s) || s.includes("sale") || s.includes("sell") || s.includes("exchange")) {
-      by[day].outflow += mid;
-    }
-  });
-  return Object.values(by).sort((a, b) => a.day.localeCompare(b.day));
-}
-async function deriveFlowFromTrades(){
-  try {
-    const [ins, con] = await Promise.all([
-      fetchTradePages("insider", FLOW_DAYS),
-      fetchTradePages("congress", FLOW_DAYS),
-    ]);
-    return {
-      insider: aggregateInsiderFlow(ins),
-      congress: aggregateCongressFlow(con),
-    };
-  } catch {
-    return { insider: [], congress: [] };
-  }
-}
-function drawFlowChart(host, rows){
-  if (!host) return;
-  const series = fillFlowDays(rows, FLOW_DAYS);
-  const max = Math.max(1, ...series.map(r => Math.max(r.inflow, r.outflow)));
-  const W = 640, H = 120;
-  const pad = { l: 2, r: 2, t: 8, b: 22 };
-  const innerW = W - pad.l - pad.r;
-  const innerH = H - pad.t - pad.b;
-  const n = series.length;
-  const slot = innerW / n;
-  const barW = Math.max(1.2, Math.min(4.5, slot * 0.38));
-  const gap = Math.max(0.4, barW * 0.15);
-  const bars = series.map((r, i) => {
-    const x0 = pad.l + i * slot + (slot - (barW * 2 + gap)) / 2;
-    const inH = (r.inflow / max) * innerH;
-    const outH = (r.outflow / max) * innerH;
-    const tip = `${flowDayLabel(r.day)} · in ${amount(r.inflow)} · out ${amount(r.outflow)}`;
-    return `<g>
-      <rect x="${x0.toFixed(2)}" y="${(pad.t + innerH - inH).toFixed(2)}"
-        width="${barW.toFixed(2)}" height="${inH.toFixed(2)}"
-        fill="var(--up)" opacity=".9"><title>${esc(tip)}</title></rect>
-      <rect x="${(x0 + barW + gap).toFixed(2)}" y="${(pad.t + innerH - outH).toFixed(2)}"
-        width="${barW.toFixed(2)}" height="${outH.toFixed(2)}"
-        fill="var(--down)" opacity=".9"><title>${esc(tip)}</title></rect>
-    </g>`;
-  }).join("");
-  const labelIdx = new Set([0, n - 1]);
-  const step = Math.max(1, Math.round(n / 6));
-  for (let i = step; i < n - 1; i += step) labelIdx.add(i);
-  const labels = [...labelIdx].sort((a, b) => a - b).map(i => {
-    const x = pad.l + i * slot + slot / 2;
-    return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle"
-      fill="var(--ink-3)" font-size="9.5" font-family="IBM Plex Sans,sans-serif">${
-        esc(flowDayLabel(series[i].day))}</text>`;
-  }).join("");
-  if (!series.some(r => r.inflow > 0 || r.outflow > 0)) {
-    host.innerHTML = `<div class="flow-empty">No material volume in the last ${FLOW_DAYS} days.</div>`;
-    return;
-  }
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
-    role="img" aria-label="Daily inflow and outflow over ${FLOW_DAYS} days">
-    ${bars}${labels}
-  </svg>`;
-}
-async function loadTradeFlow(){
-  const insHost = document.getElementById("insider-flow-chart");
-  const conHost = document.getElementById("congress-flow-chart");
-  if (!insHost || !conHost) return;
-  try {
-    const d = await rpc("get_trade_flow", { p_days: FLOW_DAYS });
-    let insRows = (d && d.insider) || [];
-    let conRows = (d && d.congress) || [];
-    if (!flowHasVolume(insRows) || !flowHasVolume(conRows)) {
-      const derived = await deriveFlowFromTrades();
-      if (!flowHasVolume(insRows)) insRows = derived.insider;
-      if (!flowHasVolume(conRows)) conRows = derived.congress;
-    }
-    drawFlowChart(insHost, insRows);
-    drawFlowChart(conHost, conRows);
-  } catch {
-    try {
-      const derived = await deriveFlowFromTrades();
-      drawFlowChart(insHost, derived.insider);
-      drawFlowChart(conHost, derived.congress);
-    } catch {
-      const msg = `<div class="flow-empty">Volume chart unavailable.</div>`;
-      insHost.innerHTML = msg;
-      conHost.innerHTML = msg;
-    }
-  }
 }
 
 /* ---- boot ---------------------------------------------------------------- */
