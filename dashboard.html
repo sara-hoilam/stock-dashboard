@@ -399,7 +399,7 @@ tbody tr:hover td{background:var(--sunk)}
   display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,.9fr);
   gap:18px;margin:0 0 22px;align-items:stretch;
 }
-.idx-hold{min-width:0;margin:0}
+.idx-hold{min-width:0;margin:0;display:flex;flex-direction:column;min-height:420px}
 .idx-hold .htab{
   width:100%;border-collapse:collapse;font-size:12.5px;
 }
@@ -418,11 +418,16 @@ tbody tr:hover td{background:var(--sunk)}
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap
 }
 .idx-hold .htab .ret.up{color:var(--up)} .idx-hold .htab .ret.down{color:var(--down)}
-.idx-hold .scroll{max-height:440px;overflow:auto;border:1px solid var(--rule);border-radius:var(--r);background:var(--card)}
-.idx-pie-col{display:flex;flex-direction:column;gap:10px;min-width:0}
+/* Stretch to the industry column height so the table matches the donut card. */
+.idx-hold .scroll{
+  flex:1 1 auto;min-height:0;max-height:none;overflow:auto;
+  border:1px solid var(--rule);border-radius:var(--r);background:var(--card)
+}
+.idx-hold > .note{flex-shrink:0}
+.idx-pie-col{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:420px}
 .idx-pie-wrap{
-  display:flex;align-items:center;justify-content:center;padding:14px;
-  min-height:280px;flex:1;position:relative;
+  display:flex;align-items:center;justify-content:center;padding:18px;
+  min-height:320px;flex:1;position:relative;
 }
 .idx-pie-wrap svg path{cursor:pointer;transition:opacity .12s}
 .idx-pie-wrap svg.path-dim path{opacity:.35}
@@ -431,7 +436,7 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-pie-legend span{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
 .idx-pie-legend i{width:10px;height:10px;border-radius:3px;flex-shrink:0}
 .idx-pie-legend b{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--ink)}
-.idx-filters{display:flex;flex-wrap:wrap;gap:8px;padding:4px 2px 2px}
+.idx-filters{display:flex;flex-wrap:wrap;gap:8px;padding:8px 14px 4px}
 .idx-filters button{
   display:inline-flex;align-items:center;gap:7px;border:1px solid var(--rule);
   background:var(--card);border-radius:99px;padding:5px 12px 5px 10px;
@@ -442,8 +447,13 @@ tbody tr:hover td{background:var(--sunk)}
   border-color:var(--accent);background:var(--accent-soft);color:var(--ink);font-weight:600;
 }
 .idx-filters button[aria-pressed=false]{opacity:.72}
+.idx-valrow{margin-bottom:8px}
+.idx-valrow > .panel{margin-bottom:0;display:flex;flex-direction:column}
+.idx-valrow .lwrap{flex:1}
 @media (max-width:980px){
   .idx-split{grid-template-columns:1fr}
+  .idx-hold,.idx-pie-col{min-height:0}
+  .idx-hold .scroll{max-height:420px}
 }
 
 /* ---- industry benchmark, seasonality, bollinger, news -------------------- */
@@ -1244,7 +1254,13 @@ async function ensureCompanyExtras(sym){
 
 /* ---- shared line-chart plumbing ------------------------------------------ */
 function linePlot(host, series, opts){
-  const W = 620, H = MOBILE_MQ.matches ? 360 : 260, ml = 6, mr = 52, mt = 12, mb = 26;
+  const W = opts.W || 620;
+  const H = opts.H != null ? opts.H : (MOBILE_MQ.matches ? 360 : 260);
+  const ml = opts.ml != null ? opts.ml : 6;
+  const mr = opts.mr != null ? opts.mr : 52;
+  const mt = opts.mt != null ? opts.mt : 12;
+  const mb = opts.mb != null ? opts.mb : 32;
+  const insideY = !!opts.insideY;
   const pw = W - ml - mr, ph = H - mt - mb;
   const all = series.flatMap(s => s.pts.map(p => p.v)).filter(v => v !== null);
   if (!all.length) { host.innerHTML = `<div class="note">Not enough data.</div>`; return; }
@@ -1256,11 +1272,24 @@ function linePlot(host, series, opts){
   const x = i => ml + (n < 2 ? pw / 2 : (i / (n - 1)) * pw);
   const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
 
-  const ticks = bandTicks(y0, y1, 5);
+  const ticks = bandTicks(y0, y1, opts.tickCount || 5);
+  const yLabelX = insideY ? (W - mr - 4) : (W - mr + 6);
+  const yAnchor = insideY ? "end" : "start";
   const grid = ticks.map(t => `
     <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
       stroke="var(--rule-2)" stroke-width="1"/>
-    <text x="${W - mr + 6}" y="${(y(t) + 3.5).toFixed(1)}" class="ax">${opts.fmtY(t)}</text>`).join("");
+    <text x="${yLabelX}" y="${(y(t) + 3.5).toFixed(1)}" class="ax"
+      text-anchor="${yAnchor}">${opts.fmtY(t)}</text>`).join("");
+
+  const fillUnder = opts.fillUnder ? series.map(s => {
+    if (!s.fill || !s.pts.some(p => p.v !== null)) return "";
+    const pts = s.pts.map((p, i) => p.v === null ? null : [x(i), y(p.v)]).filter(Boolean);
+    if (pts.length < 2) return "";
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")
+      + ` L${pts[pts.length - 1][0].toFixed(1)},${(mt + ph).toFixed(1)}`
+      + ` L${pts[0][0].toFixed(1)},${(mt + ph).toFixed(1)} Z`;
+    return `<path d="${d}" fill="${s.fill}" opacity="${s.fillOpacity != null ? s.fillOpacity : .18}"/>`;
+  }).join("") : "";
 
   const paths = series.map(s => {
     const d = s.pts.map((p, i) => p.v === null ? null : `${x(i).toFixed(1)},${y(p.v).toFixed(1)}`)
@@ -1274,13 +1303,21 @@ function linePlot(host, series, opts){
       stroke="${r.colour}" stroke-width="1.4" stroke-dasharray="5 4"/>`).join("");
 
   const labs = series[0].pts;
-  const every = Math.max(1, Math.round(labs.length / 5));
-  const dates = labs.map((p, i) => i % every === 0 && i < labs.length - every / 2
-    ? `<text x="${x(i).toFixed(1)}" y="${H - 7}" class="ax mid">${p.label}</text>` : "").join("");
+  const labelN = opts.xLabels || 5;
+  const every = Math.max(1, Math.round((labs.length - 1) / Math.max(1, labelN - 1)));
+  const dateIdx = new Set([0, labs.length - 1]);
+  for (let i = every; i < labs.length - 1; i += every) dateIdx.add(i);
+  const dates = [...dateIdx].sort((a, b) => a - b).map(i => {
+    const p = labs[i];
+    if (!p) return "";
+    // Keep edge labels inside the plot so they are not cropped.
+    const anchor = i === 0 ? "start" : i === labs.length - 1 ? "end" : "middle";
+    return `<text x="${x(i).toFixed(1)}" y="${H - 8}" class="ax" text-anchor="${anchor}">${p.label}</text>`;
+  }).join("");
 
   host.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img" aria-label="${esc(opts.alt || "")}">
-      ${grid}${refs}${paths}${dates}
+      ${grid}${fillUnder}${refs}${paths}${dates}
       <g id="${opts.id}-cross" style="display:none">
         <line class="xh" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
           stroke-width="1" stroke-dasharray="3 3"/>
@@ -2057,7 +2094,21 @@ const INDEX_PE_META = {
   DJI:  { label: "Dow",     colour: "var(--s8)" },
   RUT:  { label: "Russell", colour: "var(--s3)" },
 };
-const INDEX_PE = { series: [], on: { SPX: true, IXIC: true, DJI: true, RUT: false } };
+const INDEX_PE = {
+  series: [],
+  on: { SPX: true, IXIC: true, DJI: true, RUT: false },
+  range: "1Y",
+};
+const INDEX_RANGES = ["1W", "1M", "YTD", "1Y"];
+
+function indexRangeStartISO(range){
+  const d = new Date();
+  if (range === "1W") d.setDate(d.getDate() - 7);
+  else if (range === "1M") d.setMonth(d.getMonth() - 1);
+  else if (range === "1Y") d.setFullYear(d.getFullYear() - 1);
+  else d.setMonth(0, 1); // YTD
+  return d.toISOString().slice(0, 10);
+}
 
 const signedPct = (v, d = 2) => {
   if (v === null || v === undefined || Number.isNaN(+v)) return "—";
@@ -2079,6 +2130,7 @@ function openIndexSymbol(ticker, meta){
   EXTRA.symbol = null; EXTRA.data = null;
   INDEX_PE.series = [];
   INDEX_PE.on = { SPX: true, IXIC: true, DJI: true, RUT: false };
+  INDEX_PE.range = "1Y";
 
   const holdTitle = c.ticker === "IXIC" ? "Holdings & industry (Nasdaq-100)" : "Holdings & industry";
 
@@ -2120,15 +2172,39 @@ function openIndexSymbol(ticker, meta){
       </div>
     </div>
 
-    <h3 class="grouphead">Forward PE Ratio</h3>
-    <section class="card panel" style="margin-bottom:8px">
-      <div class="phead"><div><h2>vs other market indexes</h2></div></div>
-      <div class="lwrap" id="idx-pe-chart"><div class="note"><span class="load"></span> &nbsp;Loading P/E…</div></div>
-      <div class="idx-filters" id="idx-pe-filters" hidden></div>
-      <p class="note" style="text-align:left;padding:4px 14px 14px;margin:0" id="idx-pe-note">
-        Forward P/E from History of Market (S&P 500 / Nasdaq-100); Dow approximated from constituent TTM P/Es when needed.
-      </p>
-    </section>
+    <div class="pairrow idx-valrow">
+      <section class="card panel">
+        <div class="phead">
+          <div><h2>Forward PE Ratio</h2>
+            <p>vs other market indexes</p></div>
+          <div class="ranges" id="idx-pe-range" role="group" aria-label="PE chart range">
+            ${INDEX_RANGES.map(r =>
+              `<button type="button" data-r="${r}" aria-pressed="${r === "1Y"}">${r}</button>`
+            ).join("")}
+          </div>
+        </div>
+        <div class="lwrap" id="idx-pe-chart"><div class="note"><span class="load"></span> &nbsp;Loading P/E…</div></div>
+        <div class="idx-filters" id="idx-pe-filters" hidden></div>
+        <p class="note" style="text-align:left;padding:4px 14px 14px;margin:0" id="idx-pe-note">
+          Forward P/E from History of Market (S&P 500 / Nasdaq-100); Dow approximated from constituent TTM P/Es when needed.
+        </p>
+      </section>
+      <section class="card panel">
+        <div class="phead">
+          <div><h2>Drawdown</h2>
+            <p>% below the last peak</p></div>
+          <div class="ranges" id="idx-dd-range" role="group" aria-label="Drawdown chart range">
+            ${INDEX_RANGES.map(r =>
+              `<button type="button" data-r="${r}" aria-pressed="${r === "1Y"}">${r}</button>`
+            ).join("")}
+          </div>
+        </div>
+        <div class="lwrap" id="idx-dd-chart"><div class="note"><span class="load"></span> &nbsp;Loading drawdown…</div></div>
+        <p class="note" style="text-align:left;padding:4px 14px 14px;margin:0">
+          Peak-to-trough drawdown: percent difference from the running high in the selected window.
+        </p>
+      </section>
+    </div>
 
     <h3 class="grouphead">Seasonality</h3>
     <section class="card panel">
@@ -2150,6 +2226,26 @@ function openIndexSymbol(ticker, meta){
   loadIndexSeasonality(c.ticker);
   loadIndexPE(c.ticker);
   hydratePageLogos();
+  addEventListener("resize", () => {
+    clearTimeout(syncIndexHoldingsHeight._t);
+    syncIndexHoldingsHeight._t = setTimeout(syncIndexHoldingsHeight, 120);
+  }, { passive: true });
+}
+
+/** Stretch the holdings table scroll area to the industry column's height. */
+function syncIndexHoldingsHeight(){
+  const split = document.getElementById("idx-split");
+  const hold = document.getElementById("idx-holdings");
+  const pie = document.getElementById("idx-industry");
+  const scroll = hold && hold.querySelector(".scroll");
+  if (!split || !hold || !pie || !scroll || matchMedia("(max-width:980px)").matches) return;
+  hold.style.minHeight = "";
+  scroll.style.height = "";
+  const h = Math.max(pie.getBoundingClientRect().height, 380);
+  hold.style.minHeight = h + "px";
+  const note = hold.querySelector(":scope > .note");
+  const noteH = note ? note.getBoundingClientRect().height + 10 : 0;
+  scroll.style.height = Math.max(280, h - noteH) + "px";
 }
 
 async function loadIndexHoldings(symbol){
@@ -2198,8 +2294,10 @@ async function loadIndexHoldings(symbol){
       <td class="ret ${retClass(ytd)}">${esc(signedPct(ytd))}</td>
     </tr>`;
     }).join("")}</tbody></table></div>
-    <p class="note" style="text-align:left;padding:10px 2px 0">Today from the latest quote close.
+    <p class="note" style="text-align:left;padding:10px 2px 0;flex-shrink:0">Today from the latest quote close.
       YTD from cached daily bars when available.</p>`;
+  // Match the holdings scrollport to the industry column once both are laid out.
+  requestAnimationFrame(() => syncIndexHoldingsHeight());
 
   const byInd = new Map();
   rows.forEach(r => {
@@ -2226,6 +2324,7 @@ async function loadIndexHoldings(symbol){
         <b>${esc(share)}%</b></span>`;
     }).join("")}</div>`;
   drawIndexPie(document.getElementById("idx-pie"), top, total);
+  requestAnimationFrame(() => syncIndexHoldingsHeight());
 }
 
 function drawIndexPie(host, slices, total){
@@ -2295,6 +2394,19 @@ async function loadIndexSeasonality(symbol){
   drawSeasonality();
 }
 
+function wireIndexRange(hostId, onChange){
+  const host = document.getElementById(hostId);
+  if (!host) return;
+  host.querySelectorAll("button").forEach(b => {
+    b.onclick = () => {
+      INDEX_PE.range = b.dataset.r;
+      document.querySelectorAll("#idx-pe-range button, #idx-dd-range button").forEach(x =>
+        x.setAttribute("aria-pressed", String(x.dataset.r === INDEX_PE.range)));
+      onChange();
+    };
+  });
+}
+
 async function loadIndexPE(focusSymbol){
   const host = document.getElementById("idx-pe-chart");
   const filters = document.getElementById("idx-pe-filters");
@@ -2330,56 +2442,70 @@ async function loadIndexPE(focusSymbol){
   if (!INDEX_PE.series.length) {
     host.innerHTML = `<div class="note">Index P/E history is not cached yet.
       Run <span class="mono">python worker.py indexes</span> after applying migration 0049.</div>`;
-    return;
-  }
-
-  // Default: all available comparison lines on (Russell stays off unless present
-  // and the visitor turns it on — it is optional).
-  Object.keys(INDEX_PE.on).forEach(k => { INDEX_PE.on[k] = false; });
-  INDEX_PE.series.forEach(s => {
-    INDEX_PE.on[s.symbol] = s.symbol !== "RUT";
-  });
-  if (INDEX_PE.series.some(s => s.symbol === focusSymbol))
-    INDEX_PE.on[focusSymbol] = true;
-
-  if (filters) {
-    filters.hidden = false;
-    filters.innerHTML = INDEX_PE.series.map(s =>
-      `<button type="button" data-sym="${esc(s.symbol)}"
-         aria-pressed="${INDEX_PE.on[s.symbol] ? "true" : "false"}">
-         <i style="background:${s.colour}"></i>${esc(s.name)}</button>`).join("");
-    filters.querySelectorAll("button").forEach(b => {
-      b.onclick = () => {
-        const sym = b.dataset.sym;
-        const onCount = Object.values(INDEX_PE.on).filter(Boolean).length;
-        if (INDEX_PE.on[sym] && onCount <= 1) return; // keep at least one line
-        INDEX_PE.on[sym] = !INDEX_PE.on[sym];
-        b.setAttribute("aria-pressed", String(INDEX_PE.on[sym]));
-        drawIndexPE();
-      };
+  } else {
+    Object.keys(INDEX_PE.on).forEach(k => { INDEX_PE.on[k] = false; });
+    INDEX_PE.series.forEach(s => {
+      INDEX_PE.on[s.symbol] = s.symbol !== "RUT";
     });
+    if (INDEX_PE.series.some(s => s.symbol === focusSymbol))
+      INDEX_PE.on[focusSymbol] = true;
+
+    if (filters) {
+      filters.hidden = false;
+      filters.innerHTML = INDEX_PE.series.map(s =>
+        `<button type="button" data-sym="${esc(s.symbol)}"
+           aria-pressed="${INDEX_PE.on[s.symbol] ? "true" : "false"}">
+           <i style="background:${s.colour}"></i>${esc(s.name)}</button>`).join("");
+      filters.querySelectorAll("button").forEach(b => {
+        b.onclick = () => {
+          const sym = b.dataset.sym;
+          const onCount = Object.values(INDEX_PE.on).filter(Boolean).length;
+          if (INDEX_PE.on[sym] && onCount <= 1) return;
+          INDEX_PE.on[sym] = !INDEX_PE.on[sym];
+          b.setAttribute("aria-pressed", String(INDEX_PE.on[sym]));
+          drawIndexPE();
+        };
+      });
+    }
   }
+
+  const redraw = () => { drawIndexPE(); drawIndexDrawdown(); };
+  wireIndexRange("idx-pe-range", redraw);
+  wireIndexRange("idx-dd-range", redraw);
   drawIndexPE();
+  drawIndexDrawdown();
 }
 
 function drawIndexPE(){
   const host = document.getElementById("idx-pe-chart");
   if (!host) return;
+  if (!INDEX_PE.series.length) return;
   const active = INDEX_PE.series.filter(s => INDEX_PE.on[s.symbol]);
   if (!active.length) {
     host.innerHTML = `<div class="note">Select at least one index.</div>`;
     return;
   }
 
+  const from = indexRangeStartISO(INDEX_PE.range);
   // Align all series onto a shared date axis (union of dates), carrying
   // each line's last known PE forward between prints.
-  const dates = [...new Set(active.flatMap(s => s.points.map(p => p.d)))].sort();
-  // Prefer ~weekly density for readability when series are dense.
-  const step = dates.length > 260 ? Math.ceil(dates.length / 220) : 1;
+  let dates = [...new Set(active.flatMap(s => s.points.map(p => p.d)))]
+    .filter(d => d >= from)
+    .sort();
+  if (dates.length < 2) {
+    // Fall back to whatever history exists if the window is too short.
+    dates = [...new Set(active.flatMap(s => s.points.map(p => p.d)))].sort();
+  }
+  const step = dates.length > 180 ? Math.ceil(dates.length / 140) : 1;
   const axis = dates.filter((_, i) => i % step === 0 || i === dates.length - 1);
 
   const series = active.map(s => {
     let j = 0, last = null;
+    // Seed with the last print at or before the window so the line is continuous.
+    while (j < s.points.length && s.points[j].d < axis[0]) {
+      last = s.points[j].pe;
+      j++;
+    }
     const pts = axis.map(d => {
       while (j < s.points.length && s.points[j].d <= d) {
         last = s.points[j].pe;
@@ -2396,12 +2522,61 @@ function drawIndexPE(){
 
   linePlot(host, series, {
     id: "idxpe", zero: false,
+    H: MOBILE_MQ.matches ? 240 : 200,
+    mb: 34, mr: 44, insideY: true, xLabels: 4,
     fmtY: v => v.toFixed(0),
     fmtV: v => v.toFixed(2) + "x",
     alt: "Forward P/E across market indexes",
     idle: "Hover to compare forward P/E across indexes.",
   });
-  // Replace the default colour-key with the interactive filters below.
+  const key = host.querySelector(".lkey");
+  if (key) key.remove();
+}
+
+/** Peak-to-trough drawdown: % below the running high in the selected window. */
+function drawIndexDrawdown(){
+  const host = document.getElementById("idx-dd-chart");
+  if (!host) return;
+  const bars = (PRICE.bars || [])
+    .filter(b => b && b.d && b.c != null)
+    .slice()
+    .sort((a, b) => a.d < b.d ? -1 : 1);
+  if (bars.length < 2) {
+    host.innerHTML = `<div class="note">Drawdown appears once price history is loaded.</div>`;
+    return;
+  }
+
+  const from = indexRangeStartISO(INDEX_PE.range);
+  let win = bars.filter(b => b.d >= from);
+  if (win.length < 2) win = bars.slice(-Math.min(bars.length, 30));
+
+  let peak = win[0].c;
+  const pts = win.map(b => {
+    if (b.c > peak) peak = b.c;
+    const dd = peak > 0 ? ((b.c / peak) - 1) * 100 : 0;
+    return {
+      v: dd,
+      label: shortDate(b.d),
+      full: longDate(b.d),
+    };
+  });
+
+  const name = (S.company && (INDEX_PE_META[S.company.ticker]?.label || S.company.ticker)) || "Index";
+  linePlot(host, [{
+    name: `${name} drawdown`,
+    colour: "var(--down)",
+    fill: "var(--down)",
+    fillOpacity: 0.16,
+    pts,
+  }], {
+    id: "idxdd", zero: true, fillUnder: true,
+    H: MOBILE_MQ.matches ? 240 : 200,
+    mb: 34, mr: 48, insideY: true, xLabels: 4,
+    fmtY: v => `${v.toFixed(0)}%`,
+    fmtV: v => `${v.toFixed(2)}%`,
+    alt: "Drawdown from last peak",
+    idle: "Percent below the running high in this window.",
+  });
   const key = host.querySelector(".lkey");
   if (key) key.remove();
 }
@@ -4153,6 +4328,8 @@ function paintPrices(){
   wirePriceFullscreen();
   drawPriceStats();
   drawCandles();
+  // Index pages: redraw drawdown once daily bars arrive (PE range is shared).
+  if (document.getElementById("idx-dd-chart")) drawIndexDrawdown();
 
   // Three of the panels below are drawn from these bars. Prices arrive after
   // the first render, so whichever of the two finishes last does the drawing.
@@ -4651,16 +4828,23 @@ function drawCandles(){
   }).join("");
 
   const ticks = bandTicks(y0, y1, 5);
+  // Price labels sit inside the plot (right edge) so they stay within the
+  // white chart card rather than hanging outside the border.
   const grid = ticks.map(t => `
     <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
       stroke="var(--rule-2)" stroke-width="1"/>
-    <text x="${W - mr + 7}" y="${(y(t) + 3.5).toFixed(1)}" class="ax">${t < 10 ? t.toFixed(2) : Math.round(t)}</text>`).join("");
+    <text x="${W - mr - 4}" y="${(y(t) + 3.5).toFixed(1)}" class="ax" text-anchor="end">${
+      t < 10 ? t.toFixed(2) : Math.round(t)}</text>`).join("");
 
-  // Dates at a readable density, whatever the range.
-  const every = Math.max(1, Math.round(bars.length / 7));
-  const dates = bars.map((b, i) => i % every === 0 && i < bars.length - every / 2
-    ? `<text x="${x(i).toFixed(1)}" y="${H - 6}" class="ax mid">${shortDate(b.d)}</text>` : "")
-    .join("");
+  // Dates at a readable density, whatever the range. Always include ends.
+  const every = Math.max(1, Math.round((bars.length - 1) / 6));
+  const dateIdx = new Set([0, bars.length - 1]);
+  for (let i = every; i < bars.length - 1; i += every) dateIdx.add(i);
+  const dates = [...dateIdx].sort((a, b) => a - b).map(i => {
+    const b = bars[i];
+    const anchor = i === 0 ? "start" : i === bars.length - 1 ? "end" : "middle";
+    return `<text x="${x(i).toFixed(1)}" y="${H - 6}" class="ax" text-anchor="${anchor}">${shortDate(b.d)}</text>`;
+  }).join("");
 
   const keptTip = document.getElementById("ptip");
   host.innerHTML = `
