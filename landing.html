@@ -185,8 +185,9 @@ svg{display:block;max-width:100%}
 .info-i:hover, .info-i:focus-visible{
   color:var(--accent); border-color:var(--accent); outline:none;
 }
+/* Fixed so .panel overflow:hidden cannot crop the bubble. */
 .info-i .info-tip{
-  position:absolute; z-index:80; left:0; top:calc(100% + 8px);
+  position:fixed; z-index:200; left:0; top:0;
   width:min(300px, 72vw); padding:9px 11px;
   background:var(--card); color:var(--ink-2); border:1px solid var(--rule);
   border-radius:8px; box-shadow:var(--shadow);
@@ -194,14 +195,10 @@ svg{display:block;max-width:100%}
   opacity:0; visibility:hidden; pointer-events:none;
   transform:translateY(-3px); transition:opacity .12s ease, transform .12s ease;
 }
-.info-i:hover .info-tip, .info-i:focus-visible .info-tip{
+.info-i:hover .info-tip, .info-i:focus-visible .info-tip, .info-i .info-tip.on{
   opacity:1; visibility:visible; transform:none;
 }
-/* Keep tips readable near the right edge of a panel. */
-.hmhead .htitle:last-child .info-i .info-tip,
-.grid2 .panel:last-child .info-i .info-tip{
-  left:auto; right:0;
-}
+.grid2 > .panel{overflow:visible}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
 /* Congress & Insiders: fixed-height panes with a real scrollbar and sticky
    headers so scrolling past the first screenful stays readable. */
@@ -675,7 +672,7 @@ svg{display:block;max-width:100%}
           <h3>Insider Transactions</h3>
           <button type="button" class="info-i" aria-label="About Insider Transactions">
             <span aria-hidden="true">i</span>
-            <span class="info-tip">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding; largest transaction per company. Scroll for more.</span>
+            <span class="info-tip">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
           </button>
         </div>
       </div>
@@ -2271,6 +2268,71 @@ function bootTrades(){
   loadTrades("insider");
   loadTrades("congress");
   loadTradeFlow();
+  wirePanelInfoTips();
+}
+
+/** Pin .info-i bubbles with position:fixed so panel overflow cannot crop them. */
+function wirePanelInfoTips(root){
+  (root || document).querySelectorAll(".info-i").forEach(btn => {
+    const tip = btn.querySelector(".info-tip");
+    if (!tip || btn.dataset.tipWired) return;
+    btn.dataset.tipWired = "1";
+    const place = () => {
+      tip.classList.add("on");
+      const r = btn.getBoundingClientRect();
+      const tw = tip.offsetWidth || 280;
+      const th = tip.offsetHeight || 72;
+      let left = r.left;
+      if (left + tw > window.innerWidth - 8) left = Math.max(8, r.right - tw);
+      let top = r.bottom + 8;
+      if (top + th > window.innerHeight - 8) top = Math.max(8, r.top - th - 8);
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    };
+    const hide = () => {
+      tip.classList.remove("on");
+      tip.style.left = "";
+      tip.style.top = "";
+    };
+    btn.addEventListener("mouseenter", place);
+    btn.addEventListener("focus", place);
+    btn.addEventListener("mousemove", place);
+    btn.addEventListener("mouseleave", hide);
+    btn.addEventListener("blur", hide);
+  });
+}
+
+async function fetchTradePages(kind, days){
+  const key = kind === "insider" ? "insiders" : "congress";
+  const totalKey = kind === "insider" ? "insidersTotal" : "congressTotal";
+  const rows = [];
+  let offset = 0;
+  for (let i = 0; i < 25; i++) {
+    const d = await rpc("get_trades", {
+      p_limit: 100, p_offset: offset, p_days: days, p_kind: kind,
+    });
+    const chunk = (d && d[key]) || [];
+    rows.push(...chunk);
+    offset += chunk.length;
+    const total = (d && d[totalKey]) || 0;
+    if (!chunk.length || chunk.length < 100 || (total > 0 && rows.length >= total)) break;
+  }
+  return rows;
+}
+
+async function deriveFlowFromTrades(){
+  try {
+    const [ins, con] = await Promise.all([
+      fetchTradePages("insider", FLOW_DAYS),
+      fetchTradePages("congress", FLOW_DAYS),
+    ]);
+    return {
+      insider: aggregateInsiderFlow(ins),
+      congress: aggregateCongressFlow(con),
+    };
+  } catch {
+    return { insider: [], congress: [] };
+  }
 }
 
 /* ---- 60-day inflow / outflow bars under each trade table ---------------- */
@@ -2361,21 +2423,6 @@ function aggregateCongressFlow(rows){
     }
   });
   return Object.values(by).sort((a, b) => a.day.localeCompare(b.day));
-}
-
-async function deriveFlowFromTrades(){
-  try {
-    const [ins, con] = await Promise.all([
-      rpc("get_trades", { p_limit: 100, p_offset: 0, p_days: 30, p_kind: "insider" }),
-      rpc("get_trades", { p_limit: 100, p_offset: 0, p_days: 30, p_kind: "congress" }),
-    ]);
-    return {
-      insider: aggregateInsiderFlow((ins && ins.insiders) || []),
-      congress: aggregateCongressFlow((con && con.congress) || []),
-    };
-  } catch {
-    return { insider: [], congress: [] };
-  }
 }
 
 function drawFlowChart(host, rows){

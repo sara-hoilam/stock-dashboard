@@ -129,7 +129,9 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .pulse .cell{padding:14px 16px;border-right:1px solid var(--rule);min-width:0}
 .pulse .cell:last-child{border-right:0}
 .pulse .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:600;margin-bottom:6px}
+  color:var(--ink-3);font-weight:600;margin-bottom:6px;
+  display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pulse .k .info-tip{text-transform:none;letter-spacing:0}
 .pulse .v{font-family:"IBM Plex Sans",sans-serif;font-size:22px;font-weight:700;
   letter-spacing:-.02em;line-height:1.15}
 .pulse .v .dim{color:var(--ink-3);font-weight:500;font-size:16px}
@@ -415,15 +417,16 @@ tr.on td{background:var(--accent-soft)}
   flex-shrink:0
 }
 .info-i:hover, .info-i:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+/* Fixed so .panel overflow:hidden cannot crop the bubble. */
 .info-i .info-tip{
-  display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;width:260px;
+  display:none;position:fixed;left:0;top:0;z-index:200;width:min(280px,72vw);
   padding:8px 10px;border-radius:8px;background:var(--card);color:var(--ink);
   border:1px solid var(--rule);box-shadow:var(--shadow);font-size:11.5px;font-weight:500;
   line-height:1.35;text-align:left;text-transform:none;letter-spacing:0;pointer-events:none;
   white-space:normal
 }
-.info-i:hover .info-tip, .info-i:focus-visible .info-tip{display:block}
-.grid2 .panel:last-child .info-i .info-tip{left:auto;right:0}
+.info-i:hover .info-tip, .info-i:focus-visible .info-tip, .info-i .info-tip.on{display:block}
+.grid2 > .panel{overflow:visible}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
 #insiders.scroll, #congress.scroll{
   max-height:420px; overflow-y:auto; overflow-x:auto;
@@ -1343,7 +1346,9 @@ function renderDashboard(){
         <div class="chg ${dir(book.pct)}">${book.pct == null ? "" : esc(arrow(book.pct) + Math.abs(book.pct).toFixed(2) + "%")}</div>
       </div>
       <div class="cell">
-        <div class="k">Volatility Score</div>
+        <div class="k">Volatility Score ${infoTip(
+          "0–100 score from your holdings: 65% weight on annualised 60-day price volatility (capped at 50% vol → 100), and 35% on concentration (Herfindahl–Hirschman of position weights). Calm < 33, Moderate < 66, else Elevated."
+        )}</div>
         <div class="v">${vol ? `${esc(String(vol.score))}<span class="dim"> /100</span>` : "—"}</div>
         ${vol ? `<div class="scale" title="Weighted vol + concentration"><i style="left:${vol.score}%"></i></div>
           <div class="chg mut">${esc(vol.label)}</div>` : ""}
@@ -1412,7 +1417,7 @@ function renderDashboard(){
             <h3>Insider Transactions</h3>
             <button type="button" class="info-i" aria-label="About Insider Transactions">
               <span aria-hidden="true">i</span>
-              <span class="info-tip">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding; largest transaction per company. Scroll for more.</span>
+              <span class="info-tip">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
             </button>
           </div>
         </div>
@@ -2570,6 +2575,56 @@ function bootTrades(){
   loadTrades("insider");
   loadTrades("congress");
   loadTradeFlow();
+  wirePanelInfoTips();
+}
+
+/** Pin .info-i bubbles with position:fixed so panel overflow cannot crop them. */
+function wirePanelInfoTips(root){
+  (root || document).querySelectorAll(".info-i").forEach(btn => {
+    const tip = btn.querySelector(".info-tip");
+    if (!tip || btn.dataset.tipWired) return;
+    btn.dataset.tipWired = "1";
+    const place = () => {
+      tip.classList.add("on");
+      const r = btn.getBoundingClientRect();
+      const tw = tip.offsetWidth || 280;
+      const th = tip.offsetHeight || 72;
+      let left = r.left;
+      if (left + tw > window.innerWidth - 8) left = Math.max(8, r.right - tw);
+      let top = r.bottom + 8;
+      if (top + th > window.innerHeight - 8) top = Math.max(8, r.top - th - 8);
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    };
+    const hide = () => {
+      tip.classList.remove("on");
+      tip.style.left = "";
+      tip.style.top = "";
+    };
+    btn.addEventListener("mouseenter", place);
+    btn.addEventListener("focus", place);
+    btn.addEventListener("mousemove", place);
+    btn.addEventListener("mouseleave", hide);
+    btn.addEventListener("blur", hide);
+  });
+}
+
+async function fetchTradePages(kind, days){
+  const key = kind === "insider" ? "insiders" : "congress";
+  const totalKey = kind === "insider" ? "insidersTotal" : "congressTotal";
+  const rows = [];
+  let offset = 0;
+  for (let i = 0; i < 25; i++) {
+    const d = await rpc("get_trades", {
+      p_limit: 100, p_offset: offset, p_days: days, p_kind: kind,
+    });
+    const chunk = (d && d[key]) || [];
+    rows.push(...chunk);
+    offset += chunk.length;
+    const total = (d && d[totalKey]) || 0;
+    if (!chunk.length || chunk.length < 100 || (total > 0 && rows.length >= total)) break;
+  }
+  return rows;
 }
 
 const FLOW_DAYS = 60;
@@ -2649,12 +2704,12 @@ function aggregateCongressFlow(rows){
 async function deriveFlowFromTrades(){
   try {
     const [ins, con] = await Promise.all([
-      rpc("get_trades", { p_limit: 100, p_offset: 0, p_days: 30, p_kind: "insider" }),
-      rpc("get_trades", { p_limit: 100, p_offset: 0, p_days: 30, p_kind: "congress" }),
+      fetchTradePages("insider", FLOW_DAYS),
+      fetchTradePages("congress", FLOW_DAYS),
     ]);
     return {
-      insider: aggregateInsiderFlow((ins && ins.insiders) || []),
-      congress: aggregateCongressFlow((con && con.congress) || []),
+      insider: aggregateInsiderFlow(ins),
+      congress: aggregateCongressFlow(con),
     };
   } catch {
     return { insider: [], congress: [] };

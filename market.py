@@ -587,6 +587,22 @@ def _shares_outstanding_map(symbols: list[str], cap: int = 100) -> dict[str, flo
     return out
 
 
+def _trade_list_max_pages(days: int) -> int:
+    """How far to page FMP 'latest' trade feeds to cover ``days``.
+
+    These endpoints are high-volume (especially Form 4). A short page budget
+    only reaches the last few calendar days, which left the 60-day inflow /
+    outflow charts nearly empty.
+    """
+    d = max(1, int(days or 1))
+    if d <= 7:
+        return 24
+    if d <= 14:
+        return 48
+    # ~4 pages/day, capped so a single worker tick stays bounded.
+    return min(220, max(90, d * 4))
+
+
 def insider_trades(days: int = 7, store_cap: int = 400,
                    collapse: bool = True) -> list[dict]:
     """Form 4 filings from the last `days`.
@@ -603,7 +619,7 @@ def insider_trades(days: int = 7, store_cap: int = 400,
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     raw_rows: list[dict] = []
     page_size = 100
-    max_pages = 30 if days > 14 else 12
+    max_pages = _trade_list_max_pages(days)
     for page in range(max_pages):
         rows = _get("insider-trading/latest", page=page, limit=page_size) or []
         if not rows:
@@ -648,7 +664,7 @@ def insider_trades(days: int = 7, store_cap: int = 400,
         sym = r["symbol"]
         need_out[sym] = max(need_out.get(sym, 0.0), sh)
     ranked_need = sorted(need_out, key=lambda s: -need_out[s])
-    shares_out = _shares_outstanding_map(ranked_need)
+    shares_out = _shares_outstanding_map(ranked_need, cap=150)
 
     out: list[dict] = []
     for r in raw_rows:
@@ -700,7 +716,7 @@ def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     rows: list[dict] = []
     page_size = 100
-    max_pages = 30 if days > 14 else 12
+    max_pages = _trade_list_max_pages(days)
     min_amt = float(MIN_CONGRESS_AMOUNT or 0)
     for path, chamber in (("senate-latest", "Senate"), ("house-latest", "House")):
         try:

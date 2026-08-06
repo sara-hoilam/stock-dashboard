@@ -668,44 +668,48 @@ def refresh_sections() -> bool:
         hist = []
 
     try:
-        # Pull sixty days once. The tables still show the short recent window
-        # (collapsed for insiders); the bar charts under them need the full
-        # daily buy/sell sums.
+        # Pull sixty days once. Page deep enough on FMP that daily flow bars
+        # cover the whole window (a short page budget only reached ~1 week).
         flow_days = 60
         ins_all = market.insider_trades(
-            days=flow_days, store_cap=2500, collapse=False)
-        con_all = market.congress_trades(days=flow_days, store_cap=2500)
+            days=flow_days, store_cap=5000, collapse=False)
+        con_all = market.congress_trades(days=flow_days, store_cap=5000)
 
-        cut_ins = (dt.date.today() - dt.timedelta(days=7)).isoformat()
-        cut_con = (dt.date.today() - dt.timedelta(days=14)).isoformat()
-        ins_week = [r for r in ins_all if (r.get("filed") or "") >= cut_ins]
-        con_two = [r for r in con_all if (r.get("disclosed") or "") >= cut_con]
-
-        # Table view: one largest Form 4 per company in the week.
-        best: dict[str, dict] = {}
-        for r in ins_week:
-            prev = best.get(r["symbol"])
-            if prev is None or abs(r.get("amount") or 0) > abs(prev.get("amount") or 0):
-                best[r["symbol"]] = r
-        ins = sorted(best.values(),
-                     key=lambda r: (r.get("filed") or "", abs(r.get("amount") or 0)),
-                     reverse=True)[:400]
-        con = con_two[:400]
-        store.replace_trades(ins, con)
-
-        flow = market.trade_flow_daily(ins_all, con_all, days=flow_days)
-        store.replace_trade_flow(flow)
+        # Persist the full 60-day material pulls. Tables still request 7 / 14
+        # days via get_trades; flow charts and fallbacks need the longer set.
+        # No congress amount floor (MIN_CONGRESS_AMOUNT = 0).
+        ins_store = ins_all[:3000]
+        con_store = con_all[:2000]
+        store.replace_trades(ins_store, con_store)
+        log(f"  trades pulled: {len(ins_all)} insider / {len(con_all)} congress "
+            f"over {flow_days}d; stored {len(ins_store)} / {len(con_store)}")
     except market.MarketError as exc:
         log(f"  trades: {exc}")
         ins = con = []
-        flow = []
+        ins_all = con_all = []
+        flow_days = 60
+    except Exception as exc:
+        log(f"  trades: {exc}")
+        ins = con = []
+        ins_all = con_all = []
+        flow_days = 60
+    else:
+        ins = ins_store
+        con = con_store
+
+    try:
+        flow = market.trade_flow_daily(ins_all, con_all, days=flow_days)
+        store.replace_trade_flow(flow)
+        nonzero = sum(1 for r in flow
+                      if (r.get("inflow") or 0) > 0 or (r.get("outflow") or 0) > 0)
+        log(f"  trade flow: {len(flow)} day-rows, {nonzero} with volume")
     except Exception as exc:
         # Flow RPC may not be applied yet; keep the tables writing.
         log(f"  trade flow: {exc}")
         flow = []
 
     log(f"sections: {len(rows)} heatmap, {len(hist)} sector series, "
-        f"{len(ins)} insider (7d), {len(con)} congress (14d), "
+        f"{len(ins)} insider rows, {len(con)} congress rows, "
         f"{len(flow)} flow days, "
         f"{time.time()-started:.1f}s")
     return True
