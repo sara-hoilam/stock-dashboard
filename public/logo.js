@@ -2,9 +2,11 @@
  *
  * The worker downloads Logo.dev images for S&P 500 + top crypto and stores
  * them in ledger.symbol_logo. Pages call TickerLogos.hydrate(symbols, root)
- * after rendering initials avatars marked with data-logo="AAPL". When a
- * cached data URL exists, the initials are covered by the logo image;
- * otherwise initials stay as the fallback.
+ * after rendering elements marked with data-logo="AAPL".
+ *
+ * Two patterns:
+ *   - Initials avatar (.dot / .av): logo covers the initials when cached
+ *   - Beside-ticker chip (.tick-logo): empty until cached, then shows logo
  */
 (function () {
   "use strict";
@@ -22,13 +24,39 @@
     var s = document.createElement("style");
     s.id = "ticker-logos-css";
     s.textContent = [
-      ".dot.has-logo,.av.has-logo,[data-logo].has-logo{",
+      /* Initials avatars — logo replaces monogram when present */
+      ".dot.has-logo,.av.has-logo{",
       "  background:#fff!important;color:transparent!important;",
       "  overflow:hidden;position:relative}",
-      ".dot img.logo-img,.av img.logo-img,[data-logo] img.logo-img{",
+      ".dot img.logo-img,.av img.logo-img{",
       "  position:absolute;inset:0;width:100%;height:100%;",
       "  object-fit:contain;padding:15%;box-sizing:border-box;",
       "  border-radius:inherit;display:block}",
+      /* Beside-ticker chips — hidden until a real logo is available */
+      ".tick-logo{",
+      "  display:none;flex-shrink:0;width:22px;height:22px;",
+      "  border-radius:6px;background:#fff;overflow:hidden;",
+      "  position:relative;box-sizing:border-box;",
+      "  border:1px solid var(--rule, rgba(0,0,0,.08))}",
+      ".tick-logo.has-logo{display:inline-block}",
+      ".tick-logo.tick-logo-lg{width:28px;height:28px;border-radius:8px}",
+      ".tick-logo.tick-logo-xl{width:36px;height:36px;border-radius:10px}",
+      ".tick-logo img.logo-img{",
+      "  position:absolute;inset:0;width:100%;height:100%;",
+      "  object-fit:contain;padding:12%;box-sizing:border-box;display:block}",
+      /* Row / chart header layouts */
+      ".tsym-with-logo{",
+      "  display:flex;flex-direction:row;align-items:center;gap:8px;",
+      "  text-decoration:none;min-width:0}",
+      ".tsym-with-logo .tsym-text{",
+      "  display:flex;flex-direction:column;align-items:flex-start;gap:1px;",
+      "  min-width:0}",
+      ".c-sym-line{",
+      "  display:inline-flex;align-items:center;gap:8px;min-width:0}",
+      ".c-sym-line .tick-logo.tick-logo-lg{width:26px;height:26px}",
+      ".ident-with-logo{",
+      "  display:flex;flex-direction:row;align-items:flex-start;gap:12px}",
+      ".ident-with-logo .tick-logo.tick-logo-xl{margin-top:2px}",
     ].join("");
     document.head.appendChild(s);
   }
@@ -87,32 +115,39 @@
     return row && row.dataUrl ? row.dataUrl : null;
   }
 
+  function applyOne(el) {
+    var sym = el.getAttribute("data-logo");
+    var url = dataUrl(sym);
+    if (!url) {
+      el.classList.remove("has-logo");
+      var dead = el.querySelector("img.logo-img");
+      if (dead) dead.remove();
+      return;
+    }
+    var existing = el.querySelector("img.logo-img");
+    if (existing) {
+      if (existing.getAttribute("src") !== url) existing.setAttribute("src", url);
+      el.classList.add("has-logo");
+      return;
+    }
+    var img = document.createElement("img");
+    img.className = "logo-img";
+    img.alt = "";
+    img.decoding = "async";
+    img.loading = "lazy";
+    img.src = url;
+    img.onerror = function () {
+      el.classList.remove("has-logo");
+      if (img.parentNode) img.remove();
+    };
+    el.classList.add("has-logo");
+    el.appendChild(img);
+  }
+
   function apply(root) {
     injectCss();
     var scope = root || document;
-    scope.querySelectorAll("[data-logo]").forEach(function (el) {
-      var sym = el.getAttribute("data-logo");
-      var url = dataUrl(sym);
-      if (!url) return;
-      var existing = el.querySelector("img.logo-img");
-      if (existing) {
-        if (existing.src !== url) existing.src = url;
-        el.classList.add("has-logo");
-        return;
-      }
-      var img = document.createElement("img");
-      img.className = "logo-img";
-      img.alt = "";
-      img.decoding = "async";
-      img.loading = "lazy";
-      img.src = url;
-      img.onerror = function () {
-        el.classList.remove("has-logo");
-        if (img.parentNode) img.remove();
-      };
-      el.classList.add("has-logo");
-      el.appendChild(img);
-    });
+    scope.querySelectorAll("[data-logo]").forEach(applyOne);
   }
 
   async function hydrate(symbols, root) {
@@ -120,14 +155,59 @@
       await fetchLogos(symbols);
       apply(root);
     } catch (_) {
-      /* keep initials */
+      /* keep initials / hide chips */
     }
   }
+
+  /** Escapes for use in HTML attribute values. */
+  function escAttr(s) {
+    return String(s ?? "").replace(/[&<>"']/g, function (c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+
+  /** Markup for a beside-ticker logo chip (hidden until hydrate finds an image). */
+  function chip(symbol, sizeClass) {
+    var sym = String(symbol || "").toUpperCase().trim();
+    if (!sym) return "";
+    var cls = "tick-logo" + (sizeClass ? " " + sizeClass : "");
+    return '<span class="' + cls + '" data-logo="' + escAttr(sym) + '" aria-hidden="true"></span>';
+  }
+
+  /**
+   * Set chart / heading symbol text and optional logo chip.
+   * pass logo:false (or non-ticker labels like "Portfolio") to clear the chip.
+   */
+  function setHeading(symEl, logoEl, symbol, opts) {
+    opts = opts || {};
+    var label = symbol == null ? "" : String(symbol);
+    if (symEl) symEl.textContent = label || "—";
+    if (!logoEl) return;
+    var sym = label.toUpperCase().trim();
+    var isTicker = opts.logo !== false
+      && /^[A-Z][A-Z0-9.]{0,9}$/.test(sym)
+      && sym !== "PORTFOLIO"
+      && sym !== "CASH";
+    logoEl.innerHTML = "";
+    logoEl.classList.remove("has-logo");
+    if (!isTicker) {
+      logoEl.removeAttribute("data-logo");
+      logoEl.hidden = true;
+      return;
+    }
+    logoEl.hidden = false;
+    logoEl.setAttribute("data-logo", sym);
+    hydrate([sym], logoEl.parentNode || logoEl);
+  }
+
+  injectCss();
 
   window.TickerLogos = {
     load: fetchLogos,
     apply: apply,
     hydrate: hydrate,
     dataUrl: dataUrl,
+    chip: chip,
+    setHeading: setHeading,
   };
 })();

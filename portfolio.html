@@ -169,10 +169,16 @@ td{padding:10px 14px;border-bottom:1px solid var(--rule-2);vertical-align:middle
 tr{cursor:pointer} tr:hover td{background:var(--sunk)}
 tr.on td{background:var(--accent-soft)}
 .tsym{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-decoration:none}
+.tsym-with-logo{display:flex;flex-direction:row;align-items:center;gap:8px;
+  text-decoration:none;min-width:0}
+.tsym-with-logo .tsym-text{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
 .tsym-t{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--accent);
   font-size:12.5px;line-height:1.25}
 .tsym-n{font-size:10.5px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;max-width:140px;line-height:1.3}
+.chead .c-sym-line{display:inline-flex;align-items:center;gap:8px}
+.chead .c-sym-line b{font-family:"IBM Plex Serif",Georgia,serif;font-size:27px;font-weight:600;
+  letter-spacing:-.015em;line-height:1}
 .pill{display:inline-block;padding:2px 7px;border-radius:99px;font-size:11.5px;font-weight:600}
 .pill.up{background:var(--up-soft);color:var(--up)}
 .pill.down{background:var(--down-soft);color:var(--down)}
@@ -259,8 +265,9 @@ tr.on td{background:var(--accent-soft)}
 
 .chartwrap{display:flex;flex-direction:column;min-width:0;padding:14px 16px 10px;height:100%;min-height:0}
 .chead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;flex-shrink:0}
-.chead .price{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.chead .price{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .chead .price b{font-family:"IBM Plex Mono",monospace}
+.chead .c-sym-line{display:inline-flex;align-items:center;gap:8px}
 .chead .meta{font-size:12.5px;color:var(--ink-3);margin-top:4px}
 .chead .meta .up,.chead .meta .down{font-weight:600}
 /* Fill the split pane; SVG stretches to the available box (pads keep labels readable). */
@@ -1791,7 +1798,7 @@ function renderDashboard(){
         <div class="chartwrap">
           <div class="chead">
             <div>
-              <div class="price"><b id="c-sym">Portfolio</b><span id="c-price" class="num"></span></div>
+              <div class="price"><span class="c-sym-line"><span class="tick-logo tick-logo-lg" id="c-logo" hidden aria-hidden="true"></span><b id="c-sym">Portfolio</b></span><span id="c-price" class="num"></span></div>
               <div class="meta" id="c-meta"></div>
             </div>
             <div class="range" id="range">
@@ -1969,12 +1976,18 @@ async function renderList(){
       </tr></thead>
       <tbody>${items.map(r => `
         <tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
-          <td class="idcol"><a class="tsym" href="company.html?t=${esc(encodeURIComponent(r.symbol))}&src=portfolio">
-            <span class="tsym-t">${esc(r.symbol)}</span>
-            <span class="tsym-n">${esc(r.name || "")}</span></a></td>
+          <td class="idcol"><a class="tsym-with-logo" href="company.html?t=${esc(encodeURIComponent(r.symbol))}&src=portfolio">
+            ${window.TickerLogos ? window.TickerLogos.chip(r.symbol) : ""}
+            <span class="tsym-text">
+              <span class="tsym-t">${esc(r.symbol)}</span>
+              <span class="tsym-n">${esc(r.name || "")}</span>
+            </span></a></td>
           <td class="col-num num">${esc(priceFmt(r.price))}</td>
           <td class="col-num"><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
         </tr>`).join("")}</tbody></table>`;
+    if (window.TickerLogos) {
+      window.TickerLogos.hydrate(items.map(r => r.symbol), host);
+    }
   } else {
     searchHost.innerHTML = `
       <form class="wl-search" id="wl-search">
@@ -2087,8 +2100,12 @@ async function renderList(){
           const divRet = dividendRetPct(r);
           const qtyLabel = Number(r.quantity.toFixed(4));
           return `<tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
-            <td class="idcol"><span class="tsym"><span class="tsym-t">${esc(r.symbol)}</span>
-              <span class="tsym-n">${esc(r.name || "")}</span></span></td>
+            <td class="idcol"><span class="tsym-with-logo">
+              ${window.TickerLogos ? window.TickerLogos.chip(r.symbol) : ""}
+              <span class="tsym-text">
+                <span class="tsym-t">${esc(r.symbol)}</span>
+                <span class="tsym-n">${esc(r.name || "")}</span>
+              </span></span></td>
             <td class="col-num"><div class="stack-cell">
               <span class="top">${esc(money(val))}</span>
               <span class="bot">${esc(String(qtyLabel))}</span>
@@ -2132,6 +2149,9 @@ async function renderList(){
       openResetModal();
     };
     wireInfoTips(host);
+    if (window.TickerLogos) {
+      window.TickerLogos.hydrate(rows.map(r => r.symbol), host);
+    }
   }
 
   host.querySelectorAll("tr[data-sym]").forEach(tr => {
@@ -2231,16 +2251,24 @@ function toPctSeries(bars){
 async function drawRightChart(){
   const host = document.getElementById("chart");
   const symEl = document.getElementById("c-sym");
+  const logoEl = document.getElementById("c-logo");
   const priceEl = document.getElementById("c-price");
   const metaEl = document.getElementById("c-meta");
   const idxBar = document.getElementById("idx-bar");
   if (!host) return;
 
   const from = rangeStartISO(S.range);
+  const setSym = (label, opts) => {
+    if (window.TickerLogos && window.TickerLogos.setHeading) {
+      window.TickerLogos.setHeading(symEl, logoEl, label, opts);
+    } else if (symEl) {
+      symEl.textContent = label || "—";
+    }
+  };
 
   if (S.selected && S.selected !== "PORTFOLIO" && S.selected !== "CASH") {
     idxBar.hidden = true;
-    symEl.textContent = S.selected;
+    setSym(S.selected);
     const pos = S.positions.find(p => p.symbol === S.selected);
     priceEl.textContent = pos && pos.price != null ? priceFmt(pos.price) : "";
     metaEl.innerHTML = pos
@@ -2272,11 +2300,11 @@ async function drawRightChart(){
 
   const alloc = allocation(S.positions);
   if (S.selected === "CASH") {
-    symEl.textContent = "Cash";
+    setSym("Cash", { logo: false });
     priceEl.textContent = money(alloc.cash).replace("$", "");
     metaEl.innerHTML = `${alloc.sum > 0 ? ((alloc.cash / alloc.sum) * 100).toFixed(1) : "0.0"}% of total assets`;
   } else {
-    symEl.textContent = "Portfolio";
+    setSym("Portfolio", { logo: false });
     priceEl.textContent = money(alloc.sum).replace("$", "");
     const book = bookReturn(S.positions);
     const rangeBook = bookReturn(S.positions, { fromISO: from });
