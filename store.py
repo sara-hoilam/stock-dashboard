@@ -18,6 +18,9 @@ import urllib.error
 import urllib.request
 
 SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+# Accept a project URL or a mistaken .../rest/v1 paste from the dashboard.
+if SUPABASE_URL.endswith("/rest/v1"):
+    SUPABASE_URL = SUPABASE_URL[: -len("/rest/v1")].rstrip("/")
 SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or ""
 
 
