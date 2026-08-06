@@ -445,7 +445,9 @@ def fetch_index_prices(alias: str) -> bool:
         return False
     meta = market.INDEXES[sym]
     q = market.index_quote(sym)
-    bars = market.index_history(sym, 420)
+    # ~11 years of daily bars so the index returns/drawdown chart can use
+    # proper peak-to-trough max drawdowns (monthly closes remain as fallback).
+    bars = market.index_history(sym, 2800)
     quote_detail = None
     if q:
         quote_detail = {
