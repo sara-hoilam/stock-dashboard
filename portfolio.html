@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticker Alpha — Portfolio</title>
+<script src="config.js"></script>
+<script src="analytics.js"></script>
+<script type="module" src="clarity-init.js"></script>
+<link rel="stylesheet" href="nav.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --ground:#eef0f3; --card:#ffffff; --sunk:#f6f7f9;
+  --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
+  --rule:#dde2e8; --rule-2:#eaeef2;
+  --accent:#1e4fbf; --accent-soft:#e6ecfb;
+  --up:#0b7a4b; --down:#c0392e;
+  --up-soft:#e3f4ec; --down-soft:#fbe9e7;
+  --s1:#2a78d6; --s2:#38b0de; --s3:#1baf7a; --s4:#eda100; --s5:#f0c419; --s6:#eb6834;
+  --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
+  --r:10px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:#0d1219; --card:#151c25; --sunk:#111821;
+  --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
+  --rule:#232d3a; --rule-2:#1c2531;
+  --accent:#6e9bff; --accent-soft:#1a2740;
+  --up:#38b37d; --down:#f0736a;
+  --up-soft:#12291f; --down-soft:#2b1614;
+  --s1:#3987e5; --s2:#4ec4e8; --s3:#199e70; --s4:#c98500; --s5:#e0b84a; --s6:#d95926;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  background:var(--ground); color:var(--ink);
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
+.up{color:var(--up)} .down{color:var(--down)}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.split{display:grid;grid-template-columns:minmax(320px,420px) 1fr;min-height:520px}
+.note{padding:28px 20px;color:var(--ink-3);text-align:center}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--rule);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- empty state --------------------------------------------------------- */
+.empty{
+  min-height:min(70vh,640px);display:flex;align-items:center;justify-content:center;
+  padding:40px 20px;position:relative;overflow:hidden;
+}
+.empty-bg{
+  position:absolute;inset:0;pointer-events:none;opacity:.07;
+  background:
+    radial-gradient(circle at 12% 22%, var(--accent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 78% 18%, var(--ink-2) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 88% 70%, var(--accent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 18% 78%, var(--ink-2) 0 1px, transparent 1.5px);
+  background-size:180px 140px;
+}
+.empty-card{position:relative;max-width:480px;width:100%;text-align:center}
+.empty-card h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:0 0 8px}
+.empty-card .lead{color:var(--ink-3);font-size:14px;margin-bottom:22px;line-height:1.45}
+.benefits{list-style:none;text-align:left;margin:0 auto 22px;max-width:400px;display:grid;gap:12px}
+.benefits li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start}
+.benefits .ico{
+  width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent);
+  display:grid;place-items:center;font-size:14px;line-height:1}
+.benefits b{display:block;font-size:13.5px;font-weight:600;margin-bottom:2px}
+.benefits span{font-size:12.5px;color:var(--ink-3);line-height:1.4}
+.empty-actions{display:flex;gap:10px;align-items:stretch;margin-bottom:12px}
+.pf-search{
+  position:relative;flex:1;display:flex;align-items:center;gap:8px;
+  background:var(--sunk);border:1px solid var(--rule);border-radius:10px;padding:0 12px;
+}
+.pf-search svg{width:16px;height:16px;color:var(--ink-3);flex-shrink:0}
+.pf-search input{
+  flex:1;border:0;background:transparent;padding:12px 0;font:inherit;color:var(--ink);
+  outline:none;min-width:0
+}
+.pf-ac{
+  position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card);
+  border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shadow);
+  z-index:20;display:none;max-height:260px;overflow:auto;text-align:left
+}
+.pf-ac.open{display:block}
+.pf-ac div{padding:10px 12px;cursor:pointer;display:flex;gap:10px;align-items:baseline}
+.pf-ac div:hover,.pf-ac div.on{background:var(--accent-soft)}
+.pf-ac b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--accent)}
+.pf-ac span{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{
+  border:0;border-radius:10px;padding:0 18px;font:inherit;font-size:13.5px;font-weight:600;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  white-space:nowrap;min-height:44px
+}
+.btn-primary{background:var(--ink);color:#fff}
+.btn-primary:hover{opacity:.9}
+.btn-ghost{background:transparent;border:1px solid var(--rule);color:var(--ink-2)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.empty-foot{font-size:12px;color:var(--ink-3)}
+
+/* ---- pulse / overview cards ---------------------------------------------- */
+.sumhead{
+  display:flex;justify-content:space-between;align-items:baseline;
+  gap:12px 24px;margin-bottom:12px;flex-wrap:wrap
+}
+.sumhead h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin:0}
+.sumhead .sub{color:var(--ink-3);font-size:12.5px;margin-left:auto}
+.pulse{
+  display:grid;grid-template-columns:repeat(4,1fr);background:var(--card);
+  border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);
+  margin-bottom:18px;overflow:hidden
+}
+.pulse .cell{padding:14px 16px;border-right:1px solid var(--rule);min-width:0}
+.pulse .cell:last-child{border-right:0}
+.pulse .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;margin-bottom:6px}
+.pulse .v{font-family:"IBM Plex Sans",sans-serif;font-size:22px;font-weight:700;
+  letter-spacing:-.02em;line-height:1.15}
+.pulse .v .dim{color:var(--ink-3);font-weight:500;font-size:16px}
+.pulse .chg{margin-top:6px;font-size:12.5px;font-weight:600}
+.pulse .chg.up{color:var(--up)} .pulse .chg.down{color:var(--down)}
+.pulse .chg.mut{color:var(--ink-3);font-weight:500}
+.pulse .scale{margin-top:10px;height:6px;border-radius:99px;position:relative;
+  background:linear-gradient(90deg,#1baf7a 0%,#eda100 50%,#c0392e 100%)}
+.pulse .scale i{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
+  background:var(--card);border:2px solid var(--ink);transform:translate(-50%,-50%);
+  box-shadow:0 0 0 1px var(--rule)}
+.donut-wrap{display:flex;align-items:center;gap:14px;margin-top:4px}
+.donut{width:88px;height:52px;flex-shrink:0}
+.donut-legend{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-size:11px;min-width:0}
+.donut-legend span{display:flex;align-items:center;gap:5px;color:var(--ink-2);min-width:0}
+.donut-legend i{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.donut-legend b{font-family:"IBM Plex Mono",monospace;font-weight:500;margin-left:auto}
+
+/* ---- split list + chart -------------------------------------------------- */
+.listhead{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:14px 18px 10px;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden;flex-shrink:0}
+.seg button{background:transparent;border:0;padding:6px 11px;font:inherit;font-size:12px;
+  cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule);white-space:nowrap}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
+.rows{border-right:1px solid var(--rule);overflow-y:auto;max-height:520px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;padding:8px 14px;border-bottom:1px solid var(--rule);
+  position:sticky;top:0;background:var(--card);z-index:1}
+td{padding:10px 14px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
+tr{cursor:pointer} tr:hover td{background:var(--sunk)}
+tr.on td{background:var(--accent-soft)}
+.tsym{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-decoration:none}
+.tsym-t{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--accent);
+  font-size:12.5px;line-height:1.25}
+.tsym-n{font-size:10.5px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;max-width:130px;line-height:1.3}
+.pill{display:inline-block;padding:2px 7px;border-radius:99px;font-size:11.5px;font-weight:600}
+.pill.up{background:var(--up-soft);color:var(--up)}
+.pill.down{background:var(--down-soft);color:var(--down)}
+.row-actions{display:flex;gap:4px;opacity:0;transition:opacity .12s}
+tr:hover .row-actions,tr.on .row-actions{opacity:1}
+.row-actions button{
+  border:1px solid var(--rule);background:var(--card);border-radius:6px;
+  padding:2px 7px;font:inherit;font-size:11px;cursor:pointer;color:var(--ink-2)
+}
+.row-actions button:hover{border-color:var(--accent);color:var(--accent)}
+.wl-bar{padding:10px 14px;border-bottom:1px solid var(--rule)}
+.wl-search{
+  position:relative;display:flex;align-items:center;gap:8px;
+  background:var(--sunk);border:1px solid var(--rule);border-radius:8px;padding:0 10px
+}
+.wl-search svg{width:14px;height:14px;color:var(--ink-3)}
+.wl-search input{flex:1;border:0;background:transparent;padding:9px 0;font:inherit;outline:none;color:var(--ink)}
+.wl-ac{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card);
+  border:1px solid var(--rule);border-radius:8px;box-shadow:var(--shadow);z-index:15;display:none}
+.wl-ac.open{display:block}
+.wl-ac div{padding:8px 10px;cursor:pointer;display:flex;gap:8px}
+.wl-ac div:hover{background:var(--accent-soft)}
+.wl-ac b{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--accent)}
+.wl-ac span{font-size:11.5px;color:var(--ink-3)}
+
+.chartwrap{display:flex;flex-direction:column;min-width:0;padding:14px 16px 10px}
+.chead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+.chead .price{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.chead .price b{font-family:"IBM Plex Mono",monospace}
+.chead .meta{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+.chead .meta .up,.chead .meta .down{font-weight:600}
+#chart{flex:1;min-height:360px}
+.idx-bar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 4px;border-top:1px solid var(--rule-2);margin-top:6px}
+.idx-chip{
+  display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);
+  border-radius:99px;padding:4px 10px;font-size:12px;cursor:pointer;background:transparent;color:var(--ink-2)
+}
+.idx-chip[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.idx-chip i{width:8px;height:8px;border-radius:50%}
+.range{display:flex;gap:4px}
+.range button{
+  border:1px solid var(--rule);background:transparent;border-radius:7px;
+  padding:4px 9px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--ink-2)
+}
+.range button[aria-pressed=true]{border-color:var(--ink);color:var(--ink);font-weight:600}
+
+/* ---- modal --------------------------------------------------------------- */
+.modal{
+  position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:80;
+  display:grid;place-items:center;padding:20px
+}
+.modal[hidden]{display:none}
+.modal-card{
+  background:var(--card);border:1px solid var(--rule);border-radius:14px;
+  box-shadow:var(--shadow);width:min(440px,100%);padding:22px 22px 18px;position:relative
+}
+.modal-card h2{font-size:18px;font-weight:700;letter-spacing:-.015em;margin-bottom:4px}
+.modal-card .sub{font-size:12.5px;color:var(--ink-3);margin-bottom:16px}
+.modal-x{position:absolute;top:12px;right:12px;border:0;background:transparent;
+  font-size:22px;line-height:1;cursor:pointer;color:var(--ink-3);padding:4px 8px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11.5px;font-weight:600;color:var(--ink-3);
+  letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px}
+.field input{
+  width:100%;border:1px solid var(--rule);border-radius:8px;padding:10px 12px;
+  font:inherit;background:var(--sunk);color:var(--ink);outline:none
+}
+.field input:focus{border-color:var(--accent);background:var(--card)}
+.field .hint{font-size:11.5px;color:var(--ink-3);margin-top:4px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.err{color:var(--down);font-size:12.5px;margin-top:8px;min-height:1.2em}
+
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;
+  font-size:13px;z-index:90;box-shadow:var(--shadow)
+}
+
+@media (max-width:980px){
+  .pulse{grid-template-columns:1fr 1fr}
+  .pulse .cell:nth-child(2){border-right:0}
+  .pulse .cell:nth-child(n+3){border-top:1px solid var(--rule)}
+}
+@media (max-width:720px){
+  main{padding:16px 14px 56px}
+  .empty-card h1{font-size:24px}
+  .empty-actions{flex-direction:column}
+  .pulse{grid-template-columns:1fr 1fr}
+  .pulse .v{font-size:16px}
+  .split{grid-template-columns:1fr;min-height:0}
+  .rows{border-right:0;max-height:none}
+  .chartwrap{display:none}
+  .donut-wrap{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<main>
+  <div id="app"><div class="note"><span class="load"></span></div></div>
+</main>
+
+<div class="modal" id="add-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="add-title">
+    <button type="button" class="modal-x" id="add-x" aria-label="Close">×</button>
+    <h2 id="add-title">Add to portfolio</h2>
+    <p class="sub" id="add-sub">Enter how many shares you bought and when. Price is filled from the close on that date — edit it if yours differs.</p>
+    <form id="add-form">
+      <div class="field">
+        <label for="f-symbol">Ticker</label>
+        <input id="f-symbol" name="symbol" autocomplete="off" required maxlength="10" placeholder="e.g. AAPL">
+      </div>
+      <div class="field">
+        <label for="f-date">Buy date</label>
+        <input id="f-date" name="date" type="date" required>
+      </div>
+      <div class="field">
+        <label for="f-qty">Quantity</label>
+        <input id="f-qty" name="qty" type="number" step="any" min="0" required placeholder="Shares">
+      </div>
+      <div class="field">
+        <label for="f-price">Price per share</label>
+        <input id="f-price" name="price" type="number" step="any" min="0" required placeholder="USD">
+        <div class="hint" id="f-price-hint">Looking up close price…</div>
+      </div>
+      <div class="err" id="add-err"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="add-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="add-save">Add holding</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
+const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+const GA = window.TAnalytics || { track(){}, pageView(){} };
+const PORT_KEY = "alphaticker-portfolio";
+const WATCH_KEY = "alphaticker-watchlist";
+const MERGED_KEY = "alphaticker-portfolio-merged";
+
+const INDEXES = [
+  { sym: "SPY",  name: "S&P 500",  colour: "#2a78d6" },
+  { sym: "QQQ",  name: "NASDAQ",   colour: "#eda100" },
+  { sym: "IWM",  name: "Russell",  colour: "#1baf7a" },
+  { sym: "DIA",  name: "Dow",      colour: "#eb6834" },
+];
+
+const ETF_SET = new Set([
+  "SPY","QQQ","IWM","DIA","VOO","VTI","IVV","VEA","VWO","EFA","EEM","AGG","BND",
+  "LQD","HYG","TLT","IEF","SHY","GLD","SLV","USO","XLF","XLK","XLE","XLV","XLI",
+  "XLY","XLP","XLU","XLB","XLRE","XLC","ARKK","ARKW","TQQQ","SQQQ","UVXY","VXX",
+]);
+
+const ASSET_COLORS = {
+  Cash: "var(--s1)", Stocks: "var(--s2)", Funds: "var(--s3)",
+  ETFs: "var(--s4)", Crypto: "var(--s6)",
+};
+
+async function rpc(fn, args){
+  if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
+  const send = tok => fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      apikey: CFG.supabaseAnonKey,
+      "Content-Type": "application/json",
+      ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+    },
+    body: JSON.stringify(args || {}),
+  });
+  let tok = window.TA && window.TA.token();
+  let r = await send(tok);
+  if (r.status === 401 && tok && window.TA && window.TA.recover) {
+    r = await send(await window.TA.recover());
+  }
+  if (!r.ok) throw new Error(`${fn} failed (${r.status})`);
+  return r.json();
+}
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = v => v == null || !Number.isFinite(v) ? "—"
+  : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+const dir = v => v == null ? "" : v >= 0 ? "up" : "down";
+const money = v => {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const abs = Math.abs(v);
+  const body = abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (v < 0 ? "-" : "") + "$" + body;
+};
+const moneySigned = v => {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return (v >= 0 ? "+" : "") + money(v).replace("+", "");
+};
+const priceFmt = v => v == null || !Number.isFinite(v) ? "—"
+  : v >= 1000 ? v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})
+  : v.toFixed(2);
+const signedIn = () => !!(window.TA && window.TA.signedIn && window.TA.signedIn());
+const todayISO = () => {
+  const d = new Date();
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+};
+const uid = () => `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
+
+const S = {
+  transactions: [],
+  positions: [],
+  view: "portfolio",
+  selected: "PORTFOLIO",
+  indexes: Object.fromEntries(INDEXES.map(i => [i.sym, i.sym === "SPY" || i.sym === "QQQ"])),
+  range: "YTD",
+  priceCache: {},
+  busy: false,
+};
+
+/* ---- local + remote portfolio ------------------------------------------- */
+const localPort = {
+  read(){
+    try { return JSON.parse(localStorage.getItem(PORT_KEY) || "[]"); } catch { return []; }
+  },
+  write(list){
+    try { localStorage.setItem(PORT_KEY, JSON.stringify(list)); } catch {}
+  },
+  clear(){ try { localStorage.removeItem(PORT_KEY); } catch {} },
+};
+
+function positionsFromTxns(txns){
+  const map = {};
+  for (const t of txns) {
+    const sym = String(t.symbol || "").toUpperCase();
+    if (!sym) continue;
+    if (!map[sym]) map[sym] = {
+      symbol: sym, quantity: 0, costIn: 0, proceeds: 0, dividends: 0,
+      firstTrade: t.tradeDate, lastTrade: t.tradeDate,
+    };
+    const p = map[sym];
+    const q = Number(t.quantity) || 0;
+    const px = Number(t.price) || 0;
+    const fee = Number(t.fee) || 0;
+    if (t.kind === "buy") {
+      p.quantity += q;
+      p.costIn += q * px + fee;
+    } else if (t.kind === "sell") {
+      p.quantity -= q;
+      p.proceeds += q * px - fee;
+    } else if (t.kind === "dividend") {
+      p.dividends += px || 0;
+    }
+    if (t.tradeDate < p.firstTrade) p.firstTrade = t.tradeDate;
+    if (t.tradeDate > p.lastTrade) p.lastTrade = t.tradeDate;
+  }
+  return Object.values(map)
+    .filter(p => Math.abs(p.quantity) > 1e-9)
+    .map(p => ({
+      ...p,
+      avgCost: p.quantity ? p.costIn / p.quantity : null,
+    }));
+}
+
+async function loadPortfolio(){
+  if (signedIn()) {
+    try {
+      await mergeLocalIfNeeded();
+      const d = await rpc("get_portfolio");
+      if (d && !d.error) {
+        S.transactions = (d.transactions || []).map(t => ({
+          id: t.id,
+          symbol: t.symbol,
+          kind: t.kind,
+          tradeDate: t.tradeDate,
+          quantity: Number(t.quantity),
+          price: Number(t.price),
+          fee: Number(t.fee) || 0,
+          note: t.note,
+        }));
+        S.positions = (d.positions || []).map(p => ({
+          symbol: p.symbol,
+          name: p.name,
+          quantity: Number(p.quantity),
+          costIn: Number(p.costIn),
+          proceeds: Number(p.proceeds),
+          dividends: Number(p.dividends),
+          avgCost: p.avgCost != null ? Number(p.avgCost) : null,
+          firstTrade: p.firstTrade,
+          lastTrade: p.lastTrade,
+          price: p.price != null ? Number(p.price) : null,
+          changePct: p.changePct != null ? Number(p.changePct) : null,
+          previousClose: p.previousClose != null ? Number(p.previousClose) : null,
+          marketCap: p.marketCap,
+        }));
+        return;
+      }
+    } catch (e) {
+      console.warn("[portfolio] remote load failed, using local", e);
+    }
+  }
+  S.transactions = localPort.read();
+  S.positions = positionsFromTxns(S.transactions);
+}
+
+async function mergeLocalIfNeeded(){
+  if (!signedIn()) return;
+  const local = localPort.read();
+  if (!local.length) return;
+  if (sessionStorage.getItem(MERGED_KEY)) return;
+  try {
+    const d = await rpc("merge_portfolio", {
+      p_transactions: local.map(t => ({
+        symbol: t.symbol,
+        kind: t.kind,
+        tradeDate: t.tradeDate,
+        quantity: t.quantity,
+        price: t.price,
+        fee: t.fee || 0,
+        note: t.note || null,
+      })),
+    });
+    if (d && d.merged >= 0) {
+      localPort.clear();
+      sessionStorage.setItem(MERGED_KEY, "1");
+    }
+  } catch (e) {
+    console.warn("[portfolio] merge failed", e);
+  }
+}
+
+async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee }){
+  const row = {
+    symbol: String(symbol).toUpperCase().trim(),
+    kind: kind || "buy",
+    tradeDate,
+    quantity: Number(quantity),
+    price: Number(price),
+    fee: Number(fee) || 0,
+  };
+  if (signedIn()) {
+    const d = await rpc("add_portfolio_transaction", {
+      p_symbol: row.symbol,
+      p_kind: row.kind,
+      p_trade_date: row.tradeDate,
+      p_quantity: row.quantity,
+      p_price: row.price,
+      p_fee: row.fee,
+    });
+    if (d && d.error) throw new Error(d.error);
+  } else {
+    if (row.kind === "sell") {
+      const held = positionsFromTxns(localPort.read())
+        .find(p => p.symbol === row.symbol);
+      const q = held ? held.quantity : 0;
+      if (row.quantity > q + 1e-9) throw new Error("sell exceeds holdings");
+    }
+    const list = localPort.read();
+    list.push({ id: uid(), ...row });
+    localPort.write(list);
+    if (window.TA?.showSignupModal) {
+      window.TA.showSignupModal({ reason: "portfolio" });
+    }
+  }
+  GA.track(row.kind === "sell" ? "portfolio_sell" : "portfolio_buy", {
+    ticker: row.symbol,
+  });
+  await loadPortfolio();
+}
+
+/* ---- quotes / historical prices ----------------------------------------- */
+async function enrichPrices(positions){
+  const missing = positions.filter(p => p.price == null).map(p => p.symbol);
+  const needVol = positions.map(p => p.symbol);
+  const syms = [...new Set([...missing, ...needVol])];
+  if (!syms.length) return positions;
+
+  let by = {};
+  try {
+    const rows = await rpc("get_symbol_quotes", { p_symbols: syms }) || [];
+    if (Array.isArray(rows)) rows.forEach(r => { if (r?.symbol) by[r.symbol] = r; });
+  } catch {}
+
+  await Promise.all(syms.map(async sym => {
+    if (!S.priceCache[sym]) {
+      try {
+        await rpc("request_prices", { p_symbol: sym }).catch(() => {});
+        const d = await rpc("get_prices", { p_symbol: sym });
+        S.priceCache[sym] = d || { bars: [] };
+      } catch {
+        S.priceCache[sym] = { bars: [] };
+      }
+    }
+    if (!by[sym] || by[sym].price == null) {
+      const d = S.priceCache[sym];
+      const q = d && d.quote;
+      const bars = (d && d.bars) || [];
+      const px = (q && (q.price ?? q.close)) ?? (bars.length ? bars[bars.length - 1].c : null);
+      if (px != null) {
+        by[sym] = {
+          symbol: sym,
+          name: q && q.name,
+          price: Number(px),
+          changePct: q && (q.change_pct ?? q.changePct),
+          previousClose: q && (q.previous_close ?? q.previousClose),
+        };
+      }
+    }
+  }));
+
+  return positions.map(p => {
+    const e = by[p.symbol];
+    if (!e) return p;
+    return {
+      ...p,
+      name: p.name || e.name,
+      price: p.price != null ? p.price : e.price,
+      changePct: p.changePct != null ? p.changePct : (e.changePct != null ? Number(e.changePct) : null),
+      previousClose: p.previousClose != null ? p.previousClose
+        : (e.previousClose != null ? Number(e.previousClose) : null),
+    };
+  });
+}
+
+function closeOnOrBefore(bars, iso){
+  if (!bars || !bars.length || !iso) return null;
+  let best = null;
+  for (const b of bars) {
+    const d = b.d || b.date;
+    if (!d || d > iso) continue;
+    if (!best || d > (best.d || best.date)) best = b;
+  }
+  return best ? Number(best.c) : null;
+}
+
+async function lookupBuyPrice(symbol, date){
+  const sym = String(symbol || "").toUpperCase().trim();
+  if (!sym || !date) return null;
+  try { await rpc("request_prices", { p_symbol: sym }).catch(() => {}); } catch {}
+  let d = S.priceCache[sym];
+  if (!d || !(d.bars || []).length) {
+    try { d = await rpc("get_prices", { p_symbol: sym }); S.priceCache[sym] = d; }
+    catch { return null; }
+  }
+  return closeOnOrBefore((d && d.bars) || [], date);
+}
+
+/* ---- metrics ------------------------------------------------------------- */
+function assetClass(symbol){
+  if (ETF_SET.has(symbol)) return "ETFs";
+  // Crypto tickers are rare in this universe; keep the bucket for the UI.
+  if (/USD$|-USD$/.test(symbol) || ["BTC","ETH","SOL","DOGE"].includes(symbol)) return "Crypto";
+  return "Stocks";
+}
+
+function allocation(positions){
+  const totals = { Cash: 0, Stocks: 0, Funds: 0, ETFs: 0, Crypto: 0 };
+  let sum = 0;
+  for (const p of positions) {
+    const v = (p.price || 0) * p.quantity;
+    if (!(v > 0)) continue;
+    const cls = assetClass(p.symbol);
+    totals[cls] += v;
+    sum += v;
+  }
+  const parts = Object.entries(totals).map(([name, value]) => ({
+    name, value, pct: sum ? (value / sum) * 100 : 0, colour: ASSET_COLORS[name],
+  }));
+  return { sum, parts };
+}
+
+function dailyReturn(positions){
+  let value = 0, dayPl = 0;
+  for (const p of positions) {
+    if (p.price == null || !p.quantity) continue;
+    const v = p.price * p.quantity;
+    value += v;
+    if (p.changePct != null) dayPl += v * (p.changePct / (100 + p.changePct));
+    else if (p.previousClose != null) dayPl += (p.price - p.previousClose) * p.quantity;
+  }
+  const pctDay = value - dayPl !== 0 ? (dayPl / (value - dayPl)) * 100 : null;
+  return { amount: dayPl, pct: pctDay, value };
+}
+
+function ytdReturn(positions){
+  const y = new Date().getFullYear();
+  const ytdStart = `${y}-01-01`;
+  let start = 0, current = 0;
+  for (const p of positions) {
+    if (p.price == null || !p.quantity) continue;
+    current += p.price * p.quantity;
+    const bars = (S.priceCache[p.symbol] && S.priceCache[p.symbol].bars) || [];
+    const jan = closeOnOrBefore(bars, ytdStart);
+    // Bought this year: cost basis is the YTD start for that lot (approx avgCost).
+    if (!jan || (p.firstTrade && p.firstTrade > ytdStart)) {
+      start += (p.avgCost != null ? p.avgCost : p.price) * p.quantity;
+    } else {
+      start += jan * p.quantity;
+    }
+  }
+  const amount = current - start;
+  const pct = start ? (amount / start) * 100 : null;
+  return { amount, pct, start, current };
+}
+
+/** Volatility score 0–100 (higher = more volatile / concentrated).
+ *  65% weighted holding volatility (annualised 60d σ, capped at 50%),
+ *  35% concentration (Herfindahl–Hirschman of weights). */
+function volatilityScore(positions){
+  const valued = positions.filter(p => p.price != null && p.quantity > 0);
+  const total = valued.reduce((s, p) => s + p.price * p.quantity, 0);
+  if (!total) return null;
+
+  let wVol = 0;
+  let hhi = 0;
+  for (const p of valued) {
+    const w = (p.price * p.quantity) / total;
+    hhi += w * w;
+    const bars = ((S.priceCache[p.symbol] && S.priceCache[p.symbol].bars) || []).slice(-61);
+    const rets = [];
+    for (let i = 1; i < bars.length; i++) {
+      const a = Number(bars[i - 1].c), b = Number(bars[i].c);
+      if (a > 0 && b > 0) rets.push((b - a) / a);
+    }
+    let sigma = 0.25; // default when history is thin
+    if (rets.length >= 10) {
+      const mean = rets.reduce((s, x) => s + x, 0) / rets.length;
+      const var_ = rets.reduce((s, x) => s + (x - mean) ** 2, 0) / (rets.length - 1);
+      sigma = Math.sqrt(var_) * Math.sqrt(252);
+    }
+    wVol += w * sigma;
+  }
+  const volComponent = Math.min(100, (wVol / 0.50) * 100);
+  const score = Math.round(0.65 * volComponent + 0.35 * hhi * 100);
+  const label = score < 33 ? "Calm" : score < 66 ? "Moderate" : "Elevated";
+  return { score: Math.max(0, Math.min(100, score)), label, hhi, wVol };
+}
+
+/* ---- half-donut ---------------------------------------------------------- */
+function halfDonutSvg(parts){
+  const live = parts.filter(p => p.value > 0);
+  if (!live.length) {
+    return `<svg class="donut" viewBox="0 0 120 70" aria-hidden="true">
+      <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="var(--rule)" stroke-width="12"
+        stroke-linecap="butt"/></svg>`;
+  }
+  const R = 50, CX = 60, CY = 60, SW = 12;
+  const circ = Math.PI * R;
+  let offset = 0;
+  const arcs = live.map(p => {
+    const len = (p.pct / 100) * circ;
+    const el = `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none"
+      stroke="${p.colour}" stroke-width="${SW}"
+      stroke-dasharray="${len} ${circ - len}"
+      stroke-dashoffset="${-offset}"
+      transform="rotate(180 ${CX} ${CY})"
+      stroke-linecap="butt"/>`;
+    offset += len;
+    return el;
+  }).join("");
+  return `<svg class="donut" viewBox="0 0 120 70" aria-hidden="true">${arcs}</svg>`;
+}
+
+/* ---- render: empty ------------------------------------------------------- */
+function renderEmpty(){
+  const app = document.getElementById("app");
+  app.innerHTML = `
+    <section class="empty panel">
+      <div class="empty-bg" aria-hidden="true"></div>
+      <div class="empty-card">
+        <h1>Build your portfolio</h1>
+        <p class="lead">Track your stocks, see real-time performance, and compare against the market — without linking a brokerage.</p>
+        <ul class="benefits">
+          <li><span class="ico" aria-hidden="true">+</span>
+            <div><b>One place for holdings</b>
+            <span>Add buys with ticker, date, and quantity. Cost basis and P/L follow.</span></div></li>
+          <li><span class="ico" aria-hidden="true">%</span>
+            <div><b>Performance at a glance</b>
+            <span>Daily and YTD return, allocation, and a volatility score.</span></div></li>
+          <li><span class="ico" aria-hidden="true">◎</span>
+            <div><b>Stays on your account</b>
+            <span>Signed-in portfolios sync across devices. Local drafts merge when you sign in.</span></div></li>
+        </ul>
+        <div class="empty-actions">
+          <form class="pf-search" id="empty-search">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+              stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round"/></svg>
+            <input type="text" id="empty-q" placeholder="Search a ticker to add…" autocomplete="off"
+                   role="combobox" aria-expanded="false" aria-controls="empty-ac">
+            <div class="pf-ac" id="empty-ac" role="listbox"></div>
+          </form>
+          <button type="button" class="btn btn-primary" id="empty-add">
+            <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Add Asset
+          </button>
+        </div>
+        <p class="empty-foot">Stocks only for now · Price filled from the buy-date close</p>
+      </div>
+    </section>`;
+
+  document.getElementById("empty-add").onclick = () => openAddModal();
+  wireTickerSearch("empty-q", "empty-ac", "empty-search", sym => openAddModal(sym));
+}
+
+/* ---- render: dashboard --------------------------------------------------- */
+function renderDashboard(){
+  const app = document.getElementById("app");
+  const alloc = allocation(S.positions);
+  const day = dailyReturn(S.positions);
+  const ytd = ytdReturn(S.positions);
+  const vol = volatilityScore(S.positions);
+  const arrow = v => v > 0 ? "▲ " : v < 0 ? "▼ " : "";
+
+  app.innerHTML = `
+    <div class="sumhead">
+      <h2>Portfolio Overview</h2>
+      <div class="sub"><button type="button" class="btn btn-primary" id="dash-add" style="min-height:34px;padding:0 14px;font-size:12.5px">+ Add Asset</button></div>
+    </div>
+    <div class="pulse" id="pulse">
+      <div class="cell">
+        <div class="k">Total Assets · USD</div>
+        <div class="v num">${esc(money(alloc.sum).replace("$",""))}</div>
+        <div class="donut-wrap">
+          ${halfDonutSvg(alloc.parts)}
+          <div class="donut-legend">${alloc.parts.map(p => `
+            <span><i style="background:${p.colour}"></i>${esc(p.name)}
+              <b>${p.value > 0 ? p.pct.toFixed(1) + "%" : "—"}</b></span>`).join("")}</div>
+        </div>
+      </div>
+      <div class="cell">
+        <div class="k">Daily Return</div>
+        <div class="v num ${dir(day.amount)}">${esc(moneySigned(day.amount))}</div>
+        <div class="chg ${dir(day.pct)}">${day.pct == null ? "" : esc(arrow(day.pct) + Math.abs(day.pct).toFixed(2) + "%")}</div>
+      </div>
+      <div class="cell">
+        <div class="k">YTD Return</div>
+        <div class="v num ${dir(ytd.amount)}">${esc(moneySigned(ytd.amount))}</div>
+        <div class="chg ${dir(ytd.pct)}">${ytd.pct == null ? "" : esc(arrow(ytd.pct) + Math.abs(ytd.pct).toFixed(2) + "%")}</div>
+      </div>
+      <div class="cell">
+        <div class="k">Volatility Score</div>
+        <div class="v">${vol ? `${esc(String(vol.score))}<span class="dim"> /100</span>` : "—"}</div>
+        ${vol ? `<div class="scale" title="Weighted vol + concentration"><i style="left:${vol.score}%"></i></div>
+          <div class="chg mut">${esc(vol.label)}</div>` : ""}
+      </div>
+    </div>
+
+    <section class="panel">
+      <div class="split">
+        <div>
+          <div class="listhead">
+            <div class="seg" id="views">
+              <button data-v="portfolio" aria-pressed="${S.view === "portfolio"}">Portfolio</button>
+              <button data-v="watchlist" aria-pressed="${S.view === "watchlist"}">Watchlist</button>
+            </div>
+          </div>
+          <div class="wl-bar" id="list-search-host"></div>
+          <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
+        </div>
+        <div class="chartwrap">
+          <div class="chead">
+            <div>
+              <div class="price"><b id="c-sym">Portfolio</b><span id="c-price" class="num"></span></div>
+              <div class="meta" id="c-meta"></div>
+            </div>
+            <div class="range" id="range">
+              <button data-r="1W" aria-pressed="${S.range==="1W"}">1W</button>
+              <button data-r="1M" aria-pressed="${S.range==="1M"}">1M</button>
+              <button data-r="YTD" aria-pressed="${S.range==="YTD"}">YTD</button>
+              <button data-r="1Y" aria-pressed="${S.range==="1Y"}">1Y</button>
+            </div>
+          </div>
+          <div id="chart"><div class="note"><span class="load"></span></div></div>
+          <div class="idx-bar" id="idx-bar" hidden></div>
+        </div>
+      </div>
+    </section>`;
+
+  document.getElementById("dash-add").onclick = () => openAddModal();
+  document.querySelectorAll("#views button").forEach(b => {
+    b.onclick = () => {
+      S.view = b.dataset.v;
+      document.querySelectorAll("#views button").forEach(x =>
+        x.setAttribute("aria-pressed", String(x.dataset.v === S.view)));
+      renderList();
+    };
+  });
+  document.querySelectorAll("#range button").forEach(b => {
+    b.onclick = () => {
+      S.range = b.dataset.r;
+      document.querySelectorAll("#range button").forEach(x =>
+        x.setAttribute("aria-pressed", String(x.dataset.r === S.range)));
+      drawRightChart();
+    };
+  });
+  renderList();
+  drawRightChart();
+}
+
+async function renderList(){
+  const host = document.getElementById("rows");
+  const searchHost = document.getElementById("list-search-host");
+  if (!host) return;
+
+  if (S.view === "watchlist") {
+    searchHost.innerHTML = `
+      <form class="wl-search" id="wl-search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="text" id="wl-q" placeholder="Add a company…" autocomplete="off">
+        <div class="wl-ac" id="wl-ac"></div>
+      </form>`;
+    wireTickerSearch("wl-q", "wl-ac", "wl-search", async sym => {
+      await toggleWatch(sym);
+      renderList();
+    });
+    const items = await loadWatchlistItems();
+    if (!items.length) {
+      host.innerHTML = `<div class="note">Nothing on your watchlist yet. Search above to add one.</div>`;
+      return;
+    }
+    host.innerHTML = `<table>
+      <thead><tr><th>Symbol</th><th>Price</th><th>% Change</th></tr></thead>
+      <tbody>${items.map(r => `
+        <tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
+          <td><a class="tsym" href="company.html?t=${esc(encodeURIComponent(r.symbol))}&src=portfolio">
+            <span class="tsym-t">${esc(r.symbol)}</span>
+            <span class="tsym-n">${esc(r.name || "")}</span></a></td>
+          <td class="num">${esc(priceFmt(r.price))}</td>
+          <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
+        </tr>`).join("")}</tbody></table>`;
+  } else {
+    searchHost.innerHTML = `
+      <form class="wl-search" id="wl-search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="text" id="wl-q" placeholder="Quick-add a ticker…" autocomplete="off">
+        <div class="wl-ac" id="wl-ac"></div>
+      </form>`;
+    wireTickerSearch("wl-q", "wl-ac", "wl-search", sym => openAddModal(sym));
+
+    const rows = S.positions.slice().sort((a, b) =>
+      ((b.price || 0) * b.quantity) - ((a.price || 0) * a.quantity));
+    host.innerHTML = `<table>
+      <thead><tr><th>Symbol</th><th>Qty</th><th>Price</th><th>Value</th><th></th></tr></thead>
+      <tbody>
+        <tr data-sym="PORTFOLIO" class="${S.selected === "PORTFOLIO" ? "on" : ""}">
+          <td colspan="4"><b style="font-size:12.5px">Portfolio total</b>
+            <div style="font-size:11px;color:var(--ink-3)">vs indexes on the chart</div></td>
+          <td></td>
+        </tr>
+        ${rows.map(r => {
+          const val = r.price != null ? r.price * r.quantity : null;
+          return `<tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
+            <td><span class="tsym"><span class="tsym-t">${esc(r.symbol)}</span>
+              <span class="tsym-n">${esc(r.name || "")}</span></span></td>
+            <td class="num">${esc(String(Number(r.quantity.toFixed(4))))}</td>
+            <td class="num">${esc(priceFmt(r.price))}
+              <div style="font-size:10.5px" class="${dir(r.changePct)}">${esc(pct(r.changePct))}</div></td>
+            <td class="num">${esc(money(val))}</td>
+            <td><div class="row-actions">
+              <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
+              <button type="button" data-act="sell" data-s="${esc(r.symbol)}">Sell</button>
+            </div></td>
+          </tr>`;
+        }).join("")}
+      </tbody></table>`;
+
+    host.querySelectorAll("[data-act]").forEach(btn => {
+      btn.onclick = e => {
+        e.stopPropagation();
+        openAddModal(btn.dataset.s, btn.dataset.act === "sell" ? "sell" : "buy");
+      };
+    });
+  }
+
+  host.querySelectorAll("tr[data-sym]").forEach(tr => {
+    tr.onclick = e => {
+      if (e.target.closest("a,button")) return;
+      S.selected = tr.dataset.sym;
+      host.querySelectorAll("tr").forEach(x => x.classList.toggle("on", x.dataset.sym === S.selected));
+      drawRightChart();
+    };
+  });
+}
+
+async function loadWatchlistItems(){
+  let items = [];
+  if (signedIn()) {
+    try {
+      const d = await rpc("get_watchlist");
+      items = ((d && d.items) || []).map(i => ({
+        symbol: i.symbol, name: i.name, price: i.price, changePct: i.changePct,
+      }));
+    } catch {}
+  }
+  if (!items.length) {
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch {}
+    items = local.map(symbol => ({ symbol, price: null, changePct: null }));
+  }
+  const missing = items.filter(i => i.price == null).map(i => i.symbol);
+  if (missing.length) {
+    try {
+      const rows = await rpc("get_symbol_quotes", { p_symbols: missing }) || [];
+      const by = {};
+      rows.forEach(r => { if (r?.symbol) by[r.symbol] = r; });
+      items = items.map(i => by[i.symbol] ? { ...i, ...by[i.symbol] } : i);
+    } catch {}
+  }
+  return items;
+}
+
+async function toggleWatch(sym){
+  if (signedIn()) {
+    try { await rpc("toggle_watchlist", { p_symbol: sym }); return; } catch {}
+  }
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch {}
+  const set = new Set(list);
+  if (set.has(sym)) set.delete(sym); else set.add(sym);
+  try { localStorage.setItem(WATCH_KEY, JSON.stringify([...set])); } catch {}
+}
+
+/* ---- charts -------------------------------------------------------------- */
+function rangeStartISO(range){
+  const d = new Date();
+  if (range === "1W") d.setDate(d.getDate() - 7);
+  else if (range === "1M") d.setMonth(d.getMonth() - 1);
+  else if (range === "1Y") d.setFullYear(d.getFullYear() - 1);
+  else d.setMonth(0, 1); // YTD
+  return d.toISOString().slice(0, 10);
+}
+
+async function seriesForSymbol(sym, fromISO){
+  if (!S.priceCache[sym]) {
+    try {
+      await rpc("request_prices", { p_symbol: sym }).catch(() => {});
+      S.priceCache[sym] = await rpc("get_prices", { p_symbol: sym }) || { bars: [] };
+    } catch { S.priceCache[sym] = { bars: [] }; }
+  }
+  const bars = (S.priceCache[sym].bars || [])
+    .filter(b => (b.d || b.date) >= fromISO)
+    .map(b => ({ d: b.d || b.date, c: Number(b.c) }))
+    .filter(b => b.d && Number.isFinite(b.c));
+  return bars;
+}
+
+/** Portfolio NAV path: constant current share counts × historical closes
+ *  (good enough for tracking; lot-accurate reconstruction can come later). */
+async function portfolioSeries(fromISO){
+  const positions = S.positions.filter(p => p.quantity > 0);
+  if (!positions.length) return [];
+  const series = await Promise.all(positions.map(async p => ({
+    qty: p.quantity,
+    bars: await seriesForSymbol(p.symbol, fromISO),
+  })));
+  const dates = new Set();
+  series.forEach(s => s.bars.forEach(b => dates.add(b.d)));
+  const sorted = [...dates].sort();
+  return sorted.map(d => {
+    let v = 0, ok = true;
+    for (const s of series) {
+      const bar = [...s.bars].reverse().find(b => b.d <= d);
+      if (!bar) { ok = false; break; }
+      v += bar.c * s.qty;
+    }
+    return ok ? { d, c: v } : null;
+  }).filter(Boolean);
+}
+
+function toPctSeries(bars){
+  if (!bars.length) return [];
+  const base = bars[0].c;
+  if (!base) return [];
+  return bars.map(b => ({ d: b.d, c: ((b.c / base) - 1) * 100 }));
+}
+
+async function drawRightChart(){
+  const host = document.getElementById("chart");
+  const symEl = document.getElementById("c-sym");
+  const priceEl = document.getElementById("c-price");
+  const metaEl = document.getElementById("c-meta");
+  const idxBar = document.getElementById("idx-bar");
+  if (!host) return;
+
+  const from = rangeStartISO(S.range);
+
+  if (S.selected && S.selected !== "PORTFOLIO") {
+    idxBar.hidden = true;
+    symEl.textContent = S.selected;
+    const pos = S.positions.find(p => p.symbol === S.selected);
+    priceEl.textContent = pos && pos.price != null ? priceFmt(pos.price) : "";
+    metaEl.innerHTML = pos
+      ? `<span class="${dir(pos.changePct)}">${esc(pct(pos.changePct))}</span>
+         · ${esc(String(Number(pos.quantity.toFixed(4))))} shares
+         · avg ${esc(priceFmt(pos.avgCost))}`
+      : "";
+    // Prefer intraday when available; fall back to daily.
+    try {
+      const intra = await rpc("get_intraday", { p_symbol: S.selected });
+      if (intra && intra.points && intra.points.length > 2) {
+        drawLineChart(host, [{
+          id: S.selected, colour: "var(--accent)",
+          points: intra.points.map(p => ({ d: p.t, c: p.c })),
+        }], { unit: "price" });
+        return;
+      }
+    } catch {}
+    const bars = await seriesForSymbol(S.selected, from);
+    drawLineChart(host, [{ id: S.selected, colour: "var(--accent)", points: bars }], { unit: "price" });
+    return;
+  }
+
+  // Portfolio vs indexes (percentage)
+  idxBar.hidden = false;
+  idxBar.innerHTML = INDEXES.map(i => `
+    <button type="button" class="idx-chip" data-sym="${i.sym}"
+      aria-pressed="${!!S.indexes[i.sym]}">
+      <i style="background:${i.colour}"></i>${esc(i.name)}
+    </button>`).join("");
+  idxBar.querySelectorAll("button").forEach(b => {
+    b.onclick = () => {
+      S.indexes[b.dataset.sym] = !S.indexes[b.dataset.sym];
+      b.setAttribute("aria-pressed", String(!!S.indexes[b.dataset.sym]));
+      drawRightChart();
+    };
+  });
+
+  symEl.textContent = "Portfolio";
+  const alloc = allocation(S.positions);
+  priceEl.textContent = money(alloc.sum).replace("$", "");
+  const ytd = ytdReturn(S.positions);
+  metaEl.innerHTML = `YTD <span class="${dir(ytd.pct)}">${esc(pct(ytd.pct))}</span> · compared as % return`;
+
+  const portBars = toPctSeries(await portfolioSeries(from));
+  const lines = [{ id: "Portfolio", colour: "#38b37d", points: portBars }];
+  for (const ix of INDEXES) {
+    if (!S.indexes[ix.sym]) continue;
+    const bars = toPctSeries(await seriesForSymbol(ix.sym, from));
+    lines.push({ id: ix.sym, colour: ix.colour, points: bars });
+  }
+  drawLineChart(host, lines, { unit: "pct" });
+}
+
+function drawLineChart(host, lines, { unit }){
+  const W = 900, H = 380, pad = { l: 54, r: 16, t: 16, b: 36 };
+  const all = lines.flatMap(l => l.points);
+  if (!all.length) {
+    host.innerHTML = `<div class="note">No price history yet — it will appear once daily bars are available.</div>`;
+    return;
+  }
+  const xs = all.map(p => p.d);
+  const ys = all.map(p => p.c);
+  const x0 = xs[0], x1 = xs[xs.length - 1];
+  // Use chronological index per series; align by date string order.
+  const dates = [...new Set(xs)].sort();
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const span = maxY - minY || 1;
+  const yMin = minY - span * 0.08, yMax = maxY + span * 0.08;
+
+  const xAt = d => {
+    const i = dates.indexOf(d);
+    return pad.l + (i / Math.max(1, dates.length - 1)) * (W - pad.l - pad.r);
+  };
+  const yAt = v => pad.t + (1 - (v - yMin) / (yMax - yMin || 1)) * (H - pad.t - pad.b);
+
+  const grid = [];
+  for (let i = 0; i <= 4; i++) {
+    const v = yMin + (i / 4) * (yMax - yMin);
+    const y = yAt(v);
+    const label = unit === "pct"
+      ? `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`
+      : priceFmt(v);
+    grid.push(`<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}"
+      stroke="var(--rule-2)" stroke-width="1"/>
+      <text x="${pad.l - 8}" y="${y + 4}" text-anchor="end" fill="var(--ink-3)"
+        font-size="11" font-family="IBM Plex Mono,monospace">${esc(label)}</text>`);
+  }
+
+  const paths = lines.map(l => {
+    if (l.points.length < 2) return "";
+    const d = l.points.map((p, i) =>
+      `${i ? "L" : "M"}${xAt(p.d).toFixed(1)},${yAt(p.c).toFixed(1)}`).join(" ");
+    return `<path d="${d}" fill="none" stroke="${l.colour}" stroke-width="2"/>`;
+  }).join("");
+
+  const xLabels = [dates[0], dates[Math.floor(dates.length / 2)], dates[dates.length - 1]]
+    .filter(Boolean)
+    .map(d => `<text x="${xAt(d)}" y="${H - 10}" text-anchor="middle" fill="var(--ink-3)"
+      font-size="11">${esc(d)}</text>`).join("");
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%"
+    preserveAspectRatio="none" role="img" aria-label="Performance chart">
+    ${grid.join("")}${paths}${xLabels}
+    ${unit === "pct" ? `<line x1="${pad.l}" y1="${yAt(0)}" x2="${W - pad.r}" y2="${yAt(0)}"
+      stroke="var(--ink-3)" stroke-dasharray="4 4" stroke-width="1" opacity=".5"/>` : ""}
+  </svg>`;
+}
+
+/* ---- add / sell modal ---------------------------------------------------- */
+let addKind = "buy";
+let priceLookupTimer = null;
+
+function openAddModal(symbol, kind){
+  addKind = kind === "sell" ? "sell" : "buy";
+  const modal = document.getElementById("add-modal");
+  const title = document.getElementById("add-title");
+  const sub = document.getElementById("add-sub");
+  const save = document.getElementById("add-save");
+  title.textContent = addKind === "sell" ? "Sell shares" : "Add to portfolio";
+  sub.textContent = addKind === "sell"
+    ? "Record a sale. Quantity cannot exceed what you currently hold."
+    : "Enter how many shares you bought and when. Price is filled from the close on that date — edit it if yours differs.";
+  save.textContent = addKind === "sell" ? "Record sale" : "Add holding";
+
+  document.getElementById("f-symbol").value = symbol || "";
+  document.getElementById("f-date").value = todayISO();
+  document.getElementById("f-date").max = todayISO();
+  document.getElementById("f-qty").value = "";
+  document.getElementById("f-price").value = "";
+  document.getElementById("f-price-hint").textContent = "";
+  document.getElementById("add-err").textContent = "";
+  modal.hidden = false;
+  if (symbol) {
+    document.getElementById("f-qty").focus();
+    refreshModalPrice();
+  } else {
+    document.getElementById("f-symbol").focus();
+  }
+}
+
+function closeAddModal(){
+  document.getElementById("add-modal").hidden = true;
+}
+
+async function refreshModalPrice(){
+  const sym = document.getElementById("f-symbol").value.trim().toUpperCase();
+  const date = document.getElementById("f-date").value;
+  const hint = document.getElementById("f-price-hint");
+  const priceEl = document.getElementById("f-price");
+  if (!sym || !date) { hint.textContent = ""; return; }
+  hint.textContent = "Looking up close price…";
+  const px = await lookupBuyPrice(sym, date);
+  if (px != null) {
+    priceEl.value = String(Number(px.toFixed(4)));
+    hint.textContent = `Filled from close on or before ${date}. Edit if your fill differs.`;
+  } else {
+    hint.textContent = "No close found for that date yet — enter the price you paid.";
+  }
+}
+
+function wireModal(){
+  const modal = document.getElementById("add-modal");
+  document.getElementById("add-x").onclick = closeAddModal;
+  document.getElementById("add-cancel").onclick = closeAddModal;
+  modal.addEventListener("click", e => { if (e.target === modal) closeAddModal(); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !modal.hidden) closeAddModal();
+  });
+
+  const bump = () => {
+    clearTimeout(priceLookupTimer);
+    priceLookupTimer = setTimeout(refreshModalPrice, 280);
+  };
+  document.getElementById("f-symbol").addEventListener("change", bump);
+  document.getElementById("f-symbol").addEventListener("blur", bump);
+  document.getElementById("f-date").addEventListener("change", bump);
+
+  document.getElementById("add-form").onsubmit = async e => {
+    e.preventDefault();
+    const err = document.getElementById("add-err");
+    err.textContent = "";
+    const symbol = document.getElementById("f-symbol").value.trim().toUpperCase();
+    const tradeDate = document.getElementById("f-date").value;
+    const quantity = Number(document.getElementById("f-qty").value);
+    const price = Number(document.getElementById("f-price").value);
+    if (!/^[A-Z][A-Z.\-]{0,9}$/.test(symbol)) {
+      err.textContent = "Enter a valid ticker.";
+      return;
+    }
+    if (!(quantity > 0) || !(price >= 0)) {
+      err.textContent = "Quantity and price are required.";
+      return;
+    }
+    const save = document.getElementById("add-save");
+    save.disabled = true;
+    try {
+      await addTransaction({ symbol, kind: addKind, tradeDate, quantity, price });
+      closeAddModal();
+      toast(addKind === "sell" ? `Sold ${quantity} ${symbol}` : `Added ${quantity} ${symbol}`);
+      await boot(false);
+    } catch (ex) {
+      err.textContent = ex.message || "Could not save.";
+    } finally {
+      save.disabled = false;
+    }
+  };
+}
+
+function wireTickerSearch(inputId, acId, formId, onPick){
+  const q = document.getElementById(inputId);
+  const ac = document.getElementById(acId);
+  const form = document.getElementById(formId);
+  if (!q || !ac) return;
+  let timer = null;
+  const close = () => { ac.innerHTML = ""; ac.classList.remove("open"); };
+  q.addEventListener("input", () => {
+    clearTimeout(timer);
+    const term = q.value.trim();
+    if (!term) return close();
+    timer = setTimeout(async () => {
+      let items = [];
+      try { items = await rpc("search_companies", { q: term }) || []; } catch {}
+      if (!items.length) return close();
+      ac.innerHTML = items.slice(0, 6).map(x =>
+        `<div data-s="${esc(x.ticker)}"><b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`).join("");
+      ac.classList.add("open");
+      ac.querySelectorAll("[data-s]").forEach(d => {
+        d.onmousedown = e => {
+          e.preventDefault();
+          GA.track("search", { search_term: term, source: "portfolio" });
+          close();
+          q.value = "";
+          onPick(d.dataset.s);
+        };
+      });
+    }, 140);
+  });
+  q.addEventListener("blur", () => setTimeout(close, 150));
+  if (form) form.onsubmit = e => {
+    e.preventDefault();
+    const sym = q.value.trim().toUpperCase();
+    if (!sym) return;
+    GA.track("search", { search_term: sym, source: "portfolio" });
+    close();
+    q.value = "";
+    onPick(sym);
+  };
+}
+
+function toast(msg){
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+/* ---- boot ---------------------------------------------------------------- */
+async function boot(showLoading = true){
+  if (showLoading) {
+    document.getElementById("app").innerHTML =
+      `<div class="note"><span class="load"></span></div>`;
+  }
+  await loadPortfolio();
+  if (S.positions.length) {
+    S.positions = await enrichPrices(S.positions);
+    // Prefetch history used by YTD / vol / chart.
+    await Promise.all(S.positions.map(p => seriesForSymbol(p.symbol, rangeStartISO("1Y"))));
+    renderDashboard();
+  } else {
+    renderEmpty();
+  }
+}
+
+wireModal();
+boot();
+if (window.TA && window.TA.onAuthChange) {
+  window.TA.onAuthChange(() => boot(false));
+}
+</script>
+<script src="nav.js"></script>
+</body>
+</html>
