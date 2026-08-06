@@ -81,8 +81,10 @@
   const themeBtn = document.getElementById("nav-theme");
   const ICON = { dark: "☾", light: "☀" };
   const markImg = document.getElementById("nav-mark");
-  function setFavicon(t) {
-    const href = t === "dark" ? "brand-logo-dark.svg" : "brand-logo-light.svg";
+  // Favicon always uses the black mark. Browser chrome is usually light, so the
+  // white dark-mode asset disappears on the tab; the in-app theme still swaps
+  // the nav mark only.
+  function setFavicon() {
     let link = document.querySelector('link[data-ta-favicon]');
     if (!link) {
       link = document.createElement("link");
@@ -91,14 +93,14 @@
       link.setAttribute("data-ta-favicon", "1");
       document.head.appendChild(link);
     }
-    link.href = href;
+    link.href = "brand-logo-light.svg";
   }
+  setFavicon();
   function setTheme(t) {
     document.documentElement.setAttribute("data-theme", t);
     themeBtn.textContent = t === "dark" ? ICON.light : ICON.dark;
     themeBtn.title = t === "dark" ? "Switch to light" : "Switch to dark";
     if (markImg) markImg.src = t === "dark" ? "brand-logo-dark.svg" : "brand-logo-light.svg";
-    setFavicon(t);
     try { localStorage.setItem("alphaticker-theme", t); } catch {}
     window.dispatchEvent(new CustomEvent("themechange", { detail: t }));
   }
