@@ -45,8 +45,9 @@ body{
 main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .up{color:var(--up)} .down{color:var(--down)}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
-/* Holdings list is compact on the left; price chart gets the wider pane. */
-.split{display:grid;grid-template-columns:minmax(380px,1fr) minmax(360px,1.45fr);min-height:520px}
+/* Table needs enough width for Dividend + Buy/Sell without a horizontal scroll;
+   chart still gets a generous share of the remaining space. */
+.split{display:grid;grid-template-columns:minmax(520px,1.2fr) minmax(300px,1.15fr);min-height:520px}
 .note{padding:28px 20px;color:var(--ink-3);text-align:center}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--rule);
   border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
