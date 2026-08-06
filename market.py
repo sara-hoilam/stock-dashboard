@@ -80,19 +80,29 @@ MIN_MOVER_CAP = float(os.environ.get("MIN_MOVER_CAP", "1e9"))
 # makes the market-cap filter affordable: the alternative is a quote request
 # per candidate. Cached for the length of a refresh so gainers, losers and
 # actives share the one call.
-_caps_cache: dict[str, object] = {"at": 0.0, "rows": [], "symbols": set()}
+#
+# 5,000 was not the whole universe: above $1B there are ~5,800 listings, and a
+# truncated list silently drops everything from the smallest returned cap
+# downwards -- which is a filter nobody asked for.
+SCREENER_LIMIT = 10000
+
+_caps_cache: dict[str, object] = {"at": 0.0, "min": None, "rows": [],
+                                  "symbols": set(), "caps": {}}
 
 
 def _screener(min_cap: float | None = None, ttl: int = 900) -> list[dict]:
     """The raw screener rows, cached. Carries market cap and company name."""
-    if time.time() - float(_caps_cache["at"]) < ttl and _caps_cache["rows"]:
+    want = float(min_cap or MIN_MOVER_CAP)
+    if (time.time() - float(_caps_cache["at"]) < ttl
+            and _caps_cache["rows"] and _caps_cache["min"] == want):
         return _caps_cache["rows"]             # type: ignore[return-value]
-    rows = _get("company-screener",
-                marketCapMoreThan=int(min_cap or MIN_MOVER_CAP),
-                isActivelyTrading="true", limit=5000) or []
+    rows = _get("company-screener", marketCapMoreThan=int(want),
+                isActivelyTrading="true", limit=SCREENER_LIMIT) or []
     if rows:
-        _caps_cache.update(at=time.time(), rows=rows,
-                           symbols={r["symbol"] for r in rows if r.get("symbol")})
+        _caps_cache.update(
+            at=time.time(), min=want, rows=rows,
+            symbols={r["symbol"] for r in rows if r.get("symbol")},
+            caps={r["symbol"]: r for r in rows if r.get("symbol")})
     return rows
 
 
@@ -100,6 +110,25 @@ def large_caps(min_cap: float | None = None, ttl: int = 900) -> set[str]:
     """Symbols above `min_cap`, as a set for cheap membership tests."""
     _screener(min_cap, ttl)
     return _caps_cache["symbols"]              # type: ignore[return-value]
+
+
+def cap_universe(min_cap: float | None = None, ttl: int = 900) -> dict[str, dict]:
+    """Symbol -> {market_cap, name} for every company above `min_cap`.
+
+    The earnings calendar names ~1,100 symbols on a busy day and only a few
+    hundred of them are companies anyone follows; this is how the rest are
+    told apart, for one request rather than one per symbol.
+
+    ETFs and funds are left out the same way `top_by_cap` leaves them out: a
+    fund does not report earnings, and one of them ranks above ConocoPhillips
+    on the day's calendar if you let it.
+    """
+    _screener(min_cap, ttl)
+    return {sym: {"market_cap": r.get("marketCap"),
+                  "name": r.get("companyName")}
+            for sym, r in (_caps_cache["caps"] or {}).items()   # type: ignore[union-attr]
+            if r.get("marketCap") is not None
+            and not r.get("isEtf") and not r.get("isFund")}
 
 
 def _movers(path: str, kind: str, limit: int, allowed: set[str] | None) -> list[dict]:

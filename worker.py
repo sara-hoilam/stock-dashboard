@@ -810,6 +810,12 @@ def refresh_sections() -> bool:
     return True
 
 
+# The calendar lists every filer that reports, shells and OTC stubs included.
+# The page hides anything below this unless the visitor watchlists it, and the
+# same figure orders the day, so it has to be stored per event.
+EARNINGS_MIN_CAP = float(os.environ.get("EARNINGS_MIN_CAP", "1e9"))
+
+
 def refresh_earnings() -> bool:
     """FMP earnings calendar for the window the Earnings page reads."""
     if not market.configured():
@@ -827,14 +833,31 @@ def refresh_earnings() -> bool:
         log(f"earnings: FMP returned no rows for "
             f"{start.isoformat()} → {end.isoformat()}")
         return False
+
+    # One screener call covers the whole above-$1B universe. Losing it costs
+    # ordering and the size filter, not the calendar, so it must not abort.
+    caps = {}
+    try:
+        caps = market.cap_universe(EARNINGS_MIN_CAP)
+    except market.MarketError as exc:
+        log(f"  earnings: market caps unavailable ({exc})")
+    stamped = 0
+    for r in rows:
+        known = caps.get(r["symbol"])
+        if not known:
+            continue
+        r["market_cap"] = known.get("market_cap")
+        r["name"] = known.get("name")
+        stamped += 1
+
     try:
         n = store.replace_earnings(rows)
     except store.StoreError as exc:
         # Missing migration or RPC must not take down the whole worker loop.
         log(f"  earnings write failed: {exc}")
         return False
-    log(f"earnings: {len(rows)} events ({n} written), "
-        f"{start.isoformat()} → {end.isoformat()}")
+    log(f"earnings: {len(rows)} events ({n} written, {stamped} above "
+        f"${EARNINGS_MIN_CAP/1e9:g}B), {start.isoformat()} → {end.isoformat()}")
     return True
 
 
