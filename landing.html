@@ -68,11 +68,11 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 /* ---- market summary ------------------------------------------------------ */
 .sumhead{
   display:flex; justify-content:space-between; align-items:baseline;
-  gap:12px 24px; margin-bottom:12px; flex-wrap:wrap;
+  gap:12px 24px; margin-bottom:12px; flex-wrap:nowrap;
 }
-.sumhead h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin:0}
+.sumhead h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin:0;flex:0 0 auto}
 .sumhead .sub{color:var(--ink-3);font-size:12.5px;text-align:right;margin-left:auto;
-  line-height:1.35;max-width:min(100%,52ch)}
+  line-height:1.35;white-space:nowrap;flex:0 1 auto;min-width:0}
 .sumhead .sub b{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--ink-2)}
 h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
@@ -304,20 +304,24 @@ svg{display:block;max-width:100%}
 
 /* ---- market pulse + news strip (above Market Summary) -------------------- */
 .pulse{
-  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
   background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
   box-shadow:var(--shadow);margin:0 0 18px;overflow:hidden;
 }
 .pulse .cell{padding:14px 16px;border-right:1px solid var(--rule);min-width:0}
 .pulse .cell:last-child{border-right:0}
+.pulse a.cell{display:block;text-decoration:none;color:inherit}
+.pulse a.cell:hover{background:var(--hover, rgba(127,127,127,.06))}
 .pulse .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--ink-3);font-weight:600;margin-bottom:6px}
 .pulse .v{font-family:"IBM Plex Sans",sans-serif;font-size:22px;font-weight:700;
   letter-spacing:-.02em;line-height:1.15;color:var(--ink)}
+.pulse .v.up{color:var(--up)} .pulse .v.down{color:var(--down)}
 .pulse .v .dim{color:var(--ink-3);font-weight:500;font-size:16px}
 .pulse .chg{margin-top:6px;font-size:12.5px;font-weight:600;
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 .pulse .chg.up{color:var(--up)} .pulse .chg.down{color:var(--down)}
+.pulse .spark{display:block;width:100%;height:36px;margin-top:10px}
 .pulse .scale{margin-top:10px;height:6px;border-radius:99px;position:relative;
   background:linear-gradient(90deg,#c0392e 0%,#eda100 45%,#2a78d6 100%)}
 /* Fear runs red to green; breadth runs red to blue. Same shape, different
@@ -334,6 +338,14 @@ svg{display:block;max-width:100%}
 }
 .pulse .gauge .rating{font-size:11.5px;color:var(--ink-3);text-transform:capitalize;
   align-self:center;margin-bottom:2px}
+
+/* Chart range filter (same control as Portfolio). */
+.range{display:flex;gap:4px;flex-shrink:0}
+.range button{
+  border:1px solid var(--rule);background:transparent;border-radius:7px;
+  padding:4px 9px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--ink-2)
+}
+.range button[aria-pressed=true]{border-color:var(--ink);color:var(--ink);font-weight:600}
 
 /* Star on the chart header — yellow when followed, grey when not. */
 .cstar{background:none;border:0;cursor:pointer;font-size:21px;line-height:1;
@@ -430,13 +442,13 @@ svg{display:block;max-width:100%}
   }
   .foot{margin:18px 14px 0;padding-top:14px}
 
-  .sumhead{margin:0 10px 8px;gap:6px 12px}
-  .sumhead .sub{font-size:11px;text-align:left;margin-left:0;max-width:none;flex:1 1 100%}
+  .sumhead{margin:0 10px 8px;gap:6px 10px;flex-wrap:nowrap;overflow-x:auto}
+  .sumhead .sub{font-size:10.5px;text-align:right;margin-left:auto;white-space:nowrap}
 
-  /* Pulse: one compact row of four, matching the reference strip. */
+  /* Pulse: one compact row of five (3 indexes + breadth + fear). */
   .pulse{
     margin:0 10px 8px;border-radius:10px;border:1px solid var(--rule);
-    grid-template-columns:repeat(4,minmax(0,1fr));
+    grid-template-columns:repeat(5,minmax(0,1fr));
   }
   .pulse .cell{
     padding:10px 6px 9px;border-right:1px solid var(--rule);border-bottom:0;
@@ -447,6 +459,7 @@ svg{display:block;max-width:100%}
   .pulse .v{font-size:12.5px;letter-spacing:-.02em}
   .pulse .v .dim{font-size:9.5px}
   .pulse .chg{font-size:9.5px;margin-top:3px}
+  .pulse .spark{height:22px;margin-top:6px}
   .pulse .scale{margin-top:7px;height:4px}
   .pulse .scale i{width:8px;height:8px;border-width:1.5px}
   .pulse .gauge{justify-content:center;gap:0;margin-top:0}
@@ -584,10 +597,11 @@ svg{display:block;max-width:100%}
               <span id="c-price"></span></div>
             <div class="meta" id="c-meta"></div>
           </div>
-          <div class="search">
-            <input type="text" id="q" placeholder="Ticker & Press Enter…" autocomplete="off"
-                   role="combobox" aria-expanded="false" aria-controls="ac">
-            <div class="ac" id="ac" role="listbox"></div>
+          <div class="range" id="chart-range" role="group" aria-label="Chart range">
+            <button type="button" data-r="1W" aria-pressed="true">1W</button>
+            <button type="button" data-r="1M" aria-pressed="false">1M</button>
+            <button type="button" data-r="YTD" aria-pressed="false">YTD</button>
+            <button type="button" data-r="1Y" aria-pressed="false">1Y</button>
           </div>
         </div>
         <div id="chart"></div>
@@ -637,8 +651,15 @@ svg{display:block;max-width:100%}
           <h3>Sector Performance</h3>
           <button type="button" class="info-i" aria-label="About Sector Performance">
             <span aria-hidden="true">i</span>
-            <span class="info-bubble">Where each sector finished on the last trading day.</span>
+            <span class="info-bubble" id="perf-sub">Cumulative performance per sector over the selected window.</span>
           </button>
+        </div>
+        <div class="seg" id="perf-range">
+          <button data-d="7"   aria-pressed="true">7d</button>
+          <button data-d="15"  aria-pressed="false">15d</button>
+          <button data-d="30"  aria-pressed="false">30d</button>
+          <button data-d="60"  aria-pressed="false">60d</button>
+          <button data-d="120" aria-pressed="false">120d</button>
         </div>
       </div>
       <div class="scroll" id="sectorperf"><div class="note"><span class="load"></span></div></div>
@@ -792,7 +813,23 @@ const avatarColour = s => {
 };
 
 const S = { view: "market_cap", rows: [], symbol: null, overview: null, movement: null,
-            pricePoll: null, intraPoll: null, sel: 0, gotIntraday: false };
+            pricePoll: null, intraPoll: null, sel: 0, gotIntraday: false,
+            chartRange: "1W", chartBars: [] };
+
+const INDEX_LABELS = {
+  SPX: "S&P 500",
+  IXIC: "NASDAQ",
+  DJI: "Dow Jones",
+};
+
+function rangeStartISO(range){
+  const d = new Date();
+  if (range === "1W") d.setDate(d.getDate() - 7);
+  else if (range === "1M") d.setMonth(d.getMonth() - 1);
+  else if (range === "1Y") d.setFullYear(d.getFullYear() - 1);
+  else d.setMonth(0, 1); // YTD
+  return d.toISOString().slice(0, 10);
+}
 
 /* ---- shared tooltip ------------------------------------------------------ */
 const tipEl = document.getElementById("tip");
@@ -813,36 +850,68 @@ const hideTip = () => tipEl.classList.remove("on");
 /* ---- market pulse + news strip ------------------------------------------ */
 
 async function assemblePulseFallback(){
-  // Used until migration 0015 is applied and get_market_pulse exists.
-  const [overview, heatmap, tape] = await Promise.all([
+  // Used until migration 0048 is applied and get_market_pulse returns indexes.
+  const [overview, tape] = await Promise.all([
     rpc("get_market_overview").catch(() => null),
-    rpc("get_heatmap").catch(() => null),
     rpc("get_ticker_tape").catch(() => null),
   ]);
-  let marketCap = null;
-  if (Array.isArray(heatmap)) {
-    let tot = 0, wchg = 0;
-    heatmap.forEach(sec => (sec.items || []).forEach(c => {
-      if (c.marketCap == null || c.changePct == null) return;
-      tot += c.marketCap; wchg += c.marketCap * c.changePct;
-    }));
-    if (tot) marketCap = { value: tot, changePct: +(wchg / tot).toFixed(2) };
+  const indexes = [];
+  for (const sym of ["SPX", "IXIC", "DJI"]) {
+    const q = Array.isArray(tape) ? tape.find(t => t.symbol === sym) : null;
+    if (q) {
+      indexes.push({
+        symbol: sym,
+        name: INDEX_LABELS[sym] || q.name || sym,
+        price: q.price,
+        change: q.change,
+        changePct: q.changePct ?? q.change_pct,
+      });
+    } else {
+      indexes.push({ symbol: sym, name: INDEX_LABELS[sym] || sym,
+                     price: null, change: null, changePct: null });
+    }
   }
-  const spy = (Array.isArray(tape) ? tape.find(t => t.symbol === "SPY") : null)
-    || null;
   const b = overview && overview.breadth;
   const breadth = b && b.total ? {
     up: b.up, total: b.total, avgChange: b.avgChange,
     score: Math.round(100 * b.up / b.total),
   } : null;
-  // No CNN score yet — approximate sentiment from breadth so the gauge
-  // still reads, and label it honestly.
   const fearGreed = breadth ? {
     score: breadth.score,
     rating: breadth.score >= 55 ? "greed" : breadth.score <= 45 ? "fear" : "neutral",
     source: "breadth",
   } : null;
-  return { marketCap, spy, breadth, fearGreed, asOf: overview && overview.asOf };
+  return { indexes, breadth, fearGreed, asOf: overview && overview.asOf };
+}
+
+function sparkPath(vals, w, h){
+  if (!vals || vals.length < 2) return "";
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.08 || 1;
+  const y = v => h - ((v - (lo - pad)) / ((hi + pad) - (lo - pad))) * h;
+  const x = i => (w * i) / (vals.length - 1);
+  return vals.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+}
+
+async function paintIndexSparks(indexes){
+  await Promise.all((indexes || []).map(async ix => {
+    const host = document.querySelector(`[data-spark="${ix.symbol}"]`);
+    if (!host) return;
+    let bars = [];
+    try {
+      const d = await rpc("get_prices", { p_symbol: ix.symbol });
+      bars = (d && d.bars) || [];
+      if (!bars.length) rpc("request_prices", { p_symbol: ix.symbol }).catch(() => {});
+    } catch {}
+    const vals = bars.slice(-30).map(b => b.c).filter(v => v != null);
+    if (vals.length < 2) { host.innerHTML = ""; return; }
+    const up = vals[vals.length - 1] >= vals[0];
+    const stroke = up ? "var(--up)" : "var(--down)";
+    const d = sparkPath(vals, 120, 36);
+    host.innerHTML = `<svg class="spark" viewBox="0 0 120 36" preserveAspectRatio="none"
+      aria-hidden="true"><path d="${d}" fill="none" stroke="${stroke}"
+      stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  }));
 }
 
 function renderPulse(p){
@@ -851,33 +920,52 @@ function renderPulse(p){
     host.innerHTML = `<div class="note" style="grid-column:1/-1">Pulse unavailable.</div>`;
     return;
   }
-  const mc = p.marketCap;
-  const spy = p.spy;
+  // Prefer indexes from 0048; fall back to legacy marketCap/spy if present.
+  let indexes = Array.isArray(p.indexes) ? p.indexes.slice() : [];
+  if (!indexes.length && (p.marketCap || p.spy)) {
+    indexes = [
+      { symbol: "SPX", name: "S&P 500", price: null, changePct: null },
+      { symbol: "IXIC", name: "NASDAQ", price: null, changePct: null },
+      { symbol: "DJI", name: "Dow Jones", price: null, changePct: null },
+    ];
+  }
+  const bySym = Object.fromEntries(indexes.map(x => [x.symbol, x]));
+  const ordered = ["SPX", "IXIC", "DJI"].map(sym => bySym[sym] || {
+    symbol: sym, name: INDEX_LABELS[sym], price: null, change: null, changePct: null,
+  });
   const br = p.breadth;
   const fg = p.fearGreed;
-  const arrow = v => v > 0 ? "▲ " : v < 0 ? "▼ " : "";
-  const chg = v => v == null ? "" : `${arrow(v)}${Math.abs(v).toFixed(2)}%`;
+  const pctFmt = v => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+  const absChg = (change, pctVal) => {
+    const parts = [];
+    if (change != null && Number.isFinite(+change)) {
+      const n = +change;
+      parts.push(`${n > 0 ? "+" : ""}${n.toLocaleString(undefined, {
+        maximumFractionDigits: 2, minimumFractionDigits: 2 })}`);
+    }
+    if (pctVal != null && Number.isFinite(+pctVal)) parts.push(pctFmt(+pctVal));
+    return parts.join(" ");
+  };
+
+  const indexCells = ordered.map(ix => {
+    const cp = ix.changePct ?? ix.change_pct;
+    const label = INDEX_LABELS[ix.symbol] || ix.name || ix.symbol;
+    return `<a class="cell" href="company.html?t=${encodeURIComponent(ix.symbol)}&src=market_pulse">
+      <div class="k">${esc(label)}</div>
+      <div class="v ${cp == null ? "" : dir(cp)}">${ix.price != null ? esc(price(ix.price)) : "—"}</div>
+      <div class="chg ${cp == null ? "" : dir(cp)}">${esc(absChg(ix.change, cp))}</div>
+      <div data-spark="${esc(ix.symbol)}"></div>
+    </a>`;
+  });
 
   const cells = [
-    `<div class="cell">
-      <div class="k">Market Cap</div>
-      <div class="v">${mc ? esc(cap(mc.value)) : "—"}</div>
-      <div class="chg ${mc ? dir(mc.changePct) : ""}">${mc ? esc(chg(mc.changePct)) : ""}</div>
-    </div>`,
-    `<div class="cell">
-      <div class="k">${spy ? esc(spy.symbol) : "SPY"}</div>
-      <div class="v">${spy ? esc(price(spy.price)) : "—"}</div>
-      <div class="chg ${spy ? dir(spy.changePct) : ""}">${spy ? esc(chg(spy.changePct)) : ""}</div>
-    </div>`,
+    ...indexCells,
     `<div class="cell">
       <div class="k">Breadth Index</div>
       <div class="v">${br ? `${esc(String(br.score))}<span class="dim"> /100</span>` : "—"}</div>
       ${br ? `<div class="scale" title="${br.up}/${br.total} advancing">
         <i style="left:${br.score}%"></i></div>` : ""}
     </div>`,
-    // Same shape as Breadth beside it: a score out of 100 over a scale with a
-    // marker. Two readings of the same market are easier to compare when they
-    // are drawn the same way, and the arc was the odd one out.
     `<div class="cell">
       <div class="k">Fear &amp; Greed</div>
       <div class="v">${fg ? `${esc(String(Math.round(fg.score)))}<span class="dim"> /100</span>`
@@ -890,6 +978,7 @@ function renderPulse(p){
     </div>`,
   ];
   host.innerHTML = cells.join("");
+  paintIndexSparks(ordered);
 }
 
 /* ---- Discover carousel --------------------------------------------------- */
@@ -1505,17 +1594,11 @@ function promptSaveWatchlist(n){
 /* ---- chart --------------------------------------------------------------- */
 async function selectSymbol(sym){
   S.symbol = sym;
-  // Two fetches race for this panel -- the intraday series and the daily
-  // fallback -- and a third selection can land while both are in flight. The
-  // token settles all of it: anything that comes back holding a stale one is
-  // an answer to a question nobody is asking any more.
   const sel = ++S.sel;
   S.gotIntraday = false;
-  clearTimeout(S.pricePoll);            // stop waiting on the previous company
+  S.chartBars = [];
+  clearTimeout(S.pricePoll);
   clearTimeout(S.intraPoll);
-  // Move the highlight rather than rebuilding the table. Re-rendering here
-  // tore down whatever surrounded the rows -- the watchlist's search bar --
-  // and could hand the chart a different company than the one clicked.
   document.querySelectorAll("#rows tr[data-s], #wl-rows tr[data-s]").forEach(tr =>
     tr.setAttribute("aria-selected", String(tr.dataset.s === sym)));
   if (window.TickerLogos && window.TickerLogos.setHeading) {
@@ -1531,60 +1614,31 @@ async function selectSymbol(sym){
   document.getElementById("c-meta").textContent = "";
   document.getElementById("chart").innerHTML = `<div class="note"><span class="load"></span></div>`;
 
-  let d = null;
-  try { d = await rpc("get_intraday", { p_symbol: sym }); } catch {}
-  if (sel !== S.sel) return;
   const row = S.rows.find(r => r.symbol === sym);
-  const q = (d && d.quote) || row || null;
-  const lastClose = (d && d.points && d.points.length)
-    ? d.points[d.points.length - 1].c : null;
+  if (row) fillQuoteHead(sym, row, row.price);
 
-  if (q || lastClose != null) fillQuoteHead(sym, q, lastClose);
+  let d = null;
+  try { d = await rpc("get_prices", { p_symbol: sym }); } catch {}
+  if (sel !== S.sel) return;
 
-  if (d && d.points && d.points.length) {
-    S.gotIntraday = true;
-    drawChart(d.points);
-    // Old enough to be worth replacing: ask, and let the next visit have it.
-    // Redrawing under someone mid-read would move the line they are looking at.
-    if (d.stale) askIntraday(sym);
+  const bars = (d && d.bars) || [];
+  const dailyClose = bars.length ? bars[bars.length - 1].c : null;
+  if (d && d.quote || dailyClose != null) {
+    fillQuoteHead(sym, (d && d.quote) || row, dailyClose);
+  }
+
+  if (bars.length) {
+    S.chartBars = bars;
+    drawRangedChart(sym);
+    if (d && d.stale) { try { rpc("request_prices", { p_symbol: sym }); } catch {} }
     return;
   }
 
-  // The worker keeps a five-minute series for the names it already tracks, so
-  // a company just added to a watchlist has none. Ask for one -- then draw the
-  // daily closes straight away rather than holding an empty panel while the
-  // worker gets to it, and swap the intraday in when it lands.
-  askIntraday(sym);
-  await dailyFallback(sym, sel);
-  if (sel === S.sel) pollIntraday(sym, sel);
-}
-
-/** Ask the worker for a five-minute series. Fire and forget: the caller has
-    something to draw either way, and a failed request costs nothing. */
-function askIntraday(sym){
-  rpc("request_intraday", { p_symbol: sym }).catch(() => {});
-}
-
-/** Wait for a requested series, then replace the daily line with it. Gives up
-    quietly -- there is a chart on screen already, so a company FMP has no
-    intraday for simply keeps its daily one rather than being told about it. */
-function pollIntraday(sym, sel){
-  clearTimeout(S.intraPoll);
-  let tries = 0;
-  const tick = async () => {
-    if (sel !== S.sel || tries++ > 20) return;      // ~85 seconds
-    let d = null;
-    try { d = await rpc("get_intraday", { p_symbol: sym }); } catch {}
-    if (sel !== S.sel) return;
-    if (d && d.points && d.points.length) {
-      S.gotIntraday = true;
-      const last = d.points[d.points.length - 1].c;
-      if (d.quote || last != null) fillQuoteHead(sym, d.quote, last);
-      return drawChart(d.points);
-    }
-    S.intraPoll = setTimeout(tick, 4000);
-  };
-  S.intraPoll = setTimeout(tick, 4000);
+  try { await rpc("request_prices", { p_symbol: sym }); } catch {}
+  if (sel !== S.sel) return;
+  document.getElementById("chart").innerHTML =
+    `<div class="note"><span class="load"></span> &nbsp;Fetching prices for ${esc(sym)}…</div>`;
+  pollDaily(sym, sel);
 }
 
 /** Price, name and change above the chart. */
@@ -1594,93 +1648,77 @@ function fillQuoteHead(sym, q, fallbackPrice){
     : fallbackPrice;
   document.getElementById("c-price").textContent = price(px);
   const cp = q ? (q.changePct ?? q.change_pct) : null;
+  const label = INDEX_LABELS[sym] || (q && q.name) || "";
+  const link = INDEX_LABELS[sym] ? "view index →" : "view financials →";
   document.getElementById("c-meta").innerHTML =
-    `${esc((q && q.name) || "")} ${cp !== undefined && cp !== null
+    `${esc(label)} ${cp !== undefined && cp !== null
       ? `· <b class="${dir(cp)}">${pct(cp)}</b>` : ""}
      · <a href="company.html?t=${encodeURIComponent(sym)}"
-          style="color:var(--accent);text-decoration:none">view financials →</a>`;
+          style="color:var(--accent);text-decoration:none">${link}</a>`;
 }
 
-/** Daily closes for a symbol with no intraday series, fetching them if this
-    is the first time anyone has asked for this company. */
-async function dailyFallback(sym, sel){
-  const chart = document.getElementById("chart");
-  let d = null;
-  try { d = await rpc("get_prices", { p_symbol: sym }); } catch {}
-  if (sel !== S.sel) return;                    // another row was clicked
-  if (S.gotIntraday) return;                    // the real series beat us here
-
-  // A ticker reached from the search box is not in the table, so the header
-  // may still be blank. get_prices carries a quote of its own; when that is
-  // still empty, the last daily close is better than "—".
-  const bars = (d && d.bars) || [];
-  const dailyClose = bars.length ? bars[bars.length - 1].c : null;
-  const head = document.getElementById("c-price").textContent;
-  if ((!head || head === "—") && (d && d.quote || dailyClose != null)) {
-    fillQuoteHead(sym, d && d.quote, dailyClose);
-  }
-
-  if (bars.length) {
-    drawDaily(sym, bars);
-    // Stale bars still draw; the refresh lands on the next visit.
-    if (d.stale) { try { rpc("request_prices", { p_symbol: sym }); } catch {} }
-    return;
-  }
-
-  try { await rpc("request_prices", { p_symbol: sym }); } catch {}
-  if (sel !== S.sel || S.gotIntraday) return;
-  chart.innerHTML = `<div class="note"><span class="load"></span> &nbsp;Fetching prices for ${esc(sym)}…</div>`;
-  pollDaily(sym, sel);
-}
-
-/** The worker fills a request in seconds when it is idle and a minute or two
-    when it is behind on filings. Wait the longer of the two, then say so
-    rather than leaving a space that never fills. */
 function pollDaily(sym, sel){
   clearTimeout(S.pricePoll);
   let tries = 0;
   const tick = async () => {
-    if (sel !== S.sel || S.gotIntraday) return;
-    if (tries++ > 40) {                          // ~2 minutes
+    if (sel !== S.sel) return;
+    if (tries++ > 40) {
       document.getElementById("chart").innerHTML =
         `<div class="note">Prices for ${esc(sym)} are still being fetched. Check back in a minute.<br>
          <a href="company.html?t=${encodeURIComponent(sym)}"
-            style="color:var(--accent)">Open its filed financials →</a></div>`;
+            style="color:var(--accent)">Open details →</a></div>`;
       return;
     }
     let d = null;
     try { d = await rpc("get_prices", { p_symbol: sym }); } catch {}
-    if (sel !== S.sel || S.gotIntraday) return;
-    if (d && (d.bars || []).length) return drawDaily(sym, d.bars);
+    if (sel !== S.sel) return;
+    if (d && (d.bars || []).length) {
+      S.chartBars = d.bars;
+      if (d.quote) fillQuoteHead(sym, d.quote, d.bars[d.bars.length - 1].c);
+      return drawRangedChart(sym);
+    }
     S.pricePoll = setTimeout(tick, 3000);
   };
   S.pricePoll = setTimeout(tick, 2000);
 }
 
-/** Six months of closes, shaped like the intraday points so one drawing
-    routine serves both. */
-function drawDaily(sym, bars){
-  const points = bars.slice(-130)
-    .filter(b => b && b.d && b.c != null)
+/** Daily closes filtered by the 1W / 1M / YTD / 1Y control (default 1W). */
+function drawRangedChart(sym){
+  const from = rangeStartISO(S.chartRange);
+  const points = (S.chartBars || [])
+    .filter(b => b && b.d && b.c != null && b.d >= from)
     .map(b => ({ t: b.d, c: b.c }));
   if (points.length < 2) {
-    document.getElementById("chart").innerHTML =
-      `<div class="note">No price history for ${esc(sym)}.<br>
-       <a href="company.html?t=${encodeURIComponent(sym)}"
-          style="color:var(--accent)">Open its filed financials instead →</a></div>`;
+    // Short history (or brand-new ticker): show whatever we have.
+    const fallback = (S.chartBars || [])
+      .filter(b => b && b.d && b.c != null)
+      .slice(-10)
+      .map(b => ({ t: b.d, c: b.c }));
+    if (fallback.length < 2) {
+      document.getElementById("chart").innerHTML =
+        `<div class="note">No price history for ${esc(sym)}.<br>
+         <a href="company.html?t=${encodeURIComponent(sym)}"
+            style="color:var(--accent)">Open details →</a></div>`;
+      return;
+    }
+    drawChart(fallback, true);
     return;
   }
   drawChart(points, true);
+}
 
-  // Say which series this is. Without it a six-month line sits under a
-  // "today" price and reads as an intraday collapse.
-  const meta = document.getElementById("c-meta");
-  if (meta && !meta.querySelector(".rangelab")) {
-    const from = points[0].t;
-    meta.insertAdjacentHTML("beforeend",
-      `${meta.textContent.trim() ? " · " : ""}<span class="rangelab" style="color:var(--ink-3)">daily closes since ${
-        +from.slice(8,10)} ${MONTHS[+from.slice(5,7)-1]} ${from.slice(0,4)}</span>`);
-  }
+function wireChartRange(){
+  const host = document.getElementById("chart-range");
+  if (!host) return;
+  host.querySelectorAll("button").forEach(b => {
+    b.onclick = () => {
+      S.chartRange = b.dataset.r;
+      host.querySelectorAll("button").forEach(x =>
+        x.setAttribute("aria-pressed", String(x.dataset.r === S.chartRange)));
+      GA.track("change_chart_range", { range: S.chartRange, source: "market_page" });
+      if (S.symbol && S.chartBars.length) drawRangedChart(S.symbol);
+    };
+  });
 }
 
 /** `daily` switches the time axis from clock times to dates. The geometry is
@@ -1972,6 +2010,7 @@ const sectorColour = i => `var(${SECTOR_COLOURS[i % SECTOR_COLOURS.length]})`;
 
 // The chart holds 120 days; the filter decides how much of it to show.
 const ROT = { days: 30, history: null };
+const PERF = { days: 7, history: null };
 
 function renderRotation(history){
   if (history) ROT.history = history;
@@ -2078,9 +2117,24 @@ function wireRotationHover(g){
   hit.addEventListener("mouseleave", () => { cross.style.display = "none"; hideTip(); });
 }
 
-function renderSectorPerf(rows){
+function sectorPerfRows(days){
+  const hist = PERF.history;
+  if (!hist || !hist.length) return [];
+  return hist.map(s => {
+    const pts = (s.series || []).slice(-days);
+    const changePct = pts.reduce((a, p) => a + (p.v || 0), 0);
+    return { sector: s.sector, changePct };
+  }).sort((a, b) => b.changePct - a.changePct);
+}
+
+function renderSectorPerf(history){
+  if (history) PERF.history = history;
   const host = document.getElementById("sectorperf");
-  if (!rows || !rows.length){ host.innerHTML = `<div class="note">No sector data yet.</div>`; return; }
+  const rows = sectorPerfRows(PERF.days);
+  const sub = document.getElementById("perf-sub");
+  if (sub) sub.textContent =
+    `Cumulative performance per sector over the last ${PERF.days} days.`;
+  if (!rows.length){ host.innerHTML = `<div class="note">No sector data yet.</div>`; return; }
   // The left margin has to clear the longest sector name -- "Communication
   // Services" is the one that sets it -- and the height is chosen so the bars
   // fill the panel rather than sitting in its top third.
@@ -2112,7 +2166,8 @@ function renderSectorPerf(rows){
   const asOf = (S.movement && S.movement.asOf) || "";
   host.querySelectorAll("rect[data-s]").forEach(el => {
     el.addEventListener("mousemove", ev => showTip(ev, el.dataset.s,
-      [["Last trading day", asOf], ["Change", pct(+el.dataset.v)]]));
+      [[`${PERF.days}d cumulative`, asOf ? `as of ${asOf}` : ""],
+       ["Change", pct(+el.dataset.v)]]));
     el.addEventListener("mouseleave", hideTip);
   });
 }
@@ -2526,61 +2581,10 @@ async function loadTradeFlow(){
   }
 }
 
-/* ---- ticker search ------------------------------------------------------- */
-const qEl = document.getElementById("q"), acEl = document.getElementById("ac");
-let acItems = [], acIdx = -1, acTimer = null;
-
-qEl.addEventListener("input", () => {
-  clearTimeout(acTimer);
-  const term = qEl.value.trim();
-  if (!term) return closeAc();
-  acTimer = setTimeout(async () => {
-    try {
-      acItems = await rpc("search_companies", { q: term }) || [];
-      acIdx = -1;
-      if (!acItems.length) return closeAc();
-      acEl.innerHTML = acItems.map((x,i) => {
-        const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
-        return `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b>` +
-          `<span>${esc(x.name)}${esc(kind)}</span></div>`;
-      }).join("");
-      acEl.classList.add("open");
-      qEl.setAttribute("aria-expanded","true");
-    } catch { closeAc(); }
-  }, 130);
-});
-function closeAc(){ acEl.classList.remove("open"); qEl.setAttribute("aria-expanded","false"); acIdx = -1; }
-// What was typed, not what was chosen: the term is the question, and a search
-// nobody could answer is the interesting half of the report.
-const openSearched = ticker => {
-  const term = qEl.value.trim();
-  if (term) GA.track("search", { search_term: term });
-  openCompany(ticker, "search_results");
-};
-acEl.addEventListener("mousedown", e => {
-  const d = e.target.closest("[data-i]");
-  if (d) { e.preventDefault(); openSearched(acItems[+d.dataset.i].ticker); }
-});
-qEl.addEventListener("keydown", e => {
-  if (!acEl.classList.contains("open")) {
-    if (e.key === "Enter" && qEl.value.trim()) openSearched(qEl.value.trim().toUpperCase());
-    return;
-  }
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-    e.preventDefault();
-    acIdx = (acIdx + (e.key === "ArrowDown" ? 1 : acItems.length - 1)) % acItems.length;
-    [...acEl.children].forEach((c,i) => c.setAttribute("aria-selected", i === acIdx));
-  } else if (e.key === "Enter") {
-    e.preventDefault();
-    openSearched((acIdx >= 0 ? acItems[acIdx] : acItems[0]).ticker);
-  } else if (e.key === "Escape") closeAc();
-});
-qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
-
-/* ---- theme --------------------------------------------------------------- */
-
 /* ---- boot ---------------------------------------------------------------- */
 (async function boot(){
+  wireChartRange();
+
   // Wired here rather than inside setView, which also runs on boot: a view
   // the visitor never chose is not a screener they ran.
   document.querySelectorAll("#views button").forEach(b => b.onclick = () => {
@@ -2657,13 +2661,20 @@ qEl.addEventListener("blur", () => setTimeout(closeAc, 120));
   rpc("get_sector_movement").then(d => {
     S.movement = d;
     renderRotation(d && d.history);
-    renderSectorPerf(d && d.performance);
+    renderSectorPerf(d && d.history);
     document.querySelectorAll("#rot-range button").forEach(b => b.onclick = () => {
       ROT.days = +b.dataset.d;
       GA.track("change_chart_range", { range: `${ROT.days}d`, source: "market_page" });
       document.querySelectorAll("#rot-range button").forEach(x =>
         x.setAttribute("aria-pressed", x === b));
       renderRotation();
+    });
+    document.querySelectorAll("#perf-range button").forEach(b => b.onclick = () => {
+      PERF.days = +b.dataset.d;
+      GA.track("change_chart_range", { range: `${PERF.days}d`, source: "sector_performance" });
+      document.querySelectorAll("#perf-range button").forEach(x =>
+        x.setAttribute("aria-pressed", x === b));
+      renderSectorPerf();
     });
   }).catch(() => {
     document.getElementById("rotation").innerHTML = `<div class="note">Unavailable.</div>`;

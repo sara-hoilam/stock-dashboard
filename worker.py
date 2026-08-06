@@ -7,6 +7,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py backfill           drain the request queue once
     python worker.py sweep [YYYY-MM-DD] ingest that day's new 10-Q/10-K
     python worker.py market             refresh prices, movers and sectors
+    python worker.py indexes            refresh SPX / IXIC / DJI quotes + holdings
     python worker.py sections           refresh heatmap, rotation and trades
     python worker.py news               refresh market news
     python worker.py earnings           refresh earnings calendar
@@ -354,9 +355,92 @@ def refresh_market() -> bool:
     except (market.MarketError, store.StoreError) as exc:
         log(f"  fear&greed: {exc}")
 
+    try:
+        refresh_indexes(holdings=False)
+    except Exception as exc:
+        log(f"  indexes: {exc}")
+
     log(f"market: {len(sectors)} sectors, {len(quotes)} quotes, "
         f"{len(chart_syms)} charts, as of {as_of}, {time.time()-started:.1f}s")
     return True
+
+
+def refresh_indexes(holdings: bool = True) -> bool:
+    """Quotes, daily bars, search rows, and optional holdings for SPX/IXIC/DJI.
+
+    FMP serves caret symbols (^GSPC…); we store searchable aliases. Holdings
+    hit public constituent CSVs + the screener, so they run on the slower
+    sections cadence unless ``holdings`` is forced.
+    """
+    if not market.configured():
+        return False
+    sym_rows = [{
+        "symbol": alias,
+        "name": meta["name"],
+        "kind": "index",
+        "exchange": meta.get("exchange") or "INDEX",
+    } for alias, meta in market.INDEXES.items()]
+    try:
+        store.upsert_market_symbols(sym_rows)
+    except store.StoreError as exc:
+        log(f"  index symbols: {exc}")
+
+    quotes = market.index_quotes()
+    if quotes:
+        store.upsert_quotes([{
+            "symbol": q["symbol"],
+            "name": q.get("name"),
+            "price": q.get("price"),
+            "change": q.get("change"),
+            "change_pct": q.get("change_pct"),
+            "volume": q.get("volume"),
+            "market_cap": q.get("market_cap"),
+            "exchange": q.get("exchange"),
+        } for q in quotes])
+
+    for alias in market.INDEXES:
+        try:
+            fetch_index_prices(alias)
+        except Exception as exc:
+            log(f"  index prices {alias}: {exc}")
+
+    if holdings:
+        for alias in market.INDEXES:
+            try:
+                rows = market.index_holdings(alias)
+                if rows:
+                    n = store.replace_index_holdings(alias, rows)
+                    log(f"  index holdings {alias}: {n} rows")
+            except Exception as exc:
+                log(f"  index holdings {alias}: {exc}")
+
+    log(f"indexes: {len(quotes)} quotes"
+        + (" + holdings" if holdings else ""))
+    return bool(quotes)
+
+
+def fetch_index_prices(alias: str) -> bool:
+    """Daily bars + quote for one index alias (SPX / IXIC / DJI)."""
+    sym = (alias or "").upper()
+    if sym not in market.INDEXES:
+        return False
+    q = market.index_quote(sym)
+    bars = market.index_history(sym, 420)
+    quote_detail = None
+    if q:
+        quote_detail = {
+            "name": q.get("name"),
+            "price": q.get("price"),
+            "change": q.get("change"),
+            "change_pct": q.get("change_pct"),
+            "day_low": q.get("day_low"),
+            "day_high": q.get("day_high"),
+            "volume": q.get("volume"),
+            "market_cap": q.get("market_cap"),
+            "exchange": q.get("exchange"),
+        }
+    store.upsert_prices(sym, bars, quote_detail, bars[-1]["d"] if bars else None)
+    return bool(bars)
 
 
 def refresh_news() -> bool:
@@ -379,6 +463,14 @@ def fetch_prices(symbol: str) -> bool:
     if not market.configured():
         return False
     sym = symbol.upper()
+    # Indexes are quoted under caret symbols at FMP; route by alias.
+    if sym in market.INDEXES:
+        try:
+            return fetch_index_prices(sym)
+        except Exception as exc:
+            log(f"  prices {sym}: {exc}")
+            store.upsert_prices(sym, [], None, None)
+            return False
     try:
         bars = market.daily(sym, 300)
         q = market.quote_detail(sym)
@@ -911,6 +1003,10 @@ def run() -> None:
                     refresh_sections()
                 except market.MarketError as exc:
                     log(f"sections refresh failed (continuing): {exc}")
+                try:
+                    refresh_indexes(holdings=True)
+                except Exception as exc:
+                    log(f"index holdings refresh failed (continuing): {exc}")
                 last_sections = now
 
             if now - last_logos > logos_every:
@@ -1002,6 +1098,9 @@ def main(argv: list[str]) -> int:
 
     elif cmd == "market":
         log("market refreshed" if refresh_market()
+            else "FMP_API_KEY not set; nothing to do")
+    elif cmd == "indexes":
+        log("indexes refreshed" if refresh_indexes(holdings=True)
             else "FMP_API_KEY not set; nothing to do")
     elif cmd == "news":
         log("news refreshed" if refresh_news()

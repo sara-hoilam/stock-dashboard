@@ -394,6 +394,34 @@ tbody tr:hover td{background:var(--sunk)}
 }
 @media (max-width:640px){ .pstats{grid-template-columns:1fr 1fr} }
 
+/* ---- index holdings + industry pie (market-only index view) -------------- */
+.idx-hold{margin:0 0 22px}
+.idx-hold .htab{
+  width:100%;border-collapse:collapse;font-size:13px;
+}
+.idx-hold .htab th{
+  text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--rule);
+  position:sticky;top:0;background:var(--card);
+}
+.idx-hold .htab td{padding:9px 12px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
+.idx-hold .htab tr:hover td{background:var(--sunk)}
+.idx-hold .htab a{color:var(--accent);text-decoration:none;font-family:"IBM Plex Mono",monospace;font-weight:600}
+.idx-hold .htab a:hover{text-decoration:underline}
+.idx-hold .htab .name{color:var(--ink-2);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idx-hold .htab .ind{color:var(--ink-3);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idx-hold .htab .w{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right}
+.idx-hold .scroll{max-height:420px;overflow:auto;border:1px solid var(--rule);border-radius:var(--r);background:var(--card)}
+.idx-indrow{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:18px;margin-bottom:22px}
+.idx-pie-wrap{display:flex;align-items:center;justify-content:center;padding:18px;min-height:280px}
+.idx-pie-legend{display:flex;flex-direction:column;gap:7px;padding:18px 18px 18px 0;font-size:12.5px}
+.idx-pie-legend span{display:flex;align-items:center;gap:8px;color:var(--ink-2)}
+.idx-pie-legend i{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.idx-pie-legend b{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--ink)}
+@media (max-width:900px){
+  .idx-indrow{grid-template-columns:1fr}
+  .idx-pie-legend{padding:0 14px 18px}
+}
 
 /* ---- industry benchmark, seasonality, bollinger, news -------------------- */
 .grouphead{font-family:"IBM Plex Serif",Georgia,serif;font-size:19px;font-weight:600;
@@ -1986,23 +2014,162 @@ function openReport(ticker){
   GA.pageView(location.pathname + location.search);
 }
 
-/** ETF / crypto from FMP — chart only, no SEC backfill. */
+/** ETF / crypto / index from FMP — chart (and holdings for indexes), no SEC. */
 async function marketSymbolMeta(ticker){
   if (!HOSTED) return null;
   try {
     const meta = await rpc("get_market_symbol", { p_symbol: ticker });
-    if (meta && (meta.kind === "etf" || meta.kind === "crypto")) return meta;
+    if (meta && (meta.kind === "etf" || meta.kind === "crypto" || meta.kind === "index"))
+      return meta;
   } catch {}
   return null;
 }
 
 function openMarketSymbol(ticker, meta){
+  if (meta.kind === "index") return openIndexSymbol(ticker, meta);
   const kind = meta.kind === "crypto" ? "cryptocurrency" : "ETF/fund";
   return marketOnly(ticker, {
     ticker: meta.symbol || ticker,
     name: meta.name,
     exchange: meta.exchange,
   }, `${ticker} is a ${kind} — only market prices are available (no SEC company filings).`);
+}
+
+const INDEX_PIE = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8",
+                   "--revenue","--c-band","--c-grey"];
+
+/** Major index page: price chart, holdings table, industry pie. */
+function openIndexSymbol(ticker, meta){
+  const c = {
+    ticker: meta.symbol || ticker,
+    name: meta.name || ticker,
+    exchange: meta.exchange || "INDEX",
+  };
+  S.company = c;
+  S.quarter = null;
+  fyEl.disabled = fqEl.disabled = true;
+
+  main.innerHTML = `
+    <div class="ident">
+      <div class="ident-with-logo">
+        ${window.TickerLogos ? window.TickerLogos.chip(c.ticker, "tick-logo-xl") : ""}
+        <div>
+        <h1>${esc(c.name)}</h1>
+        <button type="button" class="wstar" id="wstar" data-sym="${esc(c.ticker)}"
+                aria-pressed="false" title="Add to watchlist">
+          <span class="wstar-i">☆</span><span class="wstar-n"></span>
+        </button>
+        <div class="sub">
+          <span class="chip key">${esc(c.ticker)}</span>
+          <span class="chip">Index</span>
+          ${c.exchange ? `<span class="chip">${esc(c.exchange)}</span>` : ""}
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pricerow" id="pricerow" hidden></div>
+
+    <h3 class="grouphead">Holdings breakdown</h3>
+    <div class="idx-hold" id="idx-holdings">
+      <div class="note"><span class="load"></span> &nbsp;Loading holdings…</div>
+    </div>
+
+    <h3 class="grouphead">Industry breakdown</h3>
+    <div class="idx-indrow" id="idx-industry">
+      <div class="note" style="grid-column:1/-1"><span class="load"></span> &nbsp;Loading industries…</div>
+    </div>`;
+
+  document.body.classList.add("mreport");
+  document.body.classList.remove("chart-fs-open", "sankey-fs-open");
+  document.getElementById("pricerow").classList.add("waiting");
+  PRICE.symbol = null; PRICE.bars = []; PRICE.view = null;
+  PRICE.flipped = false; PRICE.descOpen = false;
+  wireStar();
+  loadPrices();
+  loadIndexHoldings(c.ticker);
+  hydratePageLogos();
+}
+
+async function loadIndexHoldings(symbol){
+  const holdHost = document.getElementById("idx-holdings");
+  const indHost = document.getElementById("idx-industry");
+  if (!holdHost || !indHost) return;
+  let rows = [];
+  try { rows = await rpc("get_index_holdings", { p_symbol: symbol }) || []; } catch {}
+  if (!rows.length) {
+    holdHost.innerHTML = `<div class="note">Holdings for ${esc(symbol)} are not cached yet.
+      They appear after the next worker refresh (apply migration 0048 if needed).</div>`;
+    indHost.innerHTML = `<div class="note" style="grid-column:1/-1">No industry weights yet.</div>`;
+    return;
+  }
+
+  holdHost.innerHTML = `<div class="scroll"><table class="htab">
+    <thead><tr>
+      <th>Ticker</th><th>Company</th><th>Industry</th><th style="text-align:right">% Holding</th>
+    </tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><a href="company.html?t=${encodeURIComponent(r.symbol)}">${esc(r.symbol)}</a></td>
+      <td class="name" title="${esc(r.name || "")}">${esc(r.name || "—")}</td>
+      <td class="ind" title="${esc(r.industry || "")}">${esc(r.industry || "—")}</td>
+      <td class="w">${r.weightPct != null ? esc((+r.weightPct).toFixed(2) + "%") : "—"}</td>
+    </tr>`).join("")}</tbody></table></div>`;
+
+  // Industry pie: sum weightPct by industry; unknown bucket last.
+  const byInd = new Map();
+  let known = 0;
+  rows.forEach(r => {
+    const w = r.weightPct != null ? +r.weightPct : 0;
+    if (!w) return;
+    const key = (r.industry || "").trim() || "Other / unlisted";
+    byInd.set(key, (byInd.get(key) || 0) + w);
+    known += w;
+  });
+  const slices = [...byInd.entries()]
+    .map(([label, weight]) => ({ label, weight }))
+    .sort((a, b) => b.weight - a.weight);
+  // Keep the chart readable: top 9 + Other.
+  let top = slices.slice(0, 9);
+  const rest = slices.slice(9);
+  if (rest.length) {
+    top.push({ label: "Other", weight: rest.reduce((a, s) => a + s.weight, 0) });
+  }
+  const total = top.reduce((a, s) => a + s.weight, 0) || 1;
+  indHost.innerHTML = `
+    <section class="card panel idx-pie-wrap" id="idx-pie"></section>
+    <section class="card panel idx-pie-legend">${top.map((s, i) => {
+      const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
+      const pct = (100 * s.weight / total).toFixed(1);
+      return `<span><i style="background:${colour}"></i>${esc(s.label)}
+        <b>${esc(pct)}%</b></span>`;
+    }).join("")}</section>`;
+  drawIndexPie(document.getElementById("idx-pie"), top, total);
+}
+
+function drawIndexPie(host, slices, total){
+  if (!host || !slices.length) return;
+  const size = 260, cx = size / 2, cy = size / 2, r = 100, r0 = 52;
+  let angle = -Math.PI / 2;
+  const parts = [];
+  slices.forEach((s, i) => {
+    const frac = s.weight / total;
+    const a0 = angle;
+    const a1 = angle + frac * Math.PI * 2;
+    angle = a1;
+    if (frac <= 0) return;
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const xi0 = cx + r0 * Math.cos(a0), yi0 = cy + r0 * Math.sin(a0);
+    const xi1 = cx + r0 * Math.cos(a1), yi1 = cy + r0 * Math.sin(a1);
+    const large = (a1 - a0) > Math.PI ? 1 : 0;
+    const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
+    const d = `M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1}
+               L${xi1},${yi1} A${r0},${r0} 0 ${large} 0 ${xi0},${yi0} Z`;
+    parts.push(`<path d="${d}" fill="${colour}" data-i="${i}">
+      <title>${esc(s.label)} · ${(100 * frac).toFixed(1)}%</title></path>`);
+  });
+  host.innerHTML = `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"
+    role="img" aria-label="Industry breakdown">${parts.join("")}</svg>`;
 }
 
 async function load(ticker, source){

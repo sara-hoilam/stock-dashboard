@@ -154,6 +154,12 @@ def upsert_quotes(rows: list[dict]) -> int:
     return rpc("upsert_quotes", {"p_rows": rows}) or 0
 
 
+def replace_index_holdings(index_symbol: str, rows: list[dict]) -> int:
+    """Replace constituent rows for one major index (SPX / IXIC / DJI)."""
+    return rpc("replace_index_holdings",
+               {"p_index": index_symbol, "p_rows": rows}) or 0
+
+
 def replace_movers(kind: str, rows: list[dict], as_of: str | None) -> int:
     return rpc("replace_movers",
                {"p_kind": kind, "p_rows": rows, "p_as_of": as_of}) or 0
