@@ -193,38 +193,58 @@ def quote(symbol: str) -> dict | None:
     }
 
 
-# Major indexes. FMP quotes use caret symbols; we store searchable aliases.
+# Major indexes.
+#
+# Prices / history: FMP caret symbols (^GSPC / ^IXIC / ^DJI) — same paid feed
+# as the rest of Markets Today. Verified on the stable quote + EOD endpoints.
+#
+# Holdings: prefer Slickcharts, which publishes methodology-correct portfolio
+# weights that sum to ~100% (float market-cap for S&P 500 / Nasdaq-100,
+# price-weighted for the Dow). FMP's *-constituent endpoints are preferred
+# when the plan includes them (often 402 on starter tiers). Wikipedia /
+# datasets CSV are membership fallbacks only; weights are then recomputed.
+#
+# NASDAQ card price is the Composite (^IXIC). Holdings for IXIC use the
+# Nasdaq-100 — the Composite has ~3,000+ members and is not a useful table.
 INDEXES = {
     "SPX": {
         "fmp": "^GSPC",
         "name": "S&P 500",
         "exchange": "INDEX",
         "constituents": "sp500",
+        "weighting": "market_cap",
+        "fmp_constituent": "sp500-constituent",
+        "slickcharts": "https://www.slickcharts.com/sp500",
+        "wikipedia": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
     },
     "IXIC": {
         "fmp": "^IXIC",
         "name": "NASDAQ Composite",
+        "holdings_name": "Nasdaq-100",
         "exchange": "INDEX",
-        # Composite has thousands of members; Nasdaq-100 is the useful holdings set.
         "constituents": "nasdaq100",
+        "weighting": "market_cap",
+        "fmp_constituent": "nasdaq-constituent",
+        "slickcharts": "https://www.slickcharts.com/nasdaq100",
     },
     "DJI": {
         "fmp": "^DJI",
         "name": "Dow Jones Industrial Average",
         "exchange": "INDEX",
         "constituents": "dowjones",
+        "weighting": "price",  # DJIA is price-weighted, not market-cap
+        "fmp_constituent": "dowjones-constituent",
+        "slickcharts": "https://www.slickcharts.com/dowjones",
+        "wikipedia": "https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average",
     },
 }
 
-_INDEX_CSV = {
-    "sp500": (
-        "https://raw.githubusercontent.com/datasets/s-and-p-500-companies"
-        "/master/data/constituents.csv"),
-    "nasdaq100": (
-        "https://yfiua.github.io/index-constituents/constituents-nasdaq100.csv"),
-    "dowjones": (
-        "https://yfiua.github.io/index-constituents/constituents-dowjones.csv"),
-}
+# Actively maintained S&P 500 membership mirror (Wikipedia → GitHub).
+_SP500_DATASETS_CSV = (
+    "https://raw.githubusercontent.com/datasets/s-and-p-500-companies"
+    "/master/data/constituents.csv")
+
+_UA = "TickerAlpha/1.0 (index-holdings; +https://github.com/sara-hoilam/stock-dashboard)"
 
 
 def index_quote(alias: str) -> dict | None:
@@ -280,47 +300,214 @@ def index_history(alias: str, limit: int = 420) -> list[dict]:
     return bars
 
 
-def _index_constituent_symbols(kind: str) -> list[str]:
-    """Public CSV constituents when FMP index endpoints are gated."""
-    url = _INDEX_CSV.get(kind)
+def _http_get_text(url: str, timeout: int = 30) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "text/html,*/*"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8", "replace")
+
+
+def _clean_index_symbol(raw: str) -> str | None:
+    sym = (raw or "").upper().strip().strip('"').replace("-", ".")
+    if not sym or not re.match(r"^[A-Z][A-Z0-9.\-]{0,9}$", sym):
+        return None
+    return sym
+
+
+def _fmp_constituent_rows(path: str) -> list[dict]:
+    """FMP index constituents when the plan includes them (else [])."""
+    if not path or not KEY:
+        return []
+    try:
+        rows = _get(path) or []
+    except MarketError:
+        return []
+    out = []
+    for r in rows:
+        sym = _clean_index_symbol(r.get("symbol") or "")
+        if not sym:
+            continue
+        out.append({
+            "symbol": sym,
+            "name": (r.get("name") or r.get("companyName") or "").strip() or None,
+            "industry": (r.get("subSector") or r.get("industry") or "").strip() or None,
+            "sector": (r.get("sector") or "").strip() or None,
+            "weightPct": None,
+            "source": "fmp",
+        })
+    return out
+
+
+def _slickcharts_holdings(url: str) -> list[dict]:
+    """Parse Slickcharts index table: Symbol + Portfolio % (methodology weights)."""
     if not url:
         return []
     try:
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "TickerAlpha/1.0 (index-holdings)"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            text = resp.read().decode("utf-8", "replace")
+        text = _http_get_text(url)
+    except Exception:
+        return []
+    table = re.search(r"<table[^>]*>(.*?)</table>", text, re.I | re.S)
+    if not table:
+        return []
+    out, seen = [], set()
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", table.group(1), re.I | re.S)[1:]:
+        cells = [re.sub(r"<[^>]+>", "", c) for c in
+                 re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.I | re.S)]
+        cells = [" ".join(c.replace("\xa0", " ").split()) for c in cells]
+        if len(cells) < 4:
+            continue
+        # Columns: #, Company, Symbol, Portfolio%, Price, …
+        sym = _clean_index_symbol(cells[2])
+        if not sym or sym in seen:
+            continue
+        try:
+            weight = float(cells[3].replace("%", "").replace(",", "").strip())
+        except ValueError:
+            weight = None
+        if weight is not None and not (0 < weight <= 100):
+            weight = None
+        name = cells[1].strip() or None
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": name,
+            "industry": None,
+            "weightPct": weight,
+            "source": "slickcharts",
+        })
+    # Sanity: expect a near-complete published book (Dow 30, NDX ~100, SPX ~500).
+    if len(out) < 20:
+        return []
+    return out
+
+
+def _wikipedia_sp500() -> list[dict]:
+    """Current S&P 500 membership from Wikipedia's constituent table."""
+    try:
+        text = _http_get_text(INDEXES["SPX"]["wikipedia"])
+    except Exception:
+        return []
+    table = re.search(
+        r"<table[^>]*class=\"[^\"]*wikitable[^\"]*\"[^>]*>(.*?)</table>",
+        text, re.I | re.S)
+    if not table:
+        return []
+    out, seen = [], set()
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", table.group(1), re.I | re.S)[1:]:
+        cells = [re.sub(r"<[^>]+>", "", c) for c in
+                 re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.I | re.S)]
+        cells = [" ".join(c.replace("\xa0", " ").split()) for c in cells]
+        if len(cells) < 4:
+            continue
+        sym = _clean_index_symbol(cells[0])
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": cells[1] or None,
+            "industry": cells[3] or None,   # GICS Sub-Industry
+            "sector": cells[2] or None,
+            "weightPct": None,
+            "source": "wikipedia",
+        })
+    return out if len(out) >= 400 else []
+
+
+def _wikipedia_dow() -> list[dict]:
+    """DJIA components + published index weightings from Wikipedia."""
+    try:
+        text = _http_get_text(INDEXES["DJI"]["wikipedia"])
+    except Exception:
+        return []
+    # First wikitable with a Symbol column.
+    for block in re.findall(
+            r"<table[^>]*class=\"[^\"]*wikitable[^\"]*\"[^>]*>(.*?)</table>",
+            text, re.I | re.S):
+        header = re.findall(r"<th[^>]*>(.*?)</th>", block, re.I | re.S)
+        headers = [" ".join(re.sub(r"<[^>]+>", "", h).split()).lower() for h in header]
+        if not any("symbol" == h for h in headers):
+            continue
+        out, seen = [], set()
+        for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", block, re.I | re.S)[1:]:
+            cells = [re.sub(r"<[^>]+>", "", c) for c in
+                     re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.I | re.S)]
+            cells = [" ".join(c.replace("\xa0", " ").split()) for c in cells]
+            if len(cells) < 4:
+                continue
+            # Company, Exchange, Symbol, Sector, …, Index weighting
+            sym = _clean_index_symbol(cells[2] if len(cells) > 2 else "")
+            if not sym or sym in seen:
+                continue
+            weight = None
+            for c in reversed(cells):
+                m = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*%", c)
+                if m:
+                    try:
+                        weight = float(m.group(1))
+                    except ValueError:
+                        weight = None
+                    break
+            seen.add(sym)
+            out.append({
+                "symbol": sym,
+                "name": cells[0] or None,
+                "industry": cells[3] if len(cells) > 3 else None,
+                "weightPct": weight,
+                "source": "wikipedia",
+            })
+        if len(out) >= 25:
+            return out
+    return []
+
+
+def _datasets_sp500() -> list[dict]:
+    """S&P 500 membership from the datasets/s-and-p-500-companies CSV mirror."""
+    try:
+        text = _http_get_text(_SP500_DATASETS_CSV)
     except Exception:
         return []
     out, seen = [], set()
     for i, line in enumerate(text.splitlines()):
         if i == 0 or not line.strip():
             continue
-        sym = line.split(",", 1)[0].strip().strip('"').upper().replace("-", ".")
+        # Symbol,Security,GICS Sector,GICS Sub-Industry,… (quoted fields OK).
+        cols, cur, in_q = [], [], False
+        for ch in line:
+            if ch == '"':
+                in_q = not in_q
+            elif ch == "," and not in_q:
+                cols.append("".join(cur))
+                cur = []
+            else:
+                cur.append(ch)
+        cols.append("".join(cur))
+        if len(cols) < 4:
+            continue
+        sym = _clean_index_symbol(cols[0])
         if not sym or sym in seen:
             continue
-        if not re.match(r"^[A-Z][A-Z0-9.\-]{0,9}$", sym):
-            continue
         seen.add(sym)
-        out.append(sym)
-    return out
+        out.append({
+            "symbol": sym,
+            "name": cols[1].strip() or None,
+            "sector": cols[2].strip() or None,
+            "industry": cols[3].strip() or None,
+            "weightPct": None,
+            "source": "datasets",
+        })
+    return out if len(out) >= 400 else []
 
 
-def index_holdings(alias: str) -> list[dict]:
-    """Market-cap-weighted holdings for an index (constituents we can price)."""
-    meta = INDEXES.get((alias or "").upper())
-    if not meta:
+def _enrich_holdings_meta(rows: list[dict], weighting: str) -> list[dict]:
+    """Attach industry (and fill missing weights) from FMP screener / quotes."""
+    if not rows:
         return []
-    members = _index_constituent_symbols(meta["constituents"])
-    if not members:
-        return []
-    member_set = set(members)
-
+    member_set = {r["symbol"] for r in rows}
     caps: dict[str, float] = {}
+    prices: dict[str, float] = {}
     names: dict[str, str] = {}
     industries: dict[str, str] = {}
 
-    # Screener is one call for thousands of caps/industries — prefer it.
     try:
         for r in _screener(1e8, ttl=3600) or []:
             sym = (r.get("symbol") or "").upper()
@@ -330,8 +517,14 @@ def index_holdings(alias: str) -> list[dict]:
                 cap = float(r.get("marketCap") or 0)
             except (TypeError, ValueError):
                 cap = 0.0
+            try:
+                px = float(r.get("price") or 0)
+            except (TypeError, ValueError):
+                px = 0.0
             if cap > 0:
                 caps[sym] = cap
+            if px > 0:
+                prices[sym] = px
             if r.get("companyName"):
                 names[sym] = r["companyName"]
             if r.get("industry"):
@@ -339,11 +532,11 @@ def index_holdings(alias: str) -> list[dict]:
     except MarketError:
         pass
 
-    # Fill small gaps (e.g. Dow names below the screener floor) with quotes.
-    missing = [s for s in members if s not in caps][:40]
-    if missing:
+    need = [s for s in member_set
+            if s not in caps or (weighting == "price" and s not in prices)][:60]
+    if need:
         try:
-            for q in quotes(missing) or []:
+            for q in quotes(need) or []:
                 sym = (q.get("symbol") or "").upper()
                 if not sym:
                     continue
@@ -351,28 +544,86 @@ def index_holdings(alias: str) -> list[dict]:
                     cap = float(q.get("market_cap") or 0)
                 except (TypeError, ValueError):
                     cap = 0.0
+                try:
+                    px = float(q.get("price") or 0)
+                except (TypeError, ValueError):
+                    px = 0.0
                 if cap > 0:
                     caps[sym] = cap
+                if px > 0:
+                    prices[sym] = px
                 if q.get("name"):
                     names[sym] = q["name"]
         except MarketError:
             pass
 
-    total = sum(caps.get(s, 0) for s in members) or 0.0
-    rows = []
-    for sym in members:
-        cap = caps.get(sym, 0.0)
-        weight = (100.0 * cap / total) if total and cap else None
-        rows.append({
-            "symbol": sym,
-            "name": names.get(sym),
-            "industry": industries.get(sym),
-            "weightPct": round(weight, 4) if weight is not None else None,
-            "marketCap": cap or None,
-        })
-    rows.sort(key=lambda r: (r["weightPct"] is None, -(r["weightPct"] or 0), r["symbol"]))
+    have_weights = any(r.get("weightPct") is not None for r in rows)
+    if not have_weights:
+        if weighting == "price":
+            total = sum(prices.get(r["symbol"], 0) for r in rows) or 0.0
+            if total:
+                for r in rows:
+                    px = prices.get(r["symbol"], 0)
+                    r["weightPct"] = round(100.0 * px / total, 4) if px else None
+        else:
+            total = sum(caps.get(r["symbol"], 0) for r in rows) or 0.0
+            if total:
+                for r in rows:
+                    cap = caps.get(r["symbol"], 0)
+                    r["weightPct"] = round(100.0 * cap / total, 4) if cap else None
+
+    for r in rows:
+        if not r.get("name") and names.get(r["symbol"]):
+            r["name"] = names[r["symbol"]]
+        if not r.get("industry") and industries.get(r["symbol"]):
+            r["industry"] = industries[r["symbol"]]
+        if caps.get(r["symbol"]):
+            r["marketCap"] = caps[r["symbol"]]
+    return rows
+
+
+def index_holdings(alias: str) -> list[dict]:
+    """Constituents + % weights for an index page / industry pie.
+
+    Source order:
+      1. Slickcharts published portfolio weights (best free methodology match)
+      2. FMP ``*-constituent`` when the API plan allows
+      3. Wikipedia / datasets membership, with weights recomputed
+         (market-cap for SPX/NDX, price for DJI)
+    """
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return []
+    kind = meta["constituents"]
+    weighting = meta.get("weighting") or "market_cap"
+    rows: list[dict] = []
+    source = None
+
+    slick = _slickcharts_holdings(meta.get("slickcharts") or "")
+    if slick:
+        rows, source = slick, "slickcharts"
+
+    if not rows:
+        fmp_rows = _fmp_constituent_rows(meta.get("fmp_constituent") or "")
+        if fmp_rows:
+            rows, source = fmp_rows, "fmp"
+
+    if not rows and kind == "sp500":
+        rows = _wikipedia_sp500() or _datasets_sp500()
+        source = rows[0]["source"] if rows else None
+    elif not rows and kind == "dowjones":
+        rows = _wikipedia_dow()
+        source = "wikipedia" if rows else None
+
+    if not rows:
+        return []
+
+    rows = _enrich_holdings_meta(rows, weighting)
+    rows.sort(key=lambda r: (r.get("weightPct") is None,
+                             -(r.get("weightPct") or 0), r["symbol"]))
     for i, r in enumerate(rows, 1):
         r["rank"] = i
+        r["source"] = source or r.get("source")
     return rows
 
 
