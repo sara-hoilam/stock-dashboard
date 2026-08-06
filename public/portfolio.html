@@ -481,74 +481,61 @@ tr.on td{background:var(--accent-soft)}
 
 /* ---- Portfolio Calendar -------------------------------------------------- */
 .cal-section{margin-top:28px}
-.cal-head{display:flex;align-items:baseline;justify-content:space-between;
-  gap:12px;margin-bottom:14px}
-.cal-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
-.cal-head a{font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
-.cal-head a:hover{text-decoration:underline}
-.cal-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,0.95fr);
+.cal-head{display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.cal-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em;
+  font-family:"IBM Plex Serif",Georgia,serif}
+.cal-tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+.cal-ico,.cal-nav-btn{
+  width:34px;height:34px;border-radius:8px;border:1px solid var(--rule);
+  background:var(--card);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;
+  padding:0;font:inherit;box-shadow:var(--shadow);
+}
+.cal-ico:hover,.cal-nav-btn:hover{border-color:var(--accent);color:var(--accent)}
+.cal-ico svg,.cal-nav-btn svg{width:16px;height:16px}
+.cal-today{
+  border:0;background:transparent;color:var(--ink);cursor:pointer;font:inherit;
+  font-size:13.5px;font-weight:600;padding:6px 4px;letter-spacing:-.01em;
+}
+.cal-today:hover{color:var(--accent)}
+.cal-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,0.9fr);
   gap:20px;align-items:stretch}
 @media (max-width:980px){.cal-layout{grid-template-columns:1fr}}
-.cal-month,.cal-day{display:flex;flex-direction:column;min-height:0}
-.cal-month-bar{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:12px 14px 8px;
+.cal-week-wrap,.cal-day{display:flex;flex-direction:column;min-height:0}
+.cal-week{
+  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;
+  padding:14px;flex:1;
 }
-.cal-month-bar .nav{display:flex;align-items:center;gap:6px;min-width:0}
-.cal-month-bar .nav button,.cal-ico{
-  width:32px;height:32px;border-radius:8px;border:1px solid var(--rule);
-  background:var(--card);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;
-  padding:0;font:inherit;
+@media (max-width:720px){
+  .cal-week{gap:6px;padding:10px}
+  .cal-daycard{padding:8px 6px}
+  .cal-daycard .dom{font-size:15px}
 }
-.cal-month-bar .nav button:hover,.cal-ico:hover{
-  border-color:var(--accent);color:var(--accent);
+.cal-daycard{
+  background:var(--sunk);border:1px solid transparent;border-radius:10px;
+  padding:10px 8px 8px;cursor:pointer;text-align:left;min-width:0;
+  font:inherit;color:inherit;display:flex;flex-direction:column;gap:2px;
+  transition:border-color .12s, background .12s;min-height:96px;
 }
-.cal-month-bar .nav button svg,.cal-ico svg{width:16px;height:16px}
-.cal-month-bar h3{
-  margin:0;font-size:16px;font-weight:700;letter-spacing:-.02em;
-  white-space:nowrap;
+.cal-daycard:hover{border-color:var(--accent)}
+.cal-daycard.on{background:var(--card);border-color:var(--ink-3);
+  box-shadow:var(--shadow)}
+.cal-daycard .dow{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600}
+.cal-daycard .dom{font-size:18px;font-weight:600;letter-spacing:-.02em;margin:2px 0 8px}
+.cal-daycard .foot{display:flex;align-items:center;gap:4px;min-height:18px;margin-top:auto}
+.cal-daycard .avatars{display:flex}
+.cal-daycard .avatars span{
+  width:16px;height:16px;border-radius:50%;font-size:7px;font-weight:700;color:#fff;
+  display:grid;place-items:center;margin-left:-4px;border:1.5px solid var(--sunk);
+  font-family:"IBM Plex Mono",monospace;
 }
-.cal-month-bar .tools{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.cal-dows{
-  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
-  gap:0;padding:0 10px;border-bottom:1px solid var(--rule);
-}
-.cal-dows span{
-  font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--ink-3);padding:6px 4px;text-align:center;
-}
-.cal-grid{
-  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
-  grid-auto-rows:minmax(78px,1fr);flex:1;min-height:360px;
-  border-top:0;
-}
-.cal-cell{
-  border-right:1px solid var(--rule-2);border-bottom:1px solid var(--rule-2);
-  padding:6px 6px 4px;cursor:pointer;text-align:left;background:transparent;
-  font:inherit;color:inherit;min-width:0;display:flex;flex-direction:column;gap:3px;
-  transition:background .12s ease;
-}
-.cal-cell:nth-child(7n){border-right:0}
-.cal-cell:hover{background:var(--sunk)}
-.cal-cell.out{color:var(--ink-3);opacity:.72}
-.cal-cell.on{background:color-mix(in srgb, var(--accent) 14%, var(--card));
-  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, var(--rule))}
-.cal-cell .dom{font-size:12px;font-weight:600;line-height:1.2}
-.cal-cell .dom .mon{font-weight:600;margin-right:3px}
-.cal-syms{display:flex;flex-direction:column;gap:2px;min-height:0;overflow:hidden;flex:1}
-.cal-sym{
-  display:flex;align-items:center;gap:4px;min-width:0;
-  font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;
-  color:var(--ink-2);line-height:1.2;
-}
-.cal-sym .av{width:12px;height:12px;border-radius:50%;flex-shrink:0;display:grid;
-  place-items:center;font-size:6px;font-weight:700;color:#fff}
-.cal-sym .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cal-sym.econ .t{font-family:"IBM Plex Sans",sans-serif;font-weight:500;font-size:9.5px}
-.cal-more{font-size:9.5px;color:var(--ink-3);padding-top:1px}
+.cal-daycard.on .avatars span{border-color:var(--card)}
+.cal-daycard .avatars span:first-child{margin-left:0}
+.cal-daycard .n{font-size:10.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap}
 .cal-day-bar{padding:14px 16px 6px}
 .cal-day-bar h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
-.cal-day-list{padding:4px 8px 8px;overflow-y:auto;max-height:520px;flex:1;
+.cal-day-list{padding:4px 8px 8px;overflow-y:auto;max-height:420px;flex:1;
   scrollbar-gutter:stable}
 .cal-ev{
   display:flex;align-items:flex-start;gap:10px;padding:10px 8px;
@@ -1615,40 +1602,31 @@ function renderDashboard(){
       <div class="disc-dots" id="discover-dots" role="tablist" aria-label="Discover pages"></div>
     </section>
 
-    <section class="cal-section" aria-label="Calendar">
+    <section class="cal-section" aria-label="My Calendar">
       <div class="cal-head">
-        <h2>Calendar</h2>
-        <a href="earnings.html">Market earnings →</a>
+        <h2>My Calendar</h2>
+        <div class="cal-tools">
+          <button type="button" class="cal-ico" id="cal-edit" aria-label="Edit calendars" title="Edit calendars">
+            <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12.2 3.8 16.2 7.8M3.5 16.5l1.2-4.6L14.4 2.2a1.5 1.5 0 0 1 2.1 0l1.3 1.3a1.5 1.5 0 0 1 0 2.1L6.9 16.5H3.5z"/></svg>
+          </button>
+          <button type="button" class="cal-nav-btn" id="cal-prev" aria-label="Previous week">
+            <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12.5 4.5 7 10l5.5 5.5"/></svg>
+          </button>
+          <button type="button" class="cal-today" id="cal-today">Today</button>
+          <button type="button" class="cal-nav-btn" id="cal-next" aria-label="Next week">
+            <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7.5 4.5 13 10l-5.5 5.5"/></svg>
+          </button>
+        </div>
       </div>
       <div class="cal-layout">
-        <div class="panel cal-month">
-          <div class="cal-month-bar">
-            <div class="nav">
-              <button type="button" id="cal-prev" aria-label="Previous month">
-                <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
-                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12.5 4.5 7 10l5.5 5.5"/></svg>
-              </button>
-              <h3 id="cal-month-label">—</h3>
-              <button type="button" id="cal-next" aria-label="Next month">
-                <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
-                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M7.5 4.5 13 10l-5.5 5.5"/></svg>
-              </button>
-            </div>
-            <div class="tools">
-              <button type="button" class="cal-ico" id="cal-edit" aria-label="Edit calendars">
-                <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
-                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12.2 3.8 16.2 7.8M3.5 16.5l1.2-4.6L14.4 2.2a1.5 1.5 0 0 1 2.1 0l1.3 1.3a1.5 1.5 0 0 1 0 2.1L6.9 16.5H3.5z"/></svg>
-              </button>
-            </div>
-          </div>
-          <div class="cal-dows" aria-hidden="true">
-            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span>
-            <span>Thu</span><span>Fri</span><span>Sat</span>
-          </div>
-          <div class="cal-grid" id="cal-grid">
+        <div class="panel cal-week-wrap">
+          <div class="cal-week" id="cal-week" role="tablist" aria-label="Calendar week">
             <div class="cal-empty"><span class="load"></span></div>
           </div>
         </div>
@@ -2709,9 +2687,9 @@ function wireDiscover(){
 
 /* ---- Portfolio Calendar (earnings + ex-div + US economics) --------------- */
 const CAL_PREFS_KEY = "ta.calendar.subs.v1";
+const CAL_DOWS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const CAL = {
-  year: new Date().getFullYear(),
-  month: new Date().getMonth(),
+  weekStart: null, // Sunday ISO of the visible week
   selected: null,
   events: [],
   showAll: false,
@@ -2725,6 +2703,25 @@ function isoDate(y, m, d){
 function parseISODate(s){
   const [y, m, d] = String(s || "").split("-").map(Number);
   return { y, m: m - 1, d };
+}
+function dateFromISO(s){
+  const { y, m, d } = parseISODate(s);
+  return new Date(y, m, d);
+}
+function toISODate(d){
+  return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function sundayOf(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - x.getDay());
+  return x;
+}
+function weekDays(weekStartISO){
+  const start = dateFromISO(weekStartISO);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    return { date: d, iso: toISODate(d), dow: CAL_DOWS[i] };
+  });
 }
 function defaultCalPrefs(){
   return { portfolio: true, watchlist: true, economics: true, tickers: [] };
@@ -2831,83 +2828,50 @@ function eventsForDay(iso){
   return CAL.events.filter(e => e.date === iso);
 }
 
-function monthChips(iso){
+function weekAvatars(iso){
   const day = eventsForDay(iso);
   const chips = [];
   const seen = new Set();
   for (const e of day) {
     if (e.kind === "economics") {
-      const short = String(e.event || "Econ").replace(/\s*\([^)]*\)\s*/g, " ").trim();
-      const label = short.length > 10 ? short.slice(0, 9) + "…" : short;
-      const k = `x:${label}`;
-      if (seen.has(k)) continue;
-      seen.add(k);
-      chips.push({ kind: "economics", label, colour: "var(--ink-3)", letter: "E" });
+      if (seen.has("ECON")) continue;
+      seen.add("ECON");
+      chips.push({ letter: "EC", colour: "var(--ink-3)" });
     } else {
       const sym = String(e.symbol || "").toUpperCase();
       if (!sym || seen.has(sym)) continue;
       seen.add(sym);
-      chips.push({
-        kind: e.kind, label: sym, colour: avatarColour(sym),
-        letter: sym.slice(0, 2),
-      });
+      chips.push({ letter: sym.slice(0, 2), colour: avatarColour(sym) });
     }
+    if (chips.length >= 4) break;
   }
-  return chips;
+  return { chips, total: day.length };
 }
 
-function renderCalMonth(){
-  const grid = document.getElementById("cal-grid");
-  const label = document.getElementById("cal-month-label");
-  if (!grid || !label) return;
-  const y = CAL.year, m = CAL.month;
-  label.textContent = new Date(y, m, 1).toLocaleString(undefined, { month: "short", year: "numeric" });
-  const first = new Date(y, m, 1);
-  const startDow = first.getDay();
-  const daysInMonth = new Date(y, m + 1, 0).getDate();
-  const prevDays = new Date(y, m, 0).getDate();
-  const cells = [];
-  // Leading days from previous month
-  for (let i = startDow - 1; i >= 0; i--) {
-    const d = prevDays - i;
-    const py = m === 0 ? y - 1 : y;
-    const pm = m === 0 ? 11 : m - 1;
-    cells.push({ y: py, m: pm, d, out: true });
-  }
-  for (let d = 1; d <= daysInMonth; d++) cells.push({ y, m, d, out: false });
-  while (cells.length % 7) {
-    const d = cells.length - (startDow + daysInMonth) + 1;
-    const ny = m === 11 ? y + 1 : y;
-    const nm = m === 11 ? 0 : m + 1;
-    cells.push({ y: ny, m: nm, d, out: true });
-  }
-  // Cap at 6 weeks
-  const slice = cells.slice(0, 42);
-  grid.innerHTML = slice.map(c => {
-    const iso = isoDate(c.y, c.m, c.d);
-    const chips = monthChips(iso);
-    const show = chips.slice(0, 3);
-    const more = chips.length - show.length;
-    const isFirstOfMonth = c.d === 1;
-    const mon = isFirstOfMonth
-      ? `<span class="mon">${new Date(c.y, c.m, 1).toLocaleString(undefined, { month: "short" })}</span>`
-      : "";
-    const on = iso === CAL.selected ? " on" : "";
-    const out = c.out ? " out" : "";
-    return `<button type="button" class="cal-cell${on}${out}" data-iso="${iso}" aria-pressed="${iso === CAL.selected}">
-      <div class="dom">${mon}${c.d}</div>
-      <div class="cal-syms">${show.map(ch =>
-        `<span class="cal-sym${ch.kind === "economics" ? " econ" : ""}">
-          <span class="av" style="background:${ch.colour}">${esc(ch.letter)}</span>
-          <span class="t">${esc(ch.label)}</span>
-        </span>`).join("")}${more > 0 ? `<span class="cal-more">+${more}</span>` : ""}</div>
+function renderCalWeek(){
+  const host = document.getElementById("cal-week");
+  if (!host || !CAL.weekStart) return;
+  const days = weekDays(CAL.weekStart);
+  host.innerHTML = days.map(day => {
+    const { chips, total } = weekAvatars(day.iso);
+    const on = day.iso === CAL.selected;
+    const countLabel = total === 1 ? "1 event" : `${total} events`;
+    return `<button type="button" class="cal-daycard${on ? " on" : ""}" data-iso="${day.iso}"
+        role="tab" aria-selected="${on}" aria-pressed="${on}">
+      <div class="dow">${day.dow}</div>
+      <div class="dom">${day.date.getDate()}</div>
+      <div class="foot">
+        <div class="avatars">${chips.map(c =>
+          `<span style="background:${c.colour}">${esc(c.letter)}</span>`).join("")}</div>
+        ${total ? `<span class="n">${esc(countLabel)}</span>` : ""}
+      </div>
     </button>`;
   }).join("");
-  grid.querySelectorAll(".cal-cell").forEach(btn => {
+  host.querySelectorAll(".cal-daycard").forEach(btn => {
     btn.onclick = () => {
       CAL.selected = btn.dataset.iso;
       CAL.showAll = false;
-      renderCalMonth();
+      renderCalWeek();
       renderCalDay();
     };
   });
@@ -3046,48 +3010,36 @@ function renderCalDay(){
 }
 
 async function loadPortfolioCalendar(){
-  const grid = document.getElementById("cal-grid");
-  if (!grid) return;
+  const host = document.getElementById("cal-week");
+  if (!host) return;
   if (!CAL.selected) CAL.selected = todayISO();
-  // Keep selected day inside the viewed month when paging months.
-  const sel = parseISODate(CAL.selected);
-  if (sel.y !== CAL.year || sel.m !== CAL.month) {
-    // Prefer today when viewing the current month; else the 1st.
+  if (!CAL.weekStart) CAL.weekStart = toISODate(sundayOf(dateFromISO(CAL.selected)));
+
+  // Keep selected day inside the visible week when paging.
+  const days = weekDays(CAL.weekStart).map(d => d.iso);
+  if (!days.includes(CAL.selected)) {
     const t = todayISO();
-    const tp = parseISODate(t);
-    if (tp.y === CAL.year && tp.m === CAL.month) CAL.selected = t;
-    else CAL.selected = isoDate(CAL.year, CAL.month, 1);
+    CAL.selected = days.includes(t) ? t : days[0];
   }
+
   CAL.prefs = loadCalPrefs();
   const syms = await calendarSymbols();
-  const from = isoDate(CAL.year, CAL.month, 1);
-  const to = isoDate(CAL.year, CAL.month, new Date(CAL.year, CAL.month + 1, 0).getDate());
-  // Also include a few leading/trailing days that appear in the grid.
-  const padFrom = (() => {
-    const d = new Date(CAL.year, CAL.month, 1);
-    d.setDate(d.getDate() - d.getDay());
-    return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
-  })();
-  const padTo = (() => {
-    const d = new Date(CAL.year, CAL.month + 1, 0);
-    const add = 6 - d.getDay();
-    d.setDate(d.getDate() + add);
-    return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
-  })();
+  const from = days[0];
+  const to = days[6];
   try {
     const raw = await rpc("get_portfolio_calendar", {
-      p_from: padFrom, p_to: padTo, p_symbols: syms,
+      p_from: from, p_to: to, p_symbols: syms,
     }) || { earnings: [], dividends: [], economics: [] };
     CAL.events = unifyCalEvents(raw, CAL.prefs);
   } catch (err) {
     console.warn("calendar load failed", err);
     CAL.events = [];
-    grid.innerHTML = `<div class="cal-empty">Calendar unavailable right now.</div>`;
+    host.innerHTML = `<div class="cal-empty">Calendar unavailable right now.</div>`;
     const list = document.getElementById("cal-day-list");
     if (list) list.innerHTML = `<div class="cal-empty">Calendar unavailable right now.</div>`;
     return;
   }
-  renderCalMonth();
+  renderCalWeek();
   renderCalDay();
 }
 
@@ -3223,21 +3175,28 @@ function closeCalModal(){
 }
 
 function wirePortfolioCalendar(){
-  if (CAL.wired) {
-    // Re-bind month controls after dashboard re-render (new DOM nodes).
-  }
   CAL.wired = true;
   const prev = document.getElementById("cal-prev");
   const next = document.getElementById("cal-next");
+  const todayBtn = document.getElementById("cal-today");
   const edit = document.getElementById("cal-edit");
   if (prev) prev.onclick = () => {
-    if (CAL.month === 0) { CAL.month = 11; CAL.year--; }
-    else CAL.month--;
+    const start = dateFromISO(CAL.weekStart || toISODate(sundayOf(new Date())));
+    start.setDate(start.getDate() - 7);
+    CAL.weekStart = toISODate(start);
     loadPortfolioCalendar();
   };
   if (next) next.onclick = () => {
-    if (CAL.month === 11) { CAL.month = 0; CAL.year++; }
-    else CAL.month++;
+    const start = dateFromISO(CAL.weekStart || toISODate(sundayOf(new Date())));
+    start.setDate(start.getDate() + 7);
+    CAL.weekStart = toISODate(start);
+    loadPortfolioCalendar();
+  };
+  if (todayBtn) todayBtn.onclick = () => {
+    const t = todayISO();
+    CAL.selected = t;
+    CAL.weekStart = toISODate(sundayOf(dateFromISO(t)));
+    CAL.showAll = false;
     loadPortfolioCalendar();
   };
   if (edit) edit.onclick = () => openCalModal();
@@ -3251,12 +3210,8 @@ function wirePortfolioCalendar(){
       if (e.key === "Escape" && modal && !modal.hidden) closeCalModal();
     });
   }
-  if (!CAL.selected) {
-    const t = new Date();
-    CAL.year = t.getFullYear();
-    CAL.month = t.getMonth();
-    CAL.selected = todayISO();
-  }
+  if (!CAL.selected) CAL.selected = todayISO();
+  if (!CAL.weekStart) CAL.weekStart = toISODate(sundayOf(dateFromISO(CAL.selected)));
 }
 
 /* ---- Congress & Insiders ------------------------------------------------- */
