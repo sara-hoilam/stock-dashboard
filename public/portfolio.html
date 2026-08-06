@@ -198,6 +198,10 @@ tr.on td{background:var(--accent-soft)}
   font-size:12.5px;font-weight:600;color:var(--ink)}
 .stack-cell .bot{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
   font-size:10.5px;color:var(--ink-3)}
+.stack-cell .bot.up{color:var(--up)}
+.stack-cell .bot.down{color:var(--down)}
+.stack-cell .top.up{color:var(--up)}
+.stack-cell .top.down{color:var(--down)}
 .rows table{font-size:12.5px}
 .rows th,.rows td{padding:9px 10px;white-space:nowrap}
 .rows th:first-child,.rows td:first-child{padding-left:14px}
@@ -297,7 +301,7 @@ tr.on td{background:var(--accent-soft)}
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="add-title">
     <button type="button" class="modal-x" id="add-x" aria-label="Close">×</button>
     <h2 id="add-title">Add to portfolio</h2>
-    <p class="sub" id="add-sub">Enter your current holding as of today — quantity, average buy price, and P/L from your brokerage.</p>
+    <p class="sub" id="add-sub">Enter your current holding as of today — ticker, quantity, and average buy price. P/L is calculated from live price.</p>
     <form id="add-form">
       <div class="field">
         <label for="f-symbol">Ticker</label>
@@ -315,14 +319,6 @@ tr.on td{background:var(--accent-soft)}
         <label for="f-price">Average buy price per share</label>
         <input id="f-price" name="price" type="number" step="any" min="0" required placeholder="USD">
         <div class="hint" id="f-price-hint">Your cost basis per share from your brokerage.</div>
-      </div>
-      <div class="field" id="f-unrealized-wrap">
-        <label for="f-unrealized">Unrealized P/L (in USD)</label>
-        <input id="f-unrealized" name="unrealized" type="number" step="any" placeholder="USD">
-      </div>
-      <div class="field" id="f-realized-wrap">
-        <label for="f-realized">Realized P/L (in USD)</label>
-        <input id="f-realized" name="realized" type="number" step="any" placeholder="USD">
       </div>
       <div class="err" id="add-err"></div>
       <div class="modal-actions">
@@ -393,6 +389,12 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const pct = v => v == null || !Number.isFinite(v) ? "—"
   : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+/** Compact return for the holdings table (e.g. +8% / -8%). */
+const retPct = v => {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const n = Math.round(v);
+  return `${n >= 0 ? "+" : ""}${n}%`;
+};
 const dir = v => v == null ? "" : v >= 0 ? "up" : "down";
 const money = v => {
   if (v == null || !Number.isFinite(v)) return "—";
@@ -596,8 +598,6 @@ async function mergeLocalIfNeeded(){
         price: t.price,
         fee: t.fee || 0,
         note: t.note || null,
-        unrealizedPl: t.unrealizedPl != null ? t.unrealizedPl : null,
-        realizedPl: t.realizedPl != null ? t.realizedPl : null,
       })),
     });
     if (d && !d.error) {
@@ -625,8 +625,7 @@ function writeLocalTxn(row, { allowMerge = true } = {}){
   }
 }
 
-async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee,
-                                unrealizedPl, realizedPl }){
+async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee }){
   const row = {
     symbol: String(symbol).toUpperCase().trim(),
     kind: kind || "buy",
@@ -634,8 +633,8 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee,
     quantity: Number(quantity),
     price: Number(price),
     fee: Number(fee) || 0,
-    unrealizedPl: unrealizedPl === "" || unrealizedPl == null ? null : Number(unrealizedPl),
-    realizedPl: realizedPl === "" || realizedPl == null ? null : Number(realizedPl),
+    unrealizedPl: null,
+    realizedPl: null,
   };
 
   const isIn = signedIn();
@@ -645,29 +644,15 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee,
 
   if (isIn) {
     try {
-      let d;
-      try {
-        d = await rpc("add_portfolio_transaction", {
-          p_symbol: row.symbol,
-          p_kind: row.kind,
-          p_trade_date: row.tradeDate,
-          p_quantity: row.quantity,
-          p_price: row.price,
-          p_fee: row.fee,
-          p_unrealized_pl: row.unrealizedPl,
-          p_realized_pl: row.realizedPl,
-        });
-      } catch (e) {
-        // 0034-only deployments reject the extra P/L args — retry without them.
-        d = await rpc("add_portfolio_transaction", {
-          p_symbol: row.symbol,
-          p_kind: row.kind,
-          p_trade_date: row.tradeDate,
-          p_quantity: row.quantity,
-          p_price: row.price,
-          p_fee: row.fee,
-        });
-      }
+      // P/L is computed client-side from live price − avg cost; do not store snapshots.
+      const d = await rpc("add_portfolio_transaction", {
+        p_symbol: row.symbol,
+        p_kind: row.kind,
+        p_trade_date: row.tradeDate,
+        p_quantity: row.quantity,
+        p_price: row.price,
+        p_fee: row.fee,
+      });
       if (d && d.error) throw new Error(d.error);
     } catch (e) {
       console.warn("[portfolio] remote save failed; kept local draft", e);
@@ -794,20 +779,18 @@ function todayPl(p){
   return null;
 }
 
-/** Unrealized: user-entered snapshot, else mark − cost basis. */
-function unrealizedPl(p){
-  if (p.unrealizedPl != null && Number.isFinite(p.unrealizedPl)) return p.unrealizedPl;
-  const px = markPrice(p);
+/** Book P/L vs average buy: (today's price − avg buy) × quantity. */
+function holdingPl(p){
+  const px = p.price != null && Number.isFinite(p.price) ? p.price : markPrice(p);
   if (px == null || p.avgCost == null || !p.quantity) return null;
   return (px - p.avgCost) * p.quantity;
 }
 
-/** Total P/L = unrealized + realized (realized may be null). */
-function totalPl(p){
-  const u = unrealizedPl(p);
-  const r = (p.realizedPl != null && Number.isFinite(p.realizedPl)) ? p.realizedPl : 0;
-  if (u == null && p.realizedPl == null) return null;
-  return (u || 0) + r;
+/** Return % vs average buy: (today's price / buy price − 1) × 100. */
+function holdingRetPct(p){
+  const px = p.price != null && Number.isFinite(p.price) ? p.price : markPrice(p);
+  if (px == null || p.avgCost == null || !(p.avgCost > 0)) return null;
+  return (px / p.avgCost - 1) * 100;
 }
 
 function allocation(positions){
@@ -844,26 +827,18 @@ function dailyReturn(positions){
   return { amount: hasLive ? dayPl : null, pct: pctDay, value };
 }
 
-function ytdReturn(positions){
-  const y = new Date().getFullYear();
-  const ytdStart = `${y}-01-01`;
-  let start = 0, current = 0;
+/** Book return vs average buy cost for the current holdings (not calendar YTD). */
+function bookReturn(positions){
+  let cost = 0, current = 0;
   for (const p of positions) {
     const px = markPrice(p);
-    if (px == null || !p.quantity) continue;
+    if (px == null || !p.quantity || p.avgCost == null) continue;
+    cost += p.avgCost * p.quantity;
     current += px * p.quantity;
-    const bars = (S.priceCache[p.symbol] && S.priceCache[p.symbol].bars) || [];
-    const jan = closeOnOrBefore(bars, ytdStart);
-    // Bought this year: cost basis is the YTD start for that lot (approx avgCost).
-    if (!jan || (p.firstTrade && p.firstTrade > ytdStart)) {
-      start += (p.avgCost != null ? p.avgCost : px) * p.quantity;
-    } else {
-      start += jan * p.quantity;
-    }
   }
-  const amount = current - start;
-  const pct = start ? (amount / start) * 100 : null;
-  return { amount, pct, start, current };
+  const amount = current - cost;
+  const pctRet = cost ? (amount / cost) * 100 : null;
+  return { amount, pct: pctRet, cost, current };
 }
 
 /** Volatility score 0–100 (higher = more volatile / concentrated).
@@ -936,10 +911,10 @@ function renderEmpty(){
         <ul class="benefits">
           <li><span class="ico" aria-hidden="true">+</span>
             <div><b>One place for holdings</b>
-            <span>Add buys with ticker, date, and quantity. Cost basis and P/L follow.</span></div></li>
+            <span>Add ticker, quantity, and average buy price. P/L is calculated from live quotes.</span></div></li>
           <li><span class="ico" aria-hidden="true">%</span>
             <div><b>Performance at a glance</b>
-            <span>Daily and YTD return, allocation, and a volatility score.</span></div></li>
+            <span>Daily return, book P/L vs cost, allocation, and a volatility score.</span></div></li>
           <li><span class="ico" aria-hidden="true">◎</span>
             <div><b>Stays on your account</b>
             <span>Signed-in portfolios sync across devices. Local drafts merge when you sign in.</span></div></li>
@@ -959,7 +934,7 @@ function renderEmpty(){
             Add Asset
           </button>
         </div>
-        <p class="empty-foot">Stocks only for now · Enter average buy price and P/L from your brokerage</p>
+        <p class="empty-foot">Stocks only for now · Enter quantity and average buy price from your brokerage</p>
       </div>
     </section>`;
 
@@ -972,7 +947,7 @@ function renderDashboard(){
   const app = document.getElementById("app");
   const alloc = allocation(S.positions);
   const day = dailyReturn(S.positions);
-  const ytd = ytdReturn(S.positions);
+  const book = bookReturn(S.positions);
   const vol = volatilityScore(S.positions);
   const arrow = v => v > 0 ? "▲ " : v < 0 ? "▼ " : "";
 
@@ -998,9 +973,9 @@ function renderDashboard(){
         <div class="chg ${dir(day.pct)}">${day.pct == null ? "" : esc(arrow(day.pct) + Math.abs(day.pct).toFixed(2) + "%")}</div>
       </div>
       <div class="cell">
-        <div class="k">YTD Return</div>
-        <div class="v num ${dir(ytd.amount)}">${esc(moneySigned(ytd.amount))}</div>
-        <div class="chg ${dir(ytd.pct)}">${ytd.pct == null ? "" : esc(arrow(ytd.pct) + Math.abs(ytd.pct).toFixed(2) + "%")}</div>
+        <div class="k">Total Return</div>
+        <div class="v num ${dir(book.amount)}">${esc(moneySigned(book.amount))}</div>
+        <div class="chg ${dir(book.pct)}">${book.pct == null ? "" : esc(arrow(book.pct) + Math.abs(book.pct).toFixed(2) + "%")}</div>
       </div>
       <div class="cell">
         <div class="k">Volatility Score</div>
@@ -1114,11 +1089,11 @@ async function renderList(){
     host.innerHTML = `<table>
       <thead><tr>
         <th class="idcol">Symbol</th><th>MV/Qty</th><th>Price</th>
-        <th>Today's P/L</th><th>P/L</th><th>Unrealized P/L</th><th></th>
+        <th>Today's P/L</th><th>P/L</th><th></th>
       </tr></thead>
       <tbody>
         <tr data-sym="PORTFOLIO" class="${S.selected === "PORTFOLIO" ? "on" : ""}">
-          <td colspan="6"><b style="font-size:12.5px">Portfolio total</b>
+          <td colspan="5"><b style="font-size:12.5px">Portfolio total</b>
             <div style="font-size:11px;color:var(--ink-3)">vs indexes on the chart</div></td>
           <td></td>
         </tr>
@@ -1127,8 +1102,8 @@ async function renderList(){
           const avg = r.avgCost != null ? r.avgCost : null;
           const val = markPrice(r) != null ? markPrice(r) * r.quantity : null;
           const day = todayPl(r);
-          const unreal = unrealizedPl(r);
-          const tot = totalPl(r);
+          const pl = holdingPl(r);
+          const ret = holdingRetPct(r);
           const qtyLabel = Number(r.quantity.toFixed(4));
           return `<tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
             <td class="idcol"><span class="tsym"><span class="tsym-t">${esc(r.symbol)}</span>
@@ -1142,8 +1117,10 @@ async function renderList(){
               <span class="bot">${avg != null ? `avg ${esc(priceFmt(avg))}` : "—"}</span>
             </div></td>
             <td class="num ${dir(day)}">${esc(moneySigned(day))}</td>
-            <td class="num ${dir(tot)}">${esc(moneySigned(tot))}</td>
-            <td class="num ${dir(unreal)}">${esc(moneySigned(unreal))}</td>
+            <td><div class="stack-cell">
+              <span class="top ${dir(pl)}">${esc(moneySigned(pl))}</span>
+              <span class="bot ${dir(ret)}">${esc(retPct(ret))}</span>
+            </div></td>
             <td><div class="row-actions">
               <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
               <button type="button" data-act="sell" data-s="${esc(r.symbol)}">Sell</button>
@@ -1236,8 +1213,9 @@ async function seriesForSymbol(sym, fromISO){
   return bars;
 }
 
-/** Portfolio NAV path: constant current share counts × historical closes
- *  (good enough for tracking; lot-accurate reconstruction can come later). */
+/** Portfolio NAV path for the chart: today's share counts × historical closes.
+ *  This is a simulated “current mix” path — not the user’s personal return
+ *  before they logged the portfolio. Book P/L in the table uses avg buy cost. */
 async function portfolioSeries(fromISO){
   const positions = S.positions.filter(p => p.quantity > 0);
   if (!positions.length) return [];
@@ -1320,8 +1298,10 @@ async function drawRightChart(){
   symEl.textContent = "Portfolio";
   const alloc = allocation(S.positions);
   priceEl.textContent = money(alloc.sum).replace("$", "");
-  const ytd = ytdReturn(S.positions);
-  metaEl.innerHTML = `YTD <span class="${dir(ytd.pct)}">${esc(pct(ytd.pct))}</span> · compared as % return`;
+  const book = bookReturn(S.positions);
+  metaEl.innerHTML =
+    `Book <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span>` +
+    ` · chart = current mix (simulated) vs indexes`;
 
   const portBars = toPctSeries(await portfolioSeries(from));
   const lines = [{ id: "Portfolio", colour: "#38b37d", points: portBars }];
@@ -1405,7 +1385,7 @@ function setModalMode(kind, symbol, prefill){
 
   if (kind === "edit") {
     title.textContent = "Edit holding";
-    sub.textContent = "Update this ticker’s quantity, average buy price, and P/L. Delete removes it from your portfolio.";
+    sub.textContent = "Update this ticker’s quantity and average buy price. P/L updates from the live quote. Delete removes it from your portfolio.";
     save.textContent = "Save changes";
     del.hidden = false;
     symEl.readOnly = true;
@@ -1417,7 +1397,7 @@ function setModalMode(kind, symbol, prefill){
     symEl.readOnly = false;
   } else {
     title.textContent = "Add to portfolio";
-    sub.textContent = "Enter your current holding as of today — quantity, average buy price, and P/L from your brokerage.";
+    sub.textContent = "Enter your current holding as of today — ticker, quantity, and average buy price. P/L is calculated from live price.";
     save.textContent = "Add holding";
     del.hidden = true;
     symEl.readOnly = false;
@@ -1428,8 +1408,6 @@ function setModalMode(kind, symbol, prefill){
   priceHint.textContent = kind === "sell"
     ? "Price you sold at."
     : "Your cost basis per share from your brokerage.";
-  document.getElementById("f-unrealized-wrap").hidden = kind === "sell";
-  document.getElementById("f-realized-wrap").hidden = false;
 
   symEl.value = (prefill && prefill.symbol) || symbol || "";
   document.getElementById("f-date").value = (prefill && prefill.tradeDate) || todayISO();
@@ -1438,10 +1416,6 @@ function setModalMode(kind, symbol, prefill){
     prefill && prefill.quantity != null ? String(prefill.quantity) : "";
   document.getElementById("f-price").value =
     prefill && prefill.price != null ? String(prefill.price) : "";
-  document.getElementById("f-unrealized").value =
-    prefill && prefill.unrealizedPl != null ? String(prefill.unrealizedPl) : "";
-  document.getElementById("f-realized").value =
-    prefill && prefill.realizedPl != null ? String(prefill.realizedPl) : "";
   document.getElementById("add-err").textContent = "";
   modal.hidden = false;
   if (kind === "edit" || symbol) document.getElementById("f-qty").focus();
@@ -1460,9 +1434,6 @@ function openEditModal(symbol){
     tradeDate: todayISO(),
     quantity: Number(pos.quantity.toFixed(4)),
     price: pos.avgCost != null ? Number(Number(pos.avgCost).toFixed(4)) : null,
-    unrealizedPl: pos.unrealizedPl != null ? Number(Number(pos.unrealizedPl).toFixed(2))
-      : (unrealizedPl(pos) != null ? Number(unrealizedPl(pos).toFixed(2)) : null),
-    realizedPl: pos.realizedPl != null ? Number(Number(pos.realizedPl).toFixed(2)) : null,
   });
 }
 
@@ -1508,8 +1479,6 @@ async function replaceHolding(fields){
     tradeDate: fields.tradeDate,
     quantity: fields.quantity,
     price: fields.price,
-    unrealizedPl: fields.unrealizedPl,
-    realizedPl: fields.realizedPl,
   });
 }
 
@@ -1548,8 +1517,6 @@ function wireModal(){
     const tradeDate = document.getElementById("f-date").value || todayISO();
     const quantity = Number(document.getElementById("f-qty").value);
     const price = Number(document.getElementById("f-price").value);
-    const unrealizedRaw = document.getElementById("f-unrealized").value;
-    const realizedRaw = document.getElementById("f-realized").value;
     if (!/^[A-Z][A-Z.\-]{0,9}$/.test(symbol)) {
       err.textContent = "Enter a valid ticker.";
       return;
@@ -1564,19 +1531,11 @@ function wireModal(){
     save.disabled = true;
     try {
       if (addKind === "edit") {
-        await replaceHolding({
-          symbol, tradeDate, quantity, price,
-          unrealizedPl: unrealizedRaw,
-          realizedPl: realizedRaw,
-        });
+        await replaceHolding({ symbol, tradeDate, quantity, price });
         closeAddModal();
         toast(`Updated ${symbol}`);
       } else {
-        await addTransaction({
-          symbol, kind: addKind, tradeDate, quantity, price,
-          unrealizedPl: addKind === "buy" ? unrealizedRaw : null,
-          realizedPl: realizedRaw,
-        });
+        await addTransaction({ symbol, kind: addKind, tradeDate, quantity, price });
         closeAddModal();
         toast(addKind === "sell" ? `Sold ${quantity} ${symbol}` : `Added ${quantity} ${symbol}`);
       }
@@ -1647,7 +1606,7 @@ async function boot(showLoading = true){
   await loadPortfolio();
   if (S.positions.length) {
     S.positions = await enrichPrices(S.positions);
-    // Prefetch history used by YTD / vol / chart.
+    // Prefetch history used by vol score / chart.
     await Promise.all(S.positions.map(p => seriesForSymbol(p.symbol, rangeStartISO("1Y"))));
     renderDashboard();
     // Quotes sometimes arrive a beat late after request_prices — refresh once.
