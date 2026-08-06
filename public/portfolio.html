@@ -478,6 +478,149 @@ tr.on td{background:var(--accent-soft)}
 .ppl-t{font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:12.5px;line-height:1.25}
 .ppl-n{font-family:"IBM Plex Sans",sans-serif;font-size:10.5px;color:var(--ink-3);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;line-height:1.3}
+
+/* ---- Portfolio Calendar -------------------------------------------------- */
+.cal-section{margin-top:28px}
+.cal-head{display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;margin-bottom:14px}
+.cal-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
+.cal-head a{font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
+.cal-head a:hover{text-decoration:underline}
+.cal-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,0.95fr);
+  gap:20px;align-items:stretch}
+@media (max-width:980px){.cal-layout{grid-template-columns:1fr}}
+.cal-month,.cal-day{display:flex;flex-direction:column;min-height:0}
+.cal-month-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 14px 8px;
+}
+.cal-month-bar .nav{display:flex;align-items:center;gap:6px;min-width:0}
+.cal-month-bar .nav button,.cal-ico{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--rule);
+  background:var(--card);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;
+  padding:0;font:inherit;
+}
+.cal-month-bar .nav button:hover,.cal-ico:hover{
+  border-color:var(--accent);color:var(--accent);
+}
+.cal-month-bar .nav button svg,.cal-ico svg{width:16px;height:16px}
+.cal-month-bar h3{
+  margin:0;font-size:16px;font-weight:700;letter-spacing:-.02em;
+  white-space:nowrap;
+}
+.cal-month-bar .tools{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.cal-dows{
+  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:0;padding:0 10px;border-bottom:1px solid var(--rule);
+}
+.cal-dows span{
+  font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--ink-3);padding:6px 4px;text-align:center;
+}
+.cal-grid{
+  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+  grid-auto-rows:minmax(78px,1fr);flex:1;min-height:360px;
+  border-top:0;
+}
+.cal-cell{
+  border-right:1px solid var(--rule-2);border-bottom:1px solid var(--rule-2);
+  padding:6px 6px 4px;cursor:pointer;text-align:left;background:transparent;
+  font:inherit;color:inherit;min-width:0;display:flex;flex-direction:column;gap:3px;
+  transition:background .12s ease;
+}
+.cal-cell:nth-child(7n){border-right:0}
+.cal-cell:hover{background:var(--sunk)}
+.cal-cell.out{color:var(--ink-3);opacity:.72}
+.cal-cell.on{background:color-mix(in srgb, var(--accent) 14%, var(--card));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, var(--rule))}
+.cal-cell .dom{font-size:12px;font-weight:600;line-height:1.2}
+.cal-cell .dom .mon{font-weight:600;margin-right:3px}
+.cal-syms{display:flex;flex-direction:column;gap:2px;min-height:0;overflow:hidden;flex:1}
+.cal-sym{
+  display:flex;align-items:center;gap:4px;min-width:0;
+  font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;
+  color:var(--ink-2);line-height:1.2;
+}
+.cal-sym .av{width:12px;height:12px;border-radius:50%;flex-shrink:0;display:grid;
+  place-items:center;font-size:6px;font-weight:700;color:#fff}
+.cal-sym .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-sym.econ .t{font-family:"IBM Plex Sans",sans-serif;font-weight:500;font-size:9.5px}
+.cal-more{font-size:9.5px;color:var(--ink-3);padding-top:1px}
+.cal-day-bar{padding:14px 16px 6px}
+.cal-day-bar h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
+.cal-day-list{padding:4px 8px 8px;overflow-y:auto;max-height:520px;flex:1;
+  scrollbar-gutter:stable}
+.cal-ev{
+  display:flex;align-items:flex-start;gap:10px;padding:10px 8px;
+  border-bottom:1px solid var(--rule-2);
+}
+.cal-ev:last-child{border-bottom:0}
+.cal-ev .av{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:grid;
+  place-items:center;font-family:"IBM Plex Mono",monospace;font-size:10px;
+  font-weight:700;color:#fff}
+.cal-ev .body{min-width:0;flex:1}
+.cal-ev .row1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.cal-ev .sym{font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:13.5px}
+.cal-ev .sess{font-size:11.5px;color:var(--ink-3);display:inline-flex;align-items:center;gap:4px}
+.cal-ev .sess svg{width:12px;height:12px}
+.cal-ev .meta{font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.35}
+.cal-add{
+  flex-shrink:0;width:34px;height:34px;border-radius:8px;border:1px solid var(--rule);
+  background:var(--sunk);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;
+  padding:0;
+}
+.cal-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.cal-add svg{width:16px;height:16px}
+.cal-day-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:4px 10px 12px;padding:10px 12px;border:1px solid var(--rule);
+  border-radius:8px;background:var(--sunk);color:var(--ink-2);font-size:13px;
+  font-weight:600;cursor:pointer;font:inherit;width:calc(100% - 20px);
+}
+.cal-day-foot:hover{border-color:var(--accent);color:var(--accent)}
+.cal-day-foot svg{width:14px;height:14px;flex-shrink:0}
+.cal-empty{padding:28px 16px;text-align:center;color:var(--ink-3);font-size:13px}
+
+/* Calendar subscribe modal */
+.cal-modal .modal-card{width:min(420px,94vw)}
+.cal-search{position:relative;margin-bottom:14px}
+.cal-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;color:var(--ink-3);pointer-events:none}
+.cal-search input{
+  width:100%;background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
+  padding:10px 12px 10px 34px;font:inherit;font-size:13.5px;color:var(--ink);
+}
+.cal-search input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;background:var(--card)}
+.cal-ac{
+  position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;background:var(--card);
+  border:1px solid var(--rule);border-radius:8px;box-shadow:var(--shadow);
+  max-height:220px;overflow:auto;
+}
+.cal-ac button{
+  display:flex;gap:10px;align-items:center;width:100%;padding:9px 12px;border:0;
+  background:transparent;cursor:pointer;font:inherit;text-align:left;color:var(--ink);
+  border-bottom:1px solid var(--rule-2);
+}
+.cal-ac button:last-child{border-bottom:0}
+.cal-ac button:hover{background:var(--accent-soft)}
+.cal-ac b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;min-width:52px;color:var(--accent)}
+.cal-ac span{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-sub-h{font-size:13.5px;font-weight:700;margin:4px 0 10px}
+.cal-subs{display:flex;flex-direction:column;gap:2px;max-height:320px;overflow:auto}
+.cal-sub{
+  display:flex;align-items:center;gap:10px;padding:9px 4px;cursor:pointer;
+  border-radius:8px;font-size:14px;font-weight:500;color:var(--ink);user-select:none;
+}
+.cal-sub:hover{background:var(--sunk)}
+.cal-check{
+  width:22px;height:22px;border-radius:50%;border:1.5px solid var(--ink-3);
+  flex-shrink:0;display:grid;place-items:center;background:transparent;color:transparent;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.cal-sub.on .cal-check{
+  background:var(--accent);border-color:var(--accent);color:#fff;
+}
+.cal-check svg{width:12px;height:12px}
 </style>
 </head>
 <body>
@@ -524,6 +667,23 @@ tr.on td{background:var(--accent-soft)}
         <button type="submit" class="btn btn-primary" id="add-save">Add holding</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal cal-modal" id="cal-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cal-modal-title">
+    <button type="button" class="modal-x" id="cal-modal-x" aria-label="Close">×</button>
+    <h2 id="cal-modal-title">Edit calendars</h2>
+    <p class="sub">Subscribe to earnings and ex-dividend dates for tickers, or the U.S. economics calendar.</p>
+    <div class="cal-search">
+      <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="5.5"/>
+        <path d="m13 13 3.5 3.5"/></svg>
+      <input type="text" id="cal-q" placeholder="Search a ticker or calendar…" autocomplete="off">
+      <div class="cal-ac" id="cal-ac" hidden></div>
+    </div>
+    <div class="cal-sub-h">Subscribed Calendar</div>
+    <div class="cal-subs" id="cal-subs"></div>
   </div>
 </div>
 
@@ -1455,6 +1615,52 @@ function renderDashboard(){
       <div class="disc-dots" id="discover-dots" role="tablist" aria-label="Discover pages"></div>
     </section>
 
+    <section class="cal-section" aria-label="Calendar">
+      <div class="cal-head">
+        <h2>Calendar</h2>
+        <a href="earnings.html">Market earnings →</a>
+      </div>
+      <div class="cal-layout">
+        <div class="panel cal-month">
+          <div class="cal-month-bar">
+            <div class="nav">
+              <button type="button" id="cal-prev" aria-label="Previous month">
+                <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12.5 4.5 7 10l5.5 5.5"/></svg>
+              </button>
+              <h3 id="cal-month-label">—</h3>
+              <button type="button" id="cal-next" aria-label="Next month">
+                <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7.5 4.5 13 10l-5.5 5.5"/></svg>
+              </button>
+            </div>
+            <div class="tools">
+              <button type="button" class="cal-ico" id="cal-edit" aria-label="Edit calendars">
+                <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12.2 3.8 16.2 7.8M3.5 16.5l1.2-4.6L14.4 2.2a1.5 1.5 0 0 1 2.1 0l1.3 1.3a1.5 1.5 0 0 1 0 2.1L6.9 16.5H3.5z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="cal-dows" aria-hidden="true">
+            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span>
+            <span>Thu</span><span>Fri</span><span>Sat</span>
+          </div>
+          <div class="cal-grid" id="cal-grid">
+            <div class="cal-empty"><span class="load"></span></div>
+          </div>
+        </div>
+        <div class="panel cal-day">
+          <div class="cal-day-bar"><h3 id="cal-day-label">—</h3></div>
+          <div class="cal-day-list" id="cal-day-list">
+            <div class="cal-empty"><span class="load"></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <h2 class="trades-head">Congress &amp; Insiders</h2>
     <div class="grid2">
       <section class="panel">
@@ -1513,6 +1719,7 @@ function renderDashboard(){
         x.setAttribute("aria-pressed", String(x.dataset.v === S.view)));
       renderList();
       loadPortfolioDiscover();
+      loadPortfolioCalendar();
     };
   });
   document.querySelectorAll("#range button").forEach(b => {
@@ -1527,6 +1734,8 @@ function renderDashboard(){
   drawRightChart();
   wireDiscover();
   loadPortfolioDiscover();
+  wirePortfolioCalendar();
+  loadPortfolioCalendar();
   bootTrades();
   wireInfoTips(document.getElementById("pulse"));
 }
@@ -2496,6 +2705,562 @@ function wireDiscover(){
     }
     goDiscover(DISC.page);
   });
+}
+
+/* ---- Portfolio Calendar (earnings + ex-div + US economics) --------------- */
+const CAL_PREFS_KEY = "ta.calendar.subs.v1";
+const CAL = {
+  year: new Date().getFullYear(),
+  month: new Date().getMonth(),
+  selected: null,
+  events: [],
+  showAll: false,
+  wired: false,
+  prefs: null,
+};
+
+function todayISO(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function isoDate(y, m, d){
+  return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+}
+function parseISODate(s){
+  const [y, m, d] = String(s || "").split("-").map(Number);
+  return { y, m: m - 1, d };
+}
+function defaultCalPrefs(){
+  return { portfolio: true, watchlist: true, economics: true, tickers: [] };
+}
+function loadCalPrefs(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || "null");
+    if (!raw || typeof raw !== "object") return defaultCalPrefs();
+    return {
+      portfolio: raw.portfolio !== false,
+      watchlist: raw.watchlist !== false,
+      economics: raw.economics !== false,
+      tickers: [...new Set((raw.tickers || []).map(s => String(s).toUpperCase()).filter(Boolean))],
+    };
+  } catch {
+    return defaultCalPrefs();
+  }
+}
+function saveCalPrefs(p){
+  CAL.prefs = p;
+  try { localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(p)); } catch {}
+}
+
+async function calendarSymbols(){
+  const prefs = CAL.prefs || loadCalPrefs();
+  CAL.prefs = prefs;
+  const set = new Set(prefs.tickers || []);
+  if (prefs.portfolio) {
+    (S.positions || []).filter(p => (p.quantity || 0) > 0).forEach(p => {
+      if (p.symbol) set.add(String(p.symbol).toUpperCase());
+    });
+  }
+  if (prefs.watchlist) {
+    try {
+      const items = await loadWatchlistItems();
+      (items || []).forEach(i => { if (i.symbol) set.add(String(i.symbol).toUpperCase()); });
+    } catch {}
+  }
+  return [...set];
+}
+
+function calFmtMoney(v){
+  if (v == null || !Number.isFinite(Number(v))) return "—";
+  const n = Number(v);
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n / 1e9).toFixed(2) + "B";
+  if (abs >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (abs >= 1e3) return (n / 1e3).toFixed(2) + "K";
+  return n.toFixed(2);
+}
+function calSession(time){
+  const t = String(time || "").toLowerCase();
+  if (t.includes("bmo") || t.includes("before") || t.includes("pre"))
+    return { label: "Pre-Mkt", icon: "sun" };
+  if (t.includes("amc") || t.includes("after") || t.includes("post"))
+    return { label: "Post-Mkt", icon: "moon" };
+  if (t) return { label: t.toUpperCase(), icon: null };
+  return { label: "—", icon: null };
+}
+function sunIcon(){
+  return `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6">
+    <circle cx="10" cy="10" r="3"/><path stroke-linecap="round" d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M15.5 4.5l-1.4 1.4M5.9 14.1l-1.4 1.4"/></svg>`;
+}
+function moonIcon(){
+  return `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6">
+    <path stroke-linejoin="round" d="M14.5 11.2A5.5 5.5 0 0 1 8.2 4.9 5.8 5.8 0 1 0 14.5 11.2z"/></svg>`;
+}
+function calAddIcon(){
+  return `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8h13M7 3v3M13 3v3M10 11v3.5M8.25 12.75h3.5"/></svg>`;
+}
+
+function unifyCalEvents(raw, prefs){
+  const out = [];
+  for (const e of (raw && raw.earnings) || []) {
+    out.push({
+      ...e, kind: "earnings", date: String(e.date).slice(0, 10),
+      key: `e:${e.date}:${e.symbol}`,
+    });
+  }
+  for (const e of (raw && raw.dividends) || []) {
+    out.push({
+      ...e, kind: "dividend", date: String(e.date || e.exDate).slice(0, 10),
+      key: `d:${e.date || e.exDate}:${e.symbol}`,
+    });
+  }
+  if (prefs.economics) {
+    for (const e of (raw && raw.economics) || []) {
+      // Prefer high/medium impact so the month grid stays readable.
+      const impact = String(e.impact || "").toLowerCase();
+      if (impact && impact !== "high" && impact !== "medium") continue;
+      out.push({
+        ...e, kind: "economics", date: String(e.date).slice(0, 10),
+        symbol: "ECON", name: e.event,
+        key: `x:${e.date}:${e.event}`,
+      });
+    }
+  }
+  out.sort((a, b) => (a.date + a.kind + (a.symbol || "")).localeCompare(b.date + b.kind + (b.symbol || "")));
+  return out;
+}
+
+function eventsForDay(iso){
+  return CAL.events.filter(e => e.date === iso);
+}
+
+function monthChips(iso){
+  const day = eventsForDay(iso);
+  const chips = [];
+  const seen = new Set();
+  for (const e of day) {
+    if (e.kind === "economics") {
+      const short = String(e.event || "Econ").replace(/\s*\([^)]*\)\s*/g, " ").trim();
+      const label = short.length > 10 ? short.slice(0, 9) + "…" : short;
+      const k = `x:${label}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      chips.push({ kind: "economics", label, colour: "var(--ink-3)", letter: "E" });
+    } else {
+      const sym = String(e.symbol || "").toUpperCase();
+      if (!sym || seen.has(sym)) continue;
+      seen.add(sym);
+      chips.push({
+        kind: e.kind, label: sym, colour: avatarColour(sym),
+        letter: sym.slice(0, 2),
+      });
+    }
+  }
+  return chips;
+}
+
+function renderCalMonth(){
+  const grid = document.getElementById("cal-grid");
+  const label = document.getElementById("cal-month-label");
+  if (!grid || !label) return;
+  const y = CAL.year, m = CAL.month;
+  label.textContent = new Date(y, m, 1).toLocaleString(undefined, { month: "short", year: "numeric" });
+  const first = new Date(y, m, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const prevDays = new Date(y, m, 0).getDate();
+  const cells = [];
+  // Leading days from previous month
+  for (let i = startDow - 1; i >= 0; i--) {
+    const d = prevDays - i;
+    const py = m === 0 ? y - 1 : y;
+    const pm = m === 0 ? 11 : m - 1;
+    cells.push({ y: py, m: pm, d, out: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ y, m, d, out: false });
+  while (cells.length % 7) {
+    const d = cells.length - (startDow + daysInMonth) + 1;
+    const ny = m === 11 ? y + 1 : y;
+    const nm = m === 11 ? 0 : m + 1;
+    cells.push({ y: ny, m: nm, d, out: true });
+  }
+  // Cap at 6 weeks
+  const slice = cells.slice(0, 42);
+  grid.innerHTML = slice.map(c => {
+    const iso = isoDate(c.y, c.m, c.d);
+    const chips = monthChips(iso);
+    const show = chips.slice(0, 3);
+    const more = chips.length - show.length;
+    const isFirstOfMonth = c.d === 1;
+    const mon = isFirstOfMonth
+      ? `<span class="mon">${new Date(c.y, c.m, 1).toLocaleString(undefined, { month: "short" })}</span>`
+      : "";
+    const on = iso === CAL.selected ? " on" : "";
+    const out = c.out ? " out" : "";
+    return `<button type="button" class="cal-cell${on}${out}" data-iso="${iso}" aria-pressed="${iso === CAL.selected}">
+      <div class="dom">${mon}${c.d}</div>
+      <div class="cal-syms">${show.map(ch =>
+        `<span class="cal-sym${ch.kind === "economics" ? " econ" : ""}">
+          <span class="av" style="background:${ch.colour}">${esc(ch.letter)}</span>
+          <span class="t">${esc(ch.label)}</span>
+        </span>`).join("")}${more > 0 ? `<span class="cal-more">+${more}</span>` : ""}</div>
+    </button>`;
+  }).join("");
+  grid.querySelectorAll(".cal-cell").forEach(btn => {
+    btn.onclick = () => {
+      CAL.selected = btn.dataset.iso;
+      CAL.showAll = false;
+      renderCalMonth();
+      renderCalDay();
+    };
+  });
+}
+
+function eventTitle(ev){
+  if (ev.kind === "earnings") return `${ev.symbol} earnings`;
+  if (ev.kind === "dividend") return `${ev.symbol} ex-dividend`;
+  return ev.event || "Economic release";
+}
+function eventDetails(ev){
+  if (ev.kind === "earnings") {
+    const sess = calSession(ev.time);
+    return {
+      title: ev.symbol,
+      sess,
+      meta: `Revenue: Est. ${calFmtMoney(ev.revenueEstimated)} Act. ${calFmtMoney(ev.revenueActual)}`,
+      href: `company.html?t=${encodeURIComponent(ev.symbol)}`,
+    };
+  }
+  if (ev.kind === "dividend") {
+    return {
+      title: ev.symbol,
+      sess: { label: "Ex-Div", icon: null },
+      meta: `Dividend: $${Number(ev.amount || 0).toFixed(4)}${ev.yield != null ? ` · Yield ${(Number(ev.yield) * (ev.yield < 1 ? 100 : 1)).toFixed(2)}%` : ""}`,
+      href: `company.html?t=${encodeURIComponent(ev.symbol)}`,
+    };
+  }
+  const bits = [];
+  if (ev.estimate != null) bits.push(`Est. ${ev.estimate}`);
+  if (ev.actual != null) bits.push(`Act. ${ev.actual}`);
+  else if (ev.previous != null) bits.push(`Prev. ${ev.previous}`);
+  if (ev.impact) bits.push(ev.impact);
+  return {
+    title: ev.event || "Economics",
+    sess: { label: ev.time || "US", icon: null },
+    meta: bits.join(" · ") || "U.S. economic release",
+    href: null,
+  };
+}
+
+function icsEscape(s){
+  return String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+}
+function downloadIcs(ev){
+  const day = String(ev.date).replace(/-/g, "");
+  const title = eventTitle(ev);
+  const detail = eventDetails(ev);
+  const desc = detail.meta;
+  const uid = `${ev.key || title}@tickeralpha`;
+  const ics = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Ticker Alpha//Calendar//EN",
+    "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "BEGIN:VEVENT",
+    `UID:${uid}`, `DTSTAMP:${day}T120000Z`,
+    `DTSTART;VALUE=DATE:${day}`, `DTEND;VALUE=DATE:${day}`,
+    `SUMMARY:${icsEscape(title)}`, `DESCRIPTION:${icsEscape(desc)}`,
+    "END:VEVENT", "END:VCALENDAR",
+  ].join("\r\n");
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(ev.symbol || "event").toLowerCase()}-${day}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function googleCalUrl(ev){
+  const day = String(ev.date).replace(/-/g, "");
+  const title = eventTitle(ev);
+  const detail = eventDetails(ev);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    dates: `${day}/${day}`,
+    details: detail.meta,
+  });
+  return `https://calendar.google.com/calendar/render?${params}`;
+}
+function addEventToDevice(ev){
+  // Offer Google Calendar in a new tab; also drop an .ics for Apple/Outlook.
+  try { window.open(googleCalUrl(ev), "_blank", "noopener"); } catch {}
+  downloadIcs(ev);
+  toast("Opened Google Calendar and downloaded an .ics for Apple Calendar");
+}
+
+function renderCalDay(){
+  const label = document.getElementById("cal-day-label");
+  const list = document.getElementById("cal-day-list");
+  if (!label || !list) return;
+  const iso = CAL.selected || todayISO();
+  const { y, m, d } = parseISODate(iso);
+  const dt = new Date(y, m, d);
+  label.textContent = dt.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+  const all = eventsForDay(iso);
+  const limit = CAL.showAll ? all.length : 5;
+  const show = all.slice(0, Math.max(limit, 0));
+  if (!all.length) {
+    list.innerHTML = `<div class="cal-empty">No subscribed events on this day.</div>`;
+    return;
+  }
+  list.innerHTML = show.map(ev => {
+    const det = eventDetails(ev);
+    const colour = ev.kind === "economics" ? "var(--ink-3)" : avatarColour(ev.symbol);
+    const letter = ev.kind === "economics" ? "E" : String(ev.symbol || "?").slice(0, 2);
+    const sessIcon = det.sess.icon === "sun" ? sunIcon()
+      : det.sess.icon === "moon" ? moonIcon() : "";
+    const titleHtml = det.href
+      ? `<a class="sym" href="${det.href}">${esc(det.title)}</a>`
+      : `<span class="sym">${esc(det.title)}</span>`;
+    return `<div class="cal-ev" data-key="${esc(ev.key)}">
+      <span class="av" style="background:${colour}">${esc(letter)}</span>
+      <div class="body">
+        <div class="row1">${titleHtml}
+          <span class="sess">${sessIcon}${esc(det.sess.label)}</span></div>
+        <div class="meta">${esc(det.meta)}</div>
+      </div>
+      <button type="button" class="cal-add" data-key="${esc(ev.key)}"
+              aria-label="Add to calendar" title="Add to Apple or Google Calendar">${calAddIcon()}</button>
+    </div>`;
+  }).join("") + (all.length > 5
+    ? `<button type="button" class="cal-day-foot" id="cal-show-all">
+         ${CAL.showAll ? "Show less" : `Show All (${all.length})`}
+         <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+           <path d="${CAL.showAll ? "M5 12.5 10 7.5l5 5" : "M7.5 4.5 13 10l-5.5 5.5"}"/></svg>
+       </button>`
+    : "");
+  list.querySelectorAll(".cal-add").forEach(btn => {
+    btn.onclick = () => {
+      const ev = all.find(e => e.key === btn.dataset.key);
+      if (ev) addEventToDevice(ev);
+    };
+  });
+  const foot = document.getElementById("cal-show-all");
+  if (foot) foot.onclick = () => { CAL.showAll = !CAL.showAll; renderCalDay(); };
+}
+
+async function loadPortfolioCalendar(){
+  const grid = document.getElementById("cal-grid");
+  if (!grid) return;
+  if (!CAL.selected) CAL.selected = todayISO();
+  // Keep selected day inside the viewed month when paging months.
+  const sel = parseISODate(CAL.selected);
+  if (sel.y !== CAL.year || sel.m !== CAL.month) {
+    // Prefer today when viewing the current month; else the 1st.
+    const t = todayISO();
+    const tp = parseISODate(t);
+    if (tp.y === CAL.year && tp.m === CAL.month) CAL.selected = t;
+    else CAL.selected = isoDate(CAL.year, CAL.month, 1);
+  }
+  CAL.prefs = loadCalPrefs();
+  const syms = await calendarSymbols();
+  const from = isoDate(CAL.year, CAL.month, 1);
+  const to = isoDate(CAL.year, CAL.month, new Date(CAL.year, CAL.month + 1, 0).getDate());
+  // Also include a few leading/trailing days that appear in the grid.
+  const padFrom = (() => {
+    const d = new Date(CAL.year, CAL.month, 1);
+    d.setDate(d.getDate() - d.getDay());
+    return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+  })();
+  const padTo = (() => {
+    const d = new Date(CAL.year, CAL.month + 1, 0);
+    const add = 6 - d.getDay();
+    d.setDate(d.getDate() + add);
+    return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+  })();
+  try {
+    const raw = await rpc("get_portfolio_calendar", {
+      p_from: padFrom, p_to: padTo, p_symbols: syms,
+    }) || { earnings: [], dividends: [], economics: [] };
+    CAL.events = unifyCalEvents(raw, CAL.prefs);
+  } catch (err) {
+    console.warn("calendar load failed", err);
+    CAL.events = [];
+    grid.innerHTML = `<div class="cal-empty">Calendar unavailable right now.</div>`;
+    const list = document.getElementById("cal-day-list");
+    if (list) list.innerHTML = `<div class="cal-empty">Calendar unavailable right now.</div>`;
+    return;
+  }
+  renderCalMonth();
+  renderCalDay();
+}
+
+function renderCalSubs(){
+  const host = document.getElementById("cal-subs");
+  if (!host) return;
+  const prefs = CAL.prefs || loadCalPrefs();
+  CAL.prefs = prefs;
+  const rows = [
+    { id: "portfolio", label: "My Portfolio", pinned: true, on: prefs.portfolio },
+    { id: "watchlist", label: "My Watchlist", pinned: true, on: prefs.watchlist },
+    { id: "economics", label: "U.S. Economics Calendar", pinned: true, on: prefs.economics },
+    ...prefs.tickers.map(t => ({ id: `t:${t}`, label: t, pinned: false, on: true, symbol: t })),
+  ];
+  host.innerHTML = rows.map(r => `
+    <label class="cal-sub${r.on ? " on" : ""}" data-id="${esc(r.id)}">
+      <span class="cal-check" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round"><path d="m5 10.5 3.2 3.2L15 6.5"/></svg>
+      </span>
+      <span>${esc(r.label)}</span>
+    </label>`).join("");
+  host.querySelectorAll(".cal-sub").forEach(el => {
+    el.onclick = e => {
+      e.preventDefault();
+      const id = el.dataset.id;
+      const p = { ...CAL.prefs, tickers: [...CAL.prefs.tickers] };
+      if (id === "portfolio") p.portfolio = !p.portfolio;
+      else if (id === "watchlist") p.watchlist = !p.watchlist;
+      else if (id === "economics") p.economics = !p.economics;
+      else if (id.startsWith("t:")) {
+        const sym = id.slice(2);
+        // Unchecking a ticker removes it from the subscribed list.
+        p.tickers = p.tickers.filter(t => t !== sym);
+      }
+      saveCalPrefs(p);
+      renderCalSubs();
+      loadPortfolioCalendar();
+    };
+  });
+}
+
+function subscribeCalTicker(sym, name){
+  const s = String(sym || "").toUpperCase();
+  if (!s) return;
+  const p = { ...(CAL.prefs || loadCalPrefs()), tickers: [...(CAL.prefs?.tickers || [])] };
+  if (!p.tickers.includes(s)) p.tickers.push(s);
+  saveCalPrefs(p);
+  renderCalSubs();
+  loadPortfolioCalendar();
+  toast(`Subscribed to ${s}${name ? ` (${name})` : ""}`);
+}
+
+function wireCalSearch(){
+  const q = document.getElementById("cal-q");
+  const ac = document.getElementById("cal-ac");
+  if (!q || !ac || q.dataset.wired) return;
+  q.dataset.wired = "1";
+  let timer = null;
+  const close = () => { ac.hidden = true; ac.innerHTML = ""; };
+  q.addEventListener("input", () => {
+    clearTimeout(timer);
+    const term = q.value.trim();
+    if (term.length < 1) { close(); return; }
+    timer = setTimeout(async () => {
+      let items = [];
+      try { items = await rpc("search_companies", { q: term }) || []; } catch {}
+      const builtins = [
+        { symbol: "PORTFOLIO", name: "My Portfolio", kind: "cal" },
+        { symbol: "WATCHLIST", name: "My Watchlist", kind: "cal" },
+        { symbol: "ECONOMICS", name: "U.S. Economics Calendar", kind: "cal" },
+      ].filter(b =>
+        b.name.toLowerCase().includes(term.toLowerCase()) ||
+        b.symbol.toLowerCase().includes(term.toLowerCase()));
+      const rows = [
+        ...builtins,
+        ...items.slice(0, 8).map(i => ({
+          symbol: String(i.symbol || i.ticker || "").toUpperCase(),
+          name: i.name || "",
+          kind: "ticker",
+        })),
+      ].filter(r => r.symbol);
+      if (!rows.length) {
+        ac.innerHTML = `<button type="button" disabled>No matches</button>`;
+        ac.hidden = false;
+        return;
+      }
+      ac.innerHTML = rows.map(r =>
+        `<button type="button" data-s="${esc(r.symbol)}" data-k="${esc(r.kind)}" data-n="${esc(r.name)}">
+          <b>${esc(r.symbol === "ECONOMICS" ? "ECON" : r.symbol === "PORTFOLIO" ? "PORT" : r.symbol === "WATCHLIST" ? "WATCH" : r.symbol)}</b>
+          <span>${esc(r.name)}</span>
+        </button>`).join("");
+      ac.hidden = false;
+      ac.querySelectorAll("button[data-s]").forEach(btn => {
+        btn.onmousedown = e => {
+          e.preventDefault();
+          const kind = btn.dataset.k;
+          const sym = btn.dataset.s;
+          const p = { ...(CAL.prefs || loadCalPrefs()), tickers: [...(CAL.prefs?.tickers || [])] };
+          if (kind === "cal") {
+            if (sym === "PORTFOLIO") p.portfolio = true;
+            else if (sym === "WATCHLIST") p.watchlist = true;
+            else if (sym === "ECONOMICS") p.economics = true;
+            saveCalPrefs(p);
+            renderCalSubs();
+            loadPortfolioCalendar();
+            toast(`Subscribed to ${btn.dataset.n}`);
+          } else {
+            subscribeCalTicker(sym, btn.dataset.n);
+          }
+          q.value = "";
+          close();
+        };
+      });
+    }, 140);
+  });
+  q.addEventListener("blur", () => setTimeout(close, 150));
+}
+
+function openCalModal(){
+  const modal = document.getElementById("cal-modal");
+  if (!modal) return;
+  CAL.prefs = loadCalPrefs();
+  renderCalSubs();
+  wireCalSearch();
+  modal.hidden = false;
+  const q = document.getElementById("cal-q");
+  if (q) setTimeout(() => q.focus(), 50);
+}
+function closeCalModal(){
+  const modal = document.getElementById("cal-modal");
+  if (modal) modal.hidden = true;
+}
+
+function wirePortfolioCalendar(){
+  if (CAL.wired) {
+    // Re-bind month controls after dashboard re-render (new DOM nodes).
+  }
+  CAL.wired = true;
+  const prev = document.getElementById("cal-prev");
+  const next = document.getElementById("cal-next");
+  const edit = document.getElementById("cal-edit");
+  if (prev) prev.onclick = () => {
+    if (CAL.month === 0) { CAL.month = 11; CAL.year--; }
+    else CAL.month--;
+    loadPortfolioCalendar();
+  };
+  if (next) next.onclick = () => {
+    if (CAL.month === 11) { CAL.month = 0; CAL.year++; }
+    else CAL.month++;
+    loadPortfolioCalendar();
+  };
+  if (edit) edit.onclick = () => openCalModal();
+  const modal = document.getElementById("cal-modal");
+  const x = document.getElementById("cal-modal-x");
+  if (x) x.onclick = closeCalModal;
+  if (modal && !modal.dataset.wired) {
+    modal.dataset.wired = "1";
+    modal.addEventListener("click", e => { if (e.target === modal) closeCalModal(); });
+    addEventListener("keydown", e => {
+      if (e.key === "Escape" && modal && !modal.hidden) closeCalModal();
+    });
+  }
+  if (!CAL.selected) {
+    const t = new Date();
+    CAL.year = t.getFullYear();
+    CAL.month = t.getMonth();
+    CAL.selected = todayISO();
+  }
 }
 
 /* ---- Congress & Insiders ------------------------------------------------- */
