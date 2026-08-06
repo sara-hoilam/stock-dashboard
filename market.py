@@ -536,7 +536,8 @@ def _as_day(value) -> dt.date | None:
 # Markets Today only surfaces material trades.
 MIN_INSIDER_AMOUNT = 1_000_000       # $1M absolute Form 4 value
 MIN_INSIDER_SHARES_PCT = 0.01        # or ≥1% of shares outstanding
-MIN_CONGRESS_AMOUNT = 500_000        # $0.5M high end of disclosure range
+# Congress: store every disclosure (no $0.5M floor). UI + get_trades match.
+MIN_CONGRESS_AMOUNT = 0
 
 
 def _congress_amount_vals(raw) -> list[float]:
@@ -693,12 +694,14 @@ def _congress_side(raw: str | None) -> str | None:
 def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
     """Disclosures from both chambers filed in the last `days`, newest first.
 
-    Only rows whose reported amount range tops out above $0.5M are kept.
+    All amount bands are kept (no $0.5M floor) so the Congress table and
+    inflow/outflow chart stay populated.
     """
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     rows: list[dict] = []
     page_size = 100
     max_pages = 30 if days > 14 else 12
+    min_amt = float(MIN_CONGRESS_AMOUNT or 0)
     for path, chamber in (("senate-latest", "Senate"), ("house-latest", "House")):
         try:
             for page in range(max_pages):
@@ -714,7 +717,7 @@ def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
                     if disclosed is not None and disclosed < cutoff:
                         continue
                     amount = r.get("amount")
-                    if _congress_amount_high(amount) <= MIN_CONGRESS_AMOUNT:
+                    if min_amt > 0 and _congress_amount_high(amount) <= min_amt:
                         continue
                     rows.append({
                         "disclosed": (r.get("disclosureDate") or "")[:10],

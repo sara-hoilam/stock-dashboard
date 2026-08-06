@@ -322,6 +322,7 @@ tr.on td{background:var(--accent-soft)}
   .pulse{grid-template-columns:1fr 1fr}
   .pulse .cell:nth-child(2){border-right:0}
   .pulse .cell:nth-child(n+3){border-top:1px solid var(--rule)}
+  .grid2{grid-template-columns:1fr}
 }
 @media (max-width:720px){
   main{padding:16px 14px 56px}
@@ -333,7 +334,143 @@ tr.on td{background:var(--accent-soft)}
   .rows{border-right:0;max-height:none}
   .chartwrap{display:none}
   .donut-wrap{flex-direction:column;align-items:flex-start}
+  .discover{margin-top:18px}
+  .disc-rail{padding:0}
+  .disc-nav{display:none}
+  .disc-viewport{overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none}
+  .disc-viewport::-webkit-scrollbar{display:none}
+  .disc-track{transition:none;transform:none!important;gap:10px}
+  .disc-card{flex-basis:min(42vw,168px);scroll-snap-align:start}
+  .disc-card h3{font-size:12.5px;min-height:0}
+  .grid2{gap:12px}
 }
+
+/* ---- Discover + Congress & Insiders (below holdings) --------------------- */
+.discover{margin-top:28px}
+.disc-head{display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;margin-bottom:14px}
+.disc-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
+.disc-head a{font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
+.disc-head a:hover{text-decoration:underline}
+.disc-rail{position:relative;padding:0 48px}
+.disc-viewport{overflow:hidden;border-radius:calc(var(--r) + 2px)}
+.disc-track{display:flex;gap:12px;transition:transform .45s cubic-bezier(.22,.61,.36,1);
+  will-change:transform}
+.disc-card{
+  flex:0 0 calc((100% - 48px) / 5);min-width:0;
+  display:flex;flex-direction:column;background:var(--card);
+  border:1px solid var(--rule);border-radius:9px;overflow:hidden;
+  text-decoration:none;color:inherit;box-shadow:var(--shadow);
+  transition:transform .25s ease, border-color .2s ease, box-shadow .25s ease;
+}
+.disc-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb, var(--accent) 45%, var(--rule));
+  box-shadow:0 4px 18px -10px rgba(17,24,32,.35)}
+.disc-card .ph{aspect-ratio:16/9;background:var(--sunk);overflow:hidden}
+.disc-card .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.disc-card .ph.blank{display:grid;place-items:center;color:var(--ink-3);
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.disc-card .body{padding:10px 11px 11px;display:flex;flex-direction:column;gap:8px;flex:1}
+.disc-card h3{font-family:"IBM Plex Serif",Georgia,serif;font-size:13.5px;font-weight:600;
+  letter-spacing:-.015em;line-height:1.3;margin:0;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  min-height:3.9em}
+.disc-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;
+  margin-top:auto;padding-top:1px}
+.disc-src{display:flex;align-items:center;gap:6px;min-width:0;font-size:10.5px;color:var(--ink-3)}
+.disc-src .av{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  font-size:8px;font-weight:700;color:#fff;background:var(--accent)}
+.disc-src .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.disc-card .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;
+  color:var(--accent);flex-shrink:0}
+.disc-nav{
+  position:absolute;top:50%;transform:translateY(-50%);z-index:2;
+  width:40px;height:40px;border-radius:50%;border:1px solid var(--rule);
+  background:var(--card);color:var(--ink);cursor:pointer;display:grid;place-items:center;
+  box-shadow:var(--shadow);padding:0;
+}
+.disc-nav:hover{border-color:var(--accent);color:var(--accent)}
+.disc-nav:disabled{opacity:.35;cursor:default}
+.disc-nav.prev{left:0}
+.disc-nav.next{right:0}
+.disc-nav svg{width:18px;height:18px;display:block}
+.disc-dots{display:flex;justify-content:center;gap:7px;margin-top:16px;min-height:10px}
+.disc-dots button{width:7px;height:7px;border-radius:50%;border:0;padding:0;
+  background:var(--rule);cursor:pointer}
+.disc-dots button[aria-current=true]{background:var(--ink);transform:scale(1.15)}
+.disc-empty{padding:28px;text-align:center;color:var(--ink-3);font-size:13px}
+@media (max-width:1280px){ .disc-card{flex-basis:calc((100% - 36px) / 4)} }
+@media (max-width:980px){ .disc-card{flex-basis:calc((100% - 24px) / 3)} }
+
+.trades-head{margin:26px 0 12px;font-size:18px;font-weight:700;letter-spacing:-.02em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.hmhead{display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:14px 18px 6px}
+.hmhead h3{font-size:14.5px;font-weight:600;letter-spacing:-.005em;margin:0}
+.htitle{display:inline-flex;align-items:center;gap:7px;min-width:0}
+.info-i{
+  width:16px;height:16px;border-radius:50%;border:1px solid var(--ink-3);color:var(--ink-3);
+  background:transparent;font-size:10px;font-weight:700;line-height:1;cursor:help;
+  display:inline-flex;align-items:center;justify-content:center;position:relative;padding:0;
+  flex-shrink:0
+}
+.info-i:hover, .info-i:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+.info-i .info-tip{
+  display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:30;width:260px;
+  padding:8px 10px;border-radius:8px;background:var(--card);color:var(--ink);
+  border:1px solid var(--rule);box-shadow:var(--shadow);font-size:11.5px;font-weight:500;
+  line-height:1.35;text-align:left;text-transform:none;letter-spacing:0;pointer-events:none;
+  white-space:normal
+}
+.info-i:hover .info-tip, .info-i:focus-visible .info-tip{display:block}
+.grid2 .panel:last-child .info-i .info-tip{left:auto;right:0}
+.scroll{overflow-x:auto;padding:10px 18px 18px}
+#insiders.scroll, #congress.scroll{
+  max-height:420px; overflow-y:auto; overflow-x:auto;
+  scrollbar-gutter:stable; overscroll-behavior:contain;
+}
+#insiders .mini thead th, #congress .mini thead th{
+  position:sticky; top:0; z-index:1; background:var(--card);
+  box-shadow:0 1px 0 var(--rule);
+}
+#insiders .trade-more, #congress .trade-more{
+  text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
+}
+.flow{padding:4px 18px 16px; border-top:1px solid var(--rule-2)}
+.flow-head{
+  display:flex; justify-content:space-between; align-items:baseline;
+  gap:10px; margin-bottom:6px; flex-wrap:wrap;
+}
+.flow-head h4{margin:0; font-size:12px; font-weight:600; color:var(--ink-2)}
+.flow-leg{display:flex; gap:12px; font-size:11px; color:var(--ink-3); align-items:center}
+.flow-leg i{width:8px; height:8px; border-radius:2px; display:inline-block; margin-right:5px;
+  vertical-align:-1px}
+.flow-leg .in i{background:var(--up)}
+.flow-leg .out i{background:var(--down)}
+.flow-chart{width:100%; height:120px}
+.flow-chart svg{width:100%; height:100%}
+.flow-empty{font-size:12px; color:var(--ink-3); padding:18px 0; text-align:center}
+.mini{width:100%;border-collapse:collapse;font-size:12.5px}
+.mini thead th{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;text-align:right;padding:0 0 7px 8px;border-bottom:1px solid var(--rule)}
+.mini thead th:first-child{text-align:left;padding-left:0}
+.mini thead th.idcol{text-align:left}
+.mini tbody td{padding:7px 0 7px 8px;border-bottom:1px solid var(--rule-2);text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;
+  vertical-align:middle}
+.mini tbody td:first-child{text-align:left;color:var(--ink-3);padding-left:0}
+.mini tbody td.idcol{text-align:left;font-family:"IBM Plex Sans",sans-serif}
+.mini tbody tr:last-child td{border-bottom:0}
+.mini a{color:var(--accent);text-decoration:none;font-weight:500}
+.mini a:hover .tsym-t{text-decoration:underline}
+.side{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;font-weight:600;
+  font-family:"IBM Plex Sans",sans-serif}
+.side.buy{background:var(--up-soft);color:var(--up)}
+.side.sell{background:var(--down-soft);color:var(--down)}
+.ppl{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
+.ppl-t{font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:12.5px;line-height:1.25}
+.ppl-n{font-family:"IBM Plex Sans",sans-serif;font-size:10.5px;color:var(--ink-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;line-height:1.3}
 </style>
 </head>
 <body>
@@ -1242,7 +1379,80 @@ function renderDashboard(){
           <div class="idx-bar" id="idx-bar" hidden></div>
         </div>
       </div>
-    </section>`;
+    </section>
+
+    <section class="discover" aria-label="Discover">
+      <div class="disc-head">
+        <h2>Discover</h2>
+        <a href="news.html">All news →</a>
+      </div>
+      <div class="disc-rail">
+        <button type="button" class="disc-nav prev" id="disc-prev" aria-label="Previous stories" disabled>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none"
+            stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="disc-viewport" id="disc-viewport">
+          <div class="disc-track" id="discover">
+            <div class="disc-empty"><span class="load"></span></div>
+          </div>
+        </div>
+        <button type="button" class="disc-nav next" id="disc-next" aria-label="Next stories" disabled>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none"
+            stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="disc-dots" id="discover-dots" role="tablist" aria-label="Discover pages"></div>
+    </section>
+
+    <h2 class="trades-head">Congress &amp; Insiders</h2>
+    <div class="grid2">
+      <section class="panel">
+        <div class="hmhead">
+          <div class="htitle">
+            <h3>Insider Transactions</h3>
+            <button type="button" class="info-i" aria-label="About Insider Transactions">
+              <span aria-hidden="true">i</span>
+              <span class="info-tip">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding; largest transaction per company. Scroll for more.</span>
+            </button>
+          </div>
+        </div>
+        <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
+          <div class="note"><span class="load"></span></div></div>
+        <div class="flow" id="insider-flow" aria-label="Insider daily volume">
+          <div class="flow-head">
+            <h4>Daily volume · 60 days</h4>
+            <div class="flow-leg"><span class="in"><i></i>Inflow</span>
+              <span class="out"><i></i>Outflow</span></div>
+          </div>
+          <div class="flow-chart" id="insider-flow-chart">
+            <div class="flow-empty"><span class="load"></span></div>
+          </div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="hmhead">
+          <div class="htitle">
+            <h3>Congress Trades</h3>
+            <button type="button" class="info-i" aria-label="About Congress Trades">
+              <span aria-hidden="true">i</span>
+              <span class="info-tip">Trades disclosed by members of the House and Senate over the last 14 days. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
+            </button>
+          </div>
+        </div>
+        <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
+          <div class="note"><span class="load"></span></div></div>
+        <div class="flow" id="congress-flow" aria-label="Congress daily volume">
+          <div class="flow-head">
+            <h4>Daily volume · 60 days</h4>
+            <div class="flow-leg"><span class="in"><i></i>Inflow</span>
+              <span class="out"><i></i>Outflow</span></div>
+          </div>
+          <div class="flow-chart" id="congress-flow-chart">
+            <div class="flow-empty"><span class="load"></span></div>
+          </div>
+        </div>
+      </section>
+    </div>`;
 
   document.getElementById("dash-add").onclick = () => openAddModal();
   document.querySelectorAll("#views button").forEach(b => {
@@ -1251,6 +1461,7 @@ function renderDashboard(){
       document.querySelectorAll("#views button").forEach(x =>
         x.setAttribute("aria-pressed", String(x.dataset.v === S.view)));
       renderList();
+      loadPortfolioDiscover();
     };
   });
   document.querySelectorAll("#range button").forEach(b => {
@@ -1263,6 +1474,9 @@ function renderDashboard(){
   });
   renderList();
   drawRightChart();
+  wireDiscover();
+  loadPortfolioDiscover();
+  bootTrades();
 }
 
 async function renderList(){
@@ -2000,6 +2214,522 @@ function toast(msg){
   el.textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3200);
+}
+
+/* ---- Discover (filtered to portfolio / watchlist tickers) ---------------- */
+const DISC = { items: [], page: 0, per: 3, wired: false };
+const AVATAR = ["--accent","#eb6834","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+const avatarColour = s => {
+  let h = 0; for (const ch of String(s || "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const c = AVATAR[h % AVATAR.length];
+  return c.startsWith("--") ? `var(${c})` : c;
+};
+const ago = iso => {
+  if (!iso) return "";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${Math.max(1, m)}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 48) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+};
+
+function discoverPerPage(){
+  if (matchMedia("(max-width:720px)").matches) return 2;
+  if (matchMedia("(max-width:980px)").matches) return 3;
+  if (matchMedia("(max-width:1280px)").matches) return 4;
+  return 5;
+}
+
+function discoverMatchSymbols(a, syms){
+  if (!syms || !syms.size) return false;
+  if (a.symbol && syms.has(String(a.symbol).toUpperCase())) return true;
+  const text = `${a.title || ""} ${a.summary || ""}`;
+  for (const s of syms) {
+    if (!s || s.length < 2) continue;
+    if (new RegExp(`(^|[^A-Za-z])${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Za-z]|$)`).test(text))
+      return true;
+  }
+  return false;
+}
+
+async function activeDiscoverSymbols(){
+  if (S.view === "watchlist") {
+    const items = await loadWatchlistItems();
+    return [...new Set((items || []).map(i => String(i.symbol || "").toUpperCase()).filter(Boolean))];
+  }
+  return [...new Set(
+    (S.positions || []).filter(p => p.quantity > 0).map(p => String(p.symbol || "").toUpperCase()).filter(Boolean)
+  )];
+}
+
+async function loadPortfolioDiscover(){
+  const track = document.getElementById("discover");
+  if (!track) return;
+  const symbols = await activeDiscoverSymbols();
+  const symSet = new Set(symbols);
+  if (!symSet.size) {
+    renderDiscover([], S.view === "watchlist"
+      ? "Add tickers to your watchlist to see related news here."
+      : "Add holdings to see news about your tickers here.");
+    return;
+  }
+
+  const byUrl = new Map();
+  const merge = list => {
+    for (const a of list || []) {
+      if (!a || !a.url || byUrl.has(a.url)) continue;
+      if (discoverMatchSymbols(a, symSet)) byUrl.set(a.url, a);
+    }
+  };
+
+  try {
+    const [feed, news] = await Promise.all([
+      rpc("get_news_feed", { p_hours: 168, p_limit: 80 }).catch(() => []),
+      rpc("get_news", { p_limit: 80, p_offset: 0 }).catch(() => null),
+    ]);
+    merge(feed);
+    merge((news && news.articles) || []);
+  } catch {}
+
+  // Fill gaps with per-ticker lookups (best for sparse portfolios).
+  const missing = symbols.filter(s =>
+    ![...byUrl.values()].some(a => String(a.symbol || "").toUpperCase() === s));
+  await Promise.all(missing.slice(0, 8).map(async s => {
+    try {
+      const d = await rpc("get_news", { p_q: s, p_limit: 6, p_offset: 0 });
+      merge((d && d.articles) || []);
+    } catch {}
+  }));
+
+  const rows = [...byUrl.values()].sort((a, b) => {
+    const ai = a.image ? 0 : 1, bi = b.image ? 0 : 1;
+    if (ai !== bi) return ai - bi;
+    return (b.published || "").localeCompare(a.published || "");
+  }).slice(0, 12);
+
+  renderDiscover(rows, S.view === "watchlist"
+    ? "No recent news for your watchlist tickers."
+    : "No recent news for your portfolio tickers.");
+}
+
+function renderDiscover(articles, emptyMsg){
+  const track = document.getElementById("discover");
+  const dots = document.getElementById("discover-dots");
+  if (!track || !dots) return;
+  DISC.items = Array.isArray(articles) ? articles : [];
+  DISC.page = 0;
+  DISC.per = discoverPerPage();
+
+  if (!DISC.items.length) {
+    track.innerHTML = `<div class="disc-empty">${esc(emptyMsg || "No stories right now.")}
+      <a href="news.html" style="color:var(--accent)">Browse all news →</a></div>`;
+    dots.innerHTML = "";
+    syncDiscoverNav();
+    return;
+  }
+
+  track.innerHTML = DISC.items.map(a => {
+    const pub = a.publisher || "Source";
+    const initial = (pub.replace(/^the\s+/i, "").trim()[0] || "?").toUpperCase();
+    const img = a.image
+      ? `<span class="ph"><img src="${esc(a.image)}" alt="" loading="lazy"
+           onerror="this.parentNode.classList.add('blank');this.remove()"></span>`
+      : `<span class="ph blank">Market</span>`;
+    return `<a class="disc-card" href="${esc(a.url)}" target="_blank" rel="noopener"
+        data-ta-news="portfolio_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
+      ${img}
+      <div class="body">
+        <h3>${esc(a.title)}</h3>
+        <div class="disc-meta">
+          <span class="disc-src">
+            <span class="av" style="background:${avatarColour(pub)}">${esc(initial)}</span>
+            <span class="who">${esc(pub)}${a.published ? ` · ${esc(ago(a.published))}` : ""}</span>
+          </span>
+          ${a.symbol ? `<span class="tag">${esc(a.symbol)}</span>` : ""}
+        </div>
+      </div>
+    </a>`;
+  }).join("");
+
+  paintDiscoverDots();
+  goDiscover(0);
+  requestAnimationFrame(() => goDiscover(DISC.page));
+}
+
+function discoverMax(){
+  return Math.max(0, DISC.items.length - DISC.per);
+}
+
+function paintDiscoverDots(){
+  const dots = document.getElementById("discover-dots");
+  if (!dots) return;
+  const pages = discoverMax() + 1;
+  dots.innerHTML = Array.from({ length: pages }, (_, i) =>
+    `<button type="button" aria-label="Page ${i + 1}" ${i === DISC.page ? 'aria-current="true"' : ""}></button>`
+  ).join("");
+  dots.querySelectorAll("button").forEach((b, i) => { b.onclick = () => goDiscover(i); });
+}
+
+function goDiscover(page){
+  const track = document.getElementById("discover");
+  if (!track || !DISC.items.length) return;
+  DISC.page = Math.max(0, Math.min(discoverMax(), page));
+  const card = track.querySelector(".disc-card");
+  const gap = 12;
+  const w = card ? card.getBoundingClientRect().width + gap : 0;
+  track.style.transform = `translateX(${-(DISC.page * w)}px)`;
+  paintDiscoverDots();
+  syncDiscoverNav();
+}
+
+function syncDiscoverNav(){
+  const prev = document.getElementById("disc-prev");
+  const next = document.getElementById("disc-next");
+  if (!prev || !next) return;
+  const empty = !DISC.items.length;
+  prev.disabled = empty || DISC.page <= 0;
+  next.disabled = empty || DISC.page >= discoverMax();
+}
+
+function wireDiscover(){
+  const prev = document.getElementById("disc-prev");
+  const next = document.getElementById("disc-next");
+  if (!prev || !next) return;
+  prev.onclick = () => goDiscover(DISC.page - 1);
+  next.onclick = () => goDiscover(DISC.page + 1);
+  if (DISC.wired) return;
+  DISC.wired = true;
+  addEventListener("resize", () => {
+    const per = discoverPerPage();
+    if (per !== DISC.per) {
+      DISC.per = per;
+      paintDiscoverDots();
+    }
+    goDiscover(DISC.page);
+  });
+}
+
+/* ---- Congress & Insiders ------------------------------------------------- */
+const shares = v => !v ? "—"
+  : v >= 1e6 ? (v/1e6).toFixed(2) + "M" : v >= 1e3 ? (v/1e3).toFixed(1) + "K" : String(Math.round(v));
+const amount = v => {
+  if (v === null || v === undefined || !v) return "—";
+  const a = Math.abs(v), sign = v < 0 ? "−" : "";
+  return sign + (a >= 1e9 ? `$${(a/1e9).toFixed(2)}B`
+       : a >= 1e6 ? `$${(a/1e6).toFixed(2)}M`
+       : a >= 1e3 ? `$${(a/1e3).toFixed(0)}K` : `$${a.toFixed(0)}`);
+};
+const tradeSymLink = (s, name) =>
+  `<a class="tsym" href="company.html?t=${encodeURIComponent(s)}&src=portfolio">
+     <span class="tsym-t">${esc(s)}</span>
+     ${name ? `<span class="tsym-n">${esc(name)}</span>` : ""}
+   </a>`;
+const peopleStack = (title, person, fallback = "Insider") => {
+  const role = (title || "").trim() || fallback;
+  const who = (person || "").trim();
+  return `<div class="ppl" title="${esc(who ? `${role} · ${who}` : role)}">
+     <span class="ppl-t">${esc(role)}</span>
+     ${who ? `<span class="ppl-n">${esc(who)}</span>` : ""}
+   </div>`;
+};
+const congressRole = chamber => {
+  const c = String(chamber || "").toLowerCase();
+  if (c.includes("senate")) return "Senator";
+  if (c.includes("house")) return "Representative";
+  return "Member";
+};
+const sidePill = side => {
+  const raw = String(side || "").trim();
+  const s = raw.toLowerCase();
+  let label = raw || "—", cls = "";
+  if (/^(buy|purchase|receive)/.test(s) || s.includes("purchase") || s.includes("receive")) {
+    label = "Buy"; cls = "buy";
+  } else if (/^(sell|sale)/.test(s) || s.includes("sale") || s.includes("sell") || s.includes("exchange")) {
+    label = "Sell"; cls = "sell";
+  }
+  return `<span class="side ${cls}">${esc(label)}</span>`;
+};
+const range = raw => {
+  if (!raw) return "—";
+  const nums = String(raw).match(/[\d,]+/g);
+  if (!nums || !nums.length) return String(raw);
+  const short = n => {
+    const v = +n.replace(/,/g, "");
+    return v >= 1e6 ? `${(v/1e6).toFixed(v % 1e6 ? 1 : 0)}M`
+         : v >= 1e3 ? `${Math.round(v/1e3)}K` : String(v);
+  };
+  return nums.length > 1 ? `${short(nums[0])}–${short(nums[1])}` : short(nums[0]);
+};
+
+const TRADES = {
+  page: 20,
+  insider:  { days: 7,  rows: [], total: 0, loading: false, done: false, wired: false },
+  congress: { days: 14, rows: [], total: 0, loading: false, done: false, wired: false },
+};
+
+const insiderRow = r =>
+  `<tr><td>${esc(r.filed || "")}</td>
+       <td class="idcol">${tradeSymLink(r.symbol, r.name)}</td>
+       <td class="idcol">${peopleStack(r.title, r.person)}</td>
+       <td>${sidePill(r.side)}</td>
+       <td>${esc(shares(r.shares))}</td>
+       <td>${esc(amount(r.amount))}</td></tr>`;
+
+const congressRow = r =>
+  `<tr><td>${esc(r.disclosed || "")}</td>
+       <td class="idcol">${tradeSymLink(r.symbol, r.name)}</td>
+       <td class="idcol">${peopleStack(congressRole(r.chamber), r.person)}</td>
+       <td>${sidePill(r.side)}</td>
+       <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td></tr>`;
+
+function resetTrades(){
+  for (const key of ["insider", "congress"]) {
+    const b = TRADES[key];
+    b.rows = []; b.total = 0; b.loading = false; b.done = false; b.wired = false;
+  }
+}
+
+function renderTradePanel(kind){
+  const isIns = kind === "insider";
+  const host = document.getElementById(isIns ? "insiders" : "congress");
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (!host) return;
+
+  if (!bucket.rows.length) {
+    host.innerHTML = bucket.loading
+      ? `<div class="note"><span class="load"></span></div>`
+      : `<div class="note">${isIns
+          ? "No insider filings in the last 7 days."
+          : "No congressional disclosures in the last 14 days."}</div>`;
+    return;
+  }
+
+  const head = isIns
+    ? `<th>Filed</th><th class="idcol">Ticker</th><th class="idcol">People</th>
+       <th>Side</th><th>Shares</th><th>Amount</th>`
+    : `<th>Disclosed</th><th class="idcol">Ticker</th>
+       <th class="idcol">People</th><th>Side</th><th>Amount</th>`;
+  const body = bucket.rows.map(isIns ? insiderRow : congressRow).join("");
+  const more = bucket.loading
+    ? `<div class="trade-more"><span class="load"></span>Loading more…</div>`
+    : bucket.done ? ""
+    : `<div class="trade-more">Scroll for more · ${bucket.rows.length} of ${bucket.total}</div>`;
+  const top = host.scrollTop;
+  host.innerHTML = `<table class="mini"><thead><tr>${head}</tr></thead>
+                    <tbody>${body}</tbody></table>${more}`;
+  host.scrollTop = top;
+  wireTradeScroll(kind);
+}
+
+function wireTradeScroll(kind){
+  const isIns = kind === "insider";
+  const host = document.getElementById(isIns ? "insiders" : "congress");
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (!host || bucket.wired) return;
+  bucket.wired = true;
+  host.addEventListener("scroll", () => {
+    if (bucket.loading || bucket.done) return;
+    if (host.scrollTop + host.clientHeight < host.scrollHeight - 48) return;
+    loadTrades(kind);
+  }, { passive: true });
+}
+
+async function loadTrades(kind){
+  const isIns = kind === "insider";
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (bucket.loading || bucket.done) return;
+  bucket.loading = true;
+  if (bucket.rows.length) renderTradePanel(kind);
+  try {
+    const d = await rpc("get_trades", {
+      p_limit: TRADES.page,
+      p_offset: bucket.rows.length,
+      p_days: bucket.days,
+      p_kind: isIns ? "insider" : "congress",
+    });
+    const key = isIns ? "insiders" : "congress";
+    const totalKey = isIns ? "insidersTotal" : "congressTotal";
+    const chunk = (d && d[key]) || [];
+    bucket.total = (d && d[totalKey]) || 0;
+    bucket.rows = bucket.rows.concat(chunk);
+    bucket.done = !chunk.length
+      || chunk.length < TRADES.page
+      || (bucket.total > 0 && bucket.rows.length >= bucket.total);
+  } catch {
+    if (!bucket.rows.length) bucket.done = true;
+  } finally {
+    bucket.loading = false;
+    renderTradePanel(kind);
+  }
+}
+
+function bootTrades(){
+  resetTrades();
+  loadTrades("insider");
+  loadTrades("congress");
+  loadTradeFlow();
+}
+
+const FLOW_DAYS = 60;
+const FLOW_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun",
+                     "Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function flowDayLabel(iso){
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return `${d} ${FLOW_MONTHS[m - 1]} ${y}`;
+}
+function flowDayKey(raw){ return String(raw || "").slice(0, 10); }
+function localISODate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function fillFlowDays(rows, days){
+  const by = {};
+  (rows || []).forEach(r => {
+    const day = flowDayKey(r && r.day);
+    if (!day) return;
+    by[day] = { day, inflow: Number(r.inflow) || 0, outflow: Number(r.outflow) || 0 };
+  });
+  const out = [];
+  const end = new Date();
+  end.setHours(12, 0, 0, 0);
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(end);
+    d.setDate(end.getDate() - i);
+    const iso = localISODate(d);
+    out.push(by[iso] || { day: iso, inflow: 0, outflow: 0 });
+  }
+  return out;
+}
+function flowHasVolume(rows){
+  return (rows || []).some(r => (Number(r.inflow) || 0) > 0 || (Number(r.outflow) || 0) > 0);
+}
+function congressAmountMid(raw){
+  const nums = String(raw || "").match(/[\d,]+/g);
+  if (!nums || !nums.length) return 0;
+  const vals = nums.map(n => +n.replace(/,/g, "")).filter(Number.isFinite);
+  if (!vals.length) return 0;
+  return (Math.min(...vals) + Math.max(...vals)) / 2;
+}
+function aggregateInsiderFlow(rows){
+  const by = {};
+  (rows || []).forEach(r => {
+    const day = flowDayKey(r.filed);
+    if (!day) return;
+    if (!by[day]) by[day] = { day, inflow: 0, outflow: 0 };
+    const amt = Number(r.amount) || 0;
+    if (amt > 0) by[day].inflow += amt;
+    else if (amt < 0) by[day].outflow += Math.abs(amt);
+  });
+  return Object.values(by).sort((a, b) => a.day.localeCompare(b.day));
+}
+function aggregateCongressFlow(rows){
+  const by = {};
+  (rows || []).forEach(r => {
+    const day = flowDayKey(r.disclosed);
+    if (!day) return;
+    const mid = congressAmountMid(r.amount);
+    if (!(mid > 0)) return;
+    if (!by[day]) by[day] = { day, inflow: 0, outflow: 0 };
+    const s = String(r.side || "").toLowerCase();
+    if (/^(buy|purchase|receive)/.test(s) || s.includes("purchase") || s.includes("receive")) {
+      by[day].inflow += mid;
+    } else if (/^(sell|sale)/.test(s) || s.includes("sale") || s.includes("sell") || s.includes("exchange")) {
+      by[day].outflow += mid;
+    }
+  });
+  return Object.values(by).sort((a, b) => a.day.localeCompare(b.day));
+}
+async function deriveFlowFromTrades(){
+  try {
+    const [ins, con] = await Promise.all([
+      rpc("get_trades", { p_limit: 100, p_offset: 0, p_days: 30, p_kind: "insider" }),
+      rpc("get_trades", { p_limit: 100, p_offset: 0, p_days: 30, p_kind: "congress" }),
+    ]);
+    return {
+      insider: aggregateInsiderFlow((ins && ins.insiders) || []),
+      congress: aggregateCongressFlow((con && con.congress) || []),
+    };
+  } catch {
+    return { insider: [], congress: [] };
+  }
+}
+function drawFlowChart(host, rows){
+  if (!host) return;
+  const series = fillFlowDays(rows, FLOW_DAYS);
+  const max = Math.max(1, ...series.map(r => Math.max(r.inflow, r.outflow)));
+  const W = 640, H = 120;
+  const pad = { l: 2, r: 2, t: 8, b: 22 };
+  const innerW = W - pad.l - pad.r;
+  const innerH = H - pad.t - pad.b;
+  const n = series.length;
+  const slot = innerW / n;
+  const barW = Math.max(1.2, Math.min(4.5, slot * 0.38));
+  const gap = Math.max(0.4, barW * 0.15);
+  const bars = series.map((r, i) => {
+    const x0 = pad.l + i * slot + (slot - (barW * 2 + gap)) / 2;
+    const inH = (r.inflow / max) * innerH;
+    const outH = (r.outflow / max) * innerH;
+    const tip = `${flowDayLabel(r.day)} · in ${amount(r.inflow)} · out ${amount(r.outflow)}`;
+    return `<g>
+      <rect x="${x0.toFixed(2)}" y="${(pad.t + innerH - inH).toFixed(2)}"
+        width="${barW.toFixed(2)}" height="${inH.toFixed(2)}"
+        fill="var(--up)" opacity=".9"><title>${esc(tip)}</title></rect>
+      <rect x="${(x0 + barW + gap).toFixed(2)}" y="${(pad.t + innerH - outH).toFixed(2)}"
+        width="${barW.toFixed(2)}" height="${outH.toFixed(2)}"
+        fill="var(--down)" opacity=".9"><title>${esc(tip)}</title></rect>
+    </g>`;
+  }).join("");
+  const labelIdx = new Set([0, n - 1]);
+  const step = Math.max(1, Math.round(n / 6));
+  for (let i = step; i < n - 1; i += step) labelIdx.add(i);
+  const labels = [...labelIdx].sort((a, b) => a - b).map(i => {
+    const x = pad.l + i * slot + slot / 2;
+    return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle"
+      fill="var(--ink-3)" font-size="9.5" font-family="IBM Plex Sans,sans-serif">${
+        esc(flowDayLabel(series[i].day))}</text>`;
+  }).join("");
+  if (!series.some(r => r.inflow > 0 || r.outflow > 0)) {
+    host.innerHTML = `<div class="flow-empty">No material volume in the last ${FLOW_DAYS} days.</div>`;
+    return;
+  }
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
+    role="img" aria-label="Daily inflow and outflow over ${FLOW_DAYS} days">
+    ${bars}${labels}
+  </svg>`;
+}
+async function loadTradeFlow(){
+  const insHost = document.getElementById("insider-flow-chart");
+  const conHost = document.getElementById("congress-flow-chart");
+  if (!insHost || !conHost) return;
+  try {
+    const d = await rpc("get_trade_flow", { p_days: FLOW_DAYS });
+    let insRows = (d && d.insider) || [];
+    let conRows = (d && d.congress) || [];
+    if (!flowHasVolume(insRows) || !flowHasVolume(conRows)) {
+      const derived = await deriveFlowFromTrades();
+      if (!flowHasVolume(insRows)) insRows = derived.insider;
+      if (!flowHasVolume(conRows)) conRows = derived.congress;
+    }
+    drawFlowChart(insHost, insRows);
+    drawFlowChart(conHost, conRows);
+  } catch {
+    try {
+      const derived = await deriveFlowFromTrades();
+      drawFlowChart(insHost, derived.insider);
+      drawFlowChart(conHost, derived.congress);
+    } catch {
+      const msg = `<div class="flow-empty">Volume chart unavailable.</div>`;
+      insHost.innerHTML = msg;
+      conHost.innerHTML = msg;
+    }
+  }
 }
 
 /* ---- boot ---------------------------------------------------------------- */
