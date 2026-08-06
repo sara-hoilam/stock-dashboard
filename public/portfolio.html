@@ -45,7 +45,9 @@ body{
 main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .up{color:var(--up)} .down{color:var(--down)}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
-.split{display:grid;grid-template-columns:minmax(320px,420px) 1fr;min-height:520px}
+/* Wider holdings table so MV/QTY + P/L columns fit without a horizontal scroll;
+   chart gives up some width on the right. */
+.split{display:grid;grid-template-columns:minmax(560px,1.35fr) minmax(280px,1fr);min-height:520px}
 .note{padding:28px 20px;color:var(--ink-3);text-align:center}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--rule);
   border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
@@ -171,13 +173,23 @@ tr.on td{background:var(--accent-soft)}
 .pill{display:inline-block;padding:2px 7px;border-radius:99px;font-size:11.5px;font-weight:600}
 .pill.up{background:var(--up-soft);color:var(--up)}
 .pill.down{background:var(--down-soft);color:var(--down)}
-.row-actions{display:flex;gap:4px;opacity:0;transition:opacity .12s}
-tr:hover .row-actions,tr.on .row-actions{opacity:1}
+.row-actions{display:flex;gap:4px;flex-wrap:nowrap}
 .row-actions button{
   border:1px solid var(--rule);background:var(--card);border-radius:6px;
-  padding:2px 7px;font:inherit;font-size:11px;cursor:pointer;color:var(--ink-2)
+  padding:3px 8px;font:inherit;font-size:11px;cursor:pointer;color:var(--ink-2)
 }
 .row-actions button:hover{border-color:var(--accent);color:var(--accent)}
+.stack-cell{display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.25}
+.stack-cell.start{align-items:flex-start}
+.stack-cell .top{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  font-size:12.5px;font-weight:600;color:var(--ink)}
+.stack-cell .bot{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  font-size:10.5px;color:var(--ink-3)}
+.rows table{font-size:12.5px}
+.rows th,.rows td{padding:9px 10px;white-space:nowrap}
+.rows th:first-child,.rows td:first-child{padding-left:14px}
+.rows .idcol{white-space:normal}
+.rows{overflow-x:auto}
 .wl-bar{padding:10px 14px;border-bottom:1px solid var(--rule)}
 .wl-search{
   position:relative;display:flex;align-items:center;gap:8px;
@@ -662,6 +674,35 @@ function markPrice(p){
   return null;
 }
 
+/** Today's dollar move for one holding. */
+function todayPl(p){
+  if (!p.quantity) return null;
+  if (p.price != null && p.changePct != null && Number.isFinite(p.changePct)) {
+    const v = p.price * p.quantity;
+    return v * (p.changePct / (100 + p.changePct));
+  }
+  if (p.price != null && p.previousClose != null) {
+    return (p.price - p.previousClose) * p.quantity;
+  }
+  return null;
+}
+
+/** Unrealized: user-entered snapshot, else mark − cost basis. */
+function unrealizedPl(p){
+  if (p.unrealizedPl != null && Number.isFinite(p.unrealizedPl)) return p.unrealizedPl;
+  const px = markPrice(p);
+  if (px == null || p.avgCost == null || !p.quantity) return null;
+  return (px - p.avgCost) * p.quantity;
+}
+
+/** Total P/L = unrealized + realized (realized may be null). */
+function totalPl(p){
+  const u = unrealizedPl(p);
+  const r = (p.realizedPl != null && Number.isFinite(p.realizedPl)) ? p.realizedPl : 0;
+  if (u == null && p.realizedPl == null) return null;
+  return (u || 0) + r;
+}
+
 function allocation(positions){
   const totals = { Cash: 0, Stocks: 0, Funds: 0, ETFs: 0, Crypto: 0 };
   let sum = 0;
@@ -961,10 +1002,13 @@ async function renderList(){
     const rows = S.positions.slice().sort((a, b) =>
       ((markPrice(b) || 0) * b.quantity) - ((markPrice(a) || 0) * a.quantity));
     host.innerHTML = `<table>
-      <thead><tr><th>Symbol</th><th>Qty</th><th>Price</th><th>Value</th><th></th></tr></thead>
+      <thead><tr>
+        <th>MV/Qty</th><th class="idcol">Symbol</th><th>Price</th>
+        <th>Today's P/L</th><th>P/L</th><th>Unrealized P/L</th><th></th>
+      </tr></thead>
       <tbody>
         <tr data-sym="PORTFOLIO" class="${S.selected === "PORTFOLIO" ? "on" : ""}">
-          <td colspan="4"><b style="font-size:12.5px">Portfolio total</b>
+          <td colspan="6"><b style="font-size:12.5px">Portfolio total</b>
             <div style="font-size:11px;color:var(--ink-3)">vs indexes on the chart</div></td>
           <td></td>
         </tr>
@@ -972,14 +1016,25 @@ async function renderList(){
           const px = markPrice(r);
           const val = px != null ? px * r.quantity : null;
           const live = r.price != null;
+          const day = todayPl(r);
+          const unreal = unrealizedPl(r);
+          const tot = totalPl(r);
+          const qtyLabel = Number(r.quantity.toFixed(4));
           return `<tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
-            <td><span class="tsym"><span class="tsym-t">${esc(r.symbol)}</span>
+            <td><div class="stack-cell start">
+              <span class="top">${esc(money(val))}</span>
+              <span class="bot">${esc(String(qtyLabel))} sh</span>
+            </div></td>
+            <td class="idcol"><span class="tsym"><span class="tsym-t">${esc(r.symbol)}</span>
               <span class="tsym-n">${esc(r.name || "")}</span></span></td>
-            <td class="num">${esc(String(Number(r.quantity.toFixed(4))))}</td>
-            <td class="num">${esc(priceFmt(px))}
-              <div style="font-size:10.5px" class="${live ? dir(r.changePct) : "mut"}">${
-                live ? esc(pct(r.changePct)) : "at cost"}</div></td>
-            <td class="num">${esc(money(val))}</td>
+            <td><div class="stack-cell">
+              <span class="top">${esc(priceFmt(px))}</span>
+              <span class="bot ${live ? dir(r.changePct) : "mut"}">${
+                live ? esc(pct(r.changePct)) : "at cost"}</span>
+            </div></td>
+            <td class="num ${dir(day)}">${esc(moneySigned(day))}</td>
+            <td class="num ${dir(tot)}">${esc(moneySigned(tot))}</td>
+            <td class="num ${dir(unreal)}">${esc(moneySigned(unreal))}</td>
             <td><div class="row-actions">
               <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
               <button type="button" data-act="sell" data-s="${esc(r.symbol)}">Sell</button>
