@@ -202,11 +202,31 @@ tr.on td{background:var(--accent-soft)}
 .stack-cell .bot.down{color:var(--down)}
 .stack-cell .top.up{color:var(--up)}
 .stack-cell .top.down{color:var(--down)}
-.rows table{font-size:12.5px}
+.rows table{font-size:12.5px;width:100%;border-collapse:collapse}
 .rows th,.rows td{padding:9px 10px;white-space:nowrap}
 .rows th:first-child,.rows td:first-child{padding-left:14px}
-.rows .idcol{white-space:normal}
+.rows .idcol{white-space:normal;width:auto}
+/* Keep numeric columns tight so Price/Cost does not stretch. */
+.rows th.col-num,.rows td.col-num{width:1%;padding-left:8px;padding-right:8px}
+.rows th.col-px,.rows td.col-px{width:1%;padding-left:6px;padding-right:6px}
+.rows th.col-act,.rows td.col-act{width:1%;padding-left:8px;padding-right:12px}
 .rows{overflow-x:auto}
+.th-with-tip{display:inline-flex;align-items:center;gap:4px}
+.info-tip{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;border:1px solid var(--ink-3);
+  color:var(--ink-3);font-size:10px;font-weight:700;line-height:1;cursor:help;
+  flex-shrink:0
+}
+.info-tip:hover,.info-tip:focus{color:var(--accent);border-color:var(--accent);outline:none}
+.info-tip .tip{
+  display:none;position:absolute;z-index:40;left:0;top:calc(100% + 8px);
+  width:220px;padding:8px 10px;border-radius:8px;
+  background:var(--card);color:var(--ink);border:1px solid var(--rule);
+  box-shadow:var(--shadow);font-size:11.5px;font-weight:500;line-height:1.35;
+  text-transform:none;letter-spacing:0;white-space:normal;text-align:left
+}
+.info-tip:hover .tip,.info-tip:focus .tip{display:block}
 .wl-bar{padding:10px 14px;border-bottom:1px solid var(--rule)}
 .wl-search{
   position:relative;display:flex;align-items:center;gap:8px;
@@ -389,11 +409,10 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const pct = v => v == null || !Number.isFinite(v) ? "—"
   : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
-/** Compact return for the holdings table (e.g. +8% / -8%). */
+/** Return % for the holdings table (e.g. +9.22% / -7.10%). */
 const retPct = v => {
   if (v == null || !Number.isFinite(v)) return "—";
-  const n = Math.round(v);
-  return `${n >= 0 ? "+" : ""}${n}%`;
+  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 };
 const dir = v => v == null ? "" : v >= 0 ? "up" : "down";
 const money = v => {
@@ -598,6 +617,9 @@ async function mergeLocalIfNeeded(){
         price: t.price,
         fee: t.fee || 0,
         note: t.note || null,
+        // P/L snapshots are no longer collected; leave null for older drafts.
+        unrealizedPl: null,
+        realizedPl: null,
       })),
     });
     if (d && !d.error) {
@@ -625,7 +647,8 @@ function writeLocalTxn(row, { allowMerge = true } = {}){
   }
 }
 
-async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee }){
+async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, note,
+                                quiet = false, reload = true }){
   const row = {
     symbol: String(symbol).toUpperCase().trim(),
     kind: kind || "buy",
@@ -633,6 +656,7 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee })
     quantity: Number(quantity),
     price: Number(price),
     fee: Number(fee) || 0,
+    note: note || null,
     unrealizedPl: null,
     realizedPl: null,
   };
@@ -652,6 +676,7 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee })
         p_quantity: row.quantity,
         p_price: row.price,
         p_fee: row.fee,
+        p_note: row.note,
       });
       if (d && d.error) throw new Error(d.error);
     } catch (e) {
@@ -660,14 +685,86 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee })
       // (mergeLocalIfNeeded ignores already-mirrored numeric ids).
       try { sessionStorage.removeItem(MERGED_KEY); } catch {}
     }
-  } else if (window.TA?.showSignupModal) {
+  } else if (!quiet && window.TA?.showSignupModal) {
     window.TA.showSignupModal({ reason: "portfolio" });
   }
 
-  GA.track(row.kind === "sell" ? "portfolio_sell" : "portfolio_buy", {
-    ticker: row.symbol,
-  });
-  await loadPortfolio();
+  if (!quiet) {
+    GA.track(row.kind === "sell" ? "portfolio_sell"
+      : row.kind === "dividend" ? "portfolio_dividend" : "portfolio_buy", {
+      ticker: row.symbol,
+    });
+  }
+  if (reload) await loadPortfolio();
+}
+
+/** Credit cash dividends on/after ex-date for holdings logged before that date. */
+async function syncDividends(positions){
+  const syms = [...new Set((positions || []).map(p => p.symbol).filter(Boolean))];
+  if (!syms.length) return false;
+
+  // Ensure the worker has been asked for prices (which also pulls dividends).
+  await Promise.all(syms.map(sym =>
+    rpc("request_prices", { p_symbol: sym }).catch(() => null)));
+
+  let events = [];
+  try {
+    const d = await rpc("get_symbol_dividends", { p_symbols: syms });
+    events = Array.isArray(d) ? d : ((d && d.items) || []);
+  } catch (e) {
+    console.warn("[portfolio] get_symbol_dividends failed", e);
+    return false;
+  }
+  if (!events.length) return false;
+
+  const today = todayISO();
+  const bySym = {};
+  for (const e of events) {
+    if (!e || !e.symbol || !e.exDate) continue;
+    const amt = Number(e.amount);
+    if (!(amt > 0)) continue;
+    (bySym[e.symbol] || (bySym[e.symbol] = [])).push({
+      exDate: e.exDate, amount: amt,
+    });
+  }
+
+  const existing = new Set(
+    (S.transactions || [])
+      .filter(t => t.kind === "dividend" && t.note)
+      .map(t => `${t.symbol}|${t.note}`));
+
+  let added = 0;
+  for (const p of positions) {
+    if (!(p.quantity > 0)) continue;
+    // Track from the holding’s as-of date forward (no backfill before log).
+    const start = p.firstTrade || today;
+    for (const ev of (bySym[p.symbol] || [])) {
+      if (ev.exDate < start || ev.exDate > today) continue;
+      const note = `ex:${ev.exDate}`;
+      const key = `${p.symbol}|${note}`;
+      if (existing.has(key)) continue;
+      const cash = Number((p.quantity * ev.amount).toFixed(4));
+      if (!(cash > 0)) continue;
+      try {
+        await addTransaction({
+          symbol: p.symbol,
+          kind: "dividend",
+          tradeDate: ev.exDate,
+          quantity: p.quantity,
+          price: cash,
+          note,
+          quiet: true,
+          reload: false,
+        });
+        existing.add(key);
+        added += 1;
+      } catch (err) {
+        console.warn("[portfolio] dividend credit failed", p.symbol, err);
+      }
+    }
+  }
+  if (added) await loadPortfolio();
+  return added > 0;
 }
 
 /* ---- quotes / historical prices ----------------------------------------- */
@@ -779,18 +876,43 @@ function todayPl(p){
   return null;
 }
 
-/** Book P/L vs average buy: (today's price − avg buy) × quantity. */
-function holdingPl(p){
-  const px = p.price != null && Number.isFinite(p.price) ? p.price : markPrice(p);
-  if (px == null || p.avgCost == null || !p.quantity) return null;
-  return (px - p.avgCost) * p.quantity;
+/** Cash dividends credited for this holding (USD before tax). */
+function holdingDiv(p){
+  const d = Number(p.dividends);
+  return Number.isFinite(d) && d > 0 ? d : 0;
 }
 
-/** Return % vs average buy: (today's price / buy price − 1) × 100. */
-function holdingRetPct(p){
+/** Book P/L: stock move vs avg buy + total dividends received. */
+function holdingPl(p){
   const px = p.price != null && Number.isFinite(p.price) ? p.price : markPrice(p);
-  if (px == null || p.avgCost == null || !(p.avgCost > 0)) return null;
-  return (px / p.avgCost - 1) * 100;
+  const div = holdingDiv(p);
+  if (px == null || p.avgCost == null || !p.quantity) {
+    return div > 0 ? div : null;
+  }
+  return (px - p.avgCost) * p.quantity + div;
+}
+
+/** Return % on cost: (stock P/L + dividends) / (avg buy × qty). */
+function holdingRetPct(p){
+  if (p.avgCost == null || !(p.avgCost > 0) || !p.quantity) return null;
+  const pl = holdingPl(p);
+  if (pl == null) return null;
+  return (pl / (p.avgCost * p.quantity)) * 100;
+}
+
+/** Dividend as % of current market value. */
+function dividendRetPct(p){
+  const div = holdingDiv(p);
+  if (!(div > 0)) return null;
+  const px = markPrice(p);
+  if (px == null || !p.quantity) return null;
+  const mv = px * p.quantity;
+  if (!(mv > 0)) return null;
+  return (div / mv) * 100;
+}
+
+function infoTip(text){
+  return `<span class="info-tip" tabindex="0" role="img" aria-label="${esc(text)}">i<span class="tip">${esc(text)}</span></span>`;
 }
 
 function allocation(positions){
@@ -827,18 +949,19 @@ function dailyReturn(positions){
   return { amount: hasLive ? dayPl : null, pct: pctDay, value };
 }
 
-/** Book return vs average buy cost for the current holdings (not calendar YTD). */
+/** Book return vs average buy cost for the current holdings (includes dividends). */
 function bookReturn(positions){
-  let cost = 0, current = 0;
+  let cost = 0, current = 0, div = 0;
   for (const p of positions) {
     const px = markPrice(p);
     if (px == null || !p.quantity || p.avgCost == null) continue;
     cost += p.avgCost * p.quantity;
     current += px * p.quantity;
+    div += holdingDiv(p);
   }
-  const amount = current - cost;
+  const amount = current - cost + div;
   const pctRet = cost ? (amount / cost) * 100 : null;
-  return { amount, pct: pctRet, cost, current };
+  return { amount, pct: pctRet, cost, current, dividends: div };
 }
 
 /** Volatility score 0–100 (higher = more volatile / concentrated).
@@ -1086,16 +1209,23 @@ async function renderList(){
     const penSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
       stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
+    const plTip = "Includes both stock return and total dividend received, in USD.";
+    const divTip = "Dividend received (credited on the ex-dividend date if the stock was logged by then), in USD before tax.";
     host.innerHTML = `<table>
       <thead><tr>
-        <th class="idcol">Symbol</th><th>MV/Qty</th><th>Price</th>
-        <th>Today's P/L</th><th>P/L</th><th></th>
+        <th class="idcol">Symbol</th>
+        <th class="col-num">MV/Qty</th>
+        <th class="col-px">Price/Cost</th>
+        <th class="col-num">Today's P/L</th>
+        <th class="col-num"><span class="th-with-tip">P/L ${infoTip(plTip)}</span></th>
+        <th class="col-num"><span class="th-with-tip">Dividend ${infoTip(divTip)}</span></th>
+        <th class="col-act"></th>
       </tr></thead>
       <tbody>
         <tr data-sym="PORTFOLIO" class="${S.selected === "PORTFOLIO" ? "on" : ""}">
-          <td colspan="5"><b style="font-size:12.5px">Portfolio total</b>
+          <td colspan="6"><b style="font-size:12.5px">Portfolio total</b>
             <div style="font-size:11px;color:var(--ink-3)">vs indexes on the chart</div></td>
-          <td></td>
+          <td class="col-act"></td>
         </tr>
         ${rows.map(r => {
           const livePx = r.price != null ? r.price : null;
@@ -1104,24 +1234,30 @@ async function renderList(){
           const day = todayPl(r);
           const pl = holdingPl(r);
           const ret = holdingRetPct(r);
+          const div = holdingDiv(r);
+          const divRet = dividendRetPct(r);
           const qtyLabel = Number(r.quantity.toFixed(4));
           return `<tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
             <td class="idcol"><span class="tsym"><span class="tsym-t">${esc(r.symbol)}</span>
               <span class="tsym-n">${esc(r.name || "")}</span></span></td>
-            <td><div class="stack-cell">
+            <td class="col-num"><div class="stack-cell">
               <span class="top">${esc(money(val))}</span>
               <span class="bot">${esc(String(qtyLabel))} sh</span>
             </div></td>
-            <td><div class="stack-cell">
+            <td class="col-px"><div class="stack-cell">
               <span class="top">${esc(priceFmt(livePx != null ? livePx : markPrice(r)))}</span>
-              <span class="bot">${avg != null ? `avg ${esc(priceFmt(avg))}` : "—"}</span>
+              <span class="bot">${avg != null ? esc(priceFmt(avg)) : "—"}</span>
             </div></td>
-            <td class="num ${dir(day)}">${esc(moneySigned(day))}</td>
-            <td><div class="stack-cell">
+            <td class="col-num num ${dir(day)}">${esc(moneySigned(day))}</td>
+            <td class="col-num"><div class="stack-cell">
               <span class="top ${dir(pl)}">${esc(moneySigned(pl))}</span>
               <span class="bot ${dir(ret)}">${esc(retPct(ret))}</span>
             </div></td>
-            <td><div class="row-actions">
+            <td class="col-num"><div class="stack-cell">
+              <span class="top ${div > 0 ? "up" : ""}">${div > 0 ? esc(moneySigned(div)) : "—"}</span>
+              <span class="bot ${dir(divRet)}">${div > 0 ? esc(retPct(divRet)) : ""}</span>
+            </div></td>
+            <td class="col-act"><div class="row-actions">
               <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
               <button type="button" data-act="sell" data-s="${esc(r.symbol)}">Sell</button>
               <button type="button" class="icon-btn" data-act="edit" data-s="${esc(r.symbol)}"
@@ -1442,11 +1578,13 @@ function closeAddModal(){
   editSymbol = null;
 }
 
-/** Remove every transaction for a ticker (local + remote). */
-async function deleteSymbolHoldings(symbol){
+/** Remove transactions for a ticker (local + remote).
+ *  keepDividends: used by edit/replace so credited dividends are not wiped. */
+async function deleteSymbolHoldings(symbol, { keepDividends = false } = {}){
   const sym = String(symbol || "").toUpperCase();
-  const txns = (S.transactions || []).filter(t => t.symbol === sym);
-  localPort.write(localPort.read().filter(t => t.symbol !== sym));
+  const drop = t => t.symbol === sym && !(keepDividends && t.kind === "dividend");
+  const txns = (S.transactions || []).filter(drop);
+  localPort.write(localPort.read().filter(t => !drop(t)));
   // Signed-in deletes go through the API. Remaining local rows are mirrors of
   // remote — clearing MERGED_KEY would re-upload them and double quantities.
   if (!signedIn()) {
@@ -1465,13 +1603,13 @@ async function deleteSymbolHoldings(symbol){
       }
     }
   }
-  GA.track("portfolio_delete", { ticker: sym });
+  if (!keepDividends) GA.track("portfolio_delete", { ticker: sym });
   await loadPortfolio();
 }
 
 /** Replace a ticker’s holdings with a single updated buy snapshot. */
 async function replaceHolding(fields){
-  await deleteSymbolHoldings(fields.symbol);
+  await deleteSymbolHoldings(fields.symbol, { keepDividends: true });
   // deleteSymbolHoldings already reloaded; addTransaction appends the new row.
   await addTransaction({
     symbol: fields.symbol,
@@ -1606,16 +1744,21 @@ async function boot(showLoading = true){
   await loadPortfolio();
   if (S.positions.length) {
     S.positions = await enrichPrices(S.positions);
+    // Credit any ex-date dividends that have arrived since the holding was logged.
+    const credited = await syncDividends(S.positions);
+    if (credited) S.positions = await enrichPrices(S.positions);
     // Prefetch history used by vol score / chart.
     await Promise.all(S.positions.map(p => seriesForSymbol(p.symbol, rangeStartISO("1Y"))));
     renderDashboard();
-    // Quotes sometimes arrive a beat late after request_prices — refresh once.
-    if (S.positions.some(p => p.price == null)) {
+    // Quotes / dividends sometimes arrive a beat late after request_prices.
+    if (S.positions.some(p => p.price == null) || !credited) {
       setTimeout(async () => {
         S.priceCache = {};
         S.positions = await enrichPrices(S.positions);
-        if (S.positions.some(p => p.price != null)) renderDashboard();
-      }, 1500);
+        const again = await syncDividends(S.positions);
+        if (again) S.positions = await enrichPrices(S.positions);
+        if (S.positions.some(p => p.price != null) || again) renderDashboard();
+      }, 2000);
     }
   } else {
     renderEmpty();

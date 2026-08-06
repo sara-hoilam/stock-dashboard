@@ -248,6 +248,42 @@ def daily(symbol: str, days: int = 300) -> list[dict]:
     return bars
 
 
+def dividends(symbol: str) -> list[dict]:
+    """Per-share dividend history for one ticker (ex-date + amount).
+
+    FMP ``/dividends?symbol=`` returns past and declared upcoming payouts.
+    ``date`` is the ex-dividend date. Used by the portfolio page to credit
+    cash on/after ex-date for holdings logged before that date.
+    """
+    rows = _get("dividends", symbol=symbol) or []
+    out = []
+    for r in rows:
+        ex = (r.get("date") or r.get("exDividendDate") or "")[:10]
+        amt = r.get("adjDividend")
+        if amt is None:
+            amt = r.get("dividend")
+        if not ex or amt is None:
+            continue
+        try:
+            amount = float(amt)
+        except (TypeError, ValueError):
+            continue
+        if amount < 0:
+            continue
+        out.append({
+            "exDate": ex,
+            "amount": amount,
+            "adjAmount": r.get("adjDividend"),
+            "yield": r.get("yield"),
+            "frequency": r.get("frequency"),
+            "declarationDate": (r.get("declarationDate") or "")[:10] or None,
+            "recordDate": (r.get("recordDate") or "")[:10] or None,
+            "paymentDate": (r.get("paymentDate") or "")[:10] or None,
+        })
+    out.sort(key=lambda x: x["exDate"])
+    return out
+
+
 def quotes(symbols: list[str]) -> list[dict]:
     """Batch quoting is not in every FMP plan, so fetch one at a time.
 
