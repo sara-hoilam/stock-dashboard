@@ -468,6 +468,8 @@ const S = {
   indexes: Object.fromEntries(INDEXES.map(i => [i.sym, i.sym === "SPY" || i.sym === "QQQ"])),
   range: "YTD",
   priceCache: {},
+  /** symbol → 'etf' | 'crypto' from ledger.market_symbol (or search). */
+  assetKindBySym: {},
   busy: false,
 };
 
@@ -544,23 +546,28 @@ function mapRemoteTxns(list){
 }
 
 function mapRemotePositions(list){
-  return (list || []).map(p => ({
-    symbol: p.symbol,
-    name: p.name,
-    quantity: Number(p.quantity),
-    costIn: Number(p.costIn),
-    proceeds: Number(p.proceeds),
-    dividends: Number(p.dividends),
-    avgCost: p.avgCost != null ? Number(p.avgCost) : null,
-    firstTrade: p.firstTrade,
-    lastTrade: p.lastTrade,
-    price: p.price != null ? Number(p.price) : null,
-    changePct: p.changePct != null ? Number(p.changePct) : null,
-    previousClose: p.previousClose != null ? Number(p.previousClose) : null,
-    marketCap: p.marketCap,
-    unrealizedPl: p.unrealizedPl != null ? Number(p.unrealizedPl) : null,
-    realizedPl: p.realizedPl != null ? Number(p.realizedPl) : null,
-  }));
+  return (list || []).map(p => {
+    const assetKind = p.assetKind || null;
+    if (assetKind && p.symbol) S.assetKindBySym[p.symbol] = assetKind;
+    return {
+      symbol: p.symbol,
+      name: p.name,
+      assetKind,
+      quantity: Number(p.quantity),
+      costIn: Number(p.costIn),
+      proceeds: Number(p.proceeds),
+      dividends: Number(p.dividends),
+      avgCost: p.avgCost != null ? Number(p.avgCost) : null,
+      firstTrade: p.firstTrade,
+      lastTrade: p.lastTrade,
+      price: p.price != null ? Number(p.price) : null,
+      changePct: p.changePct != null ? Number(p.changePct) : null,
+      previousClose: p.previousClose != null ? Number(p.previousClose) : null,
+      marketCap: p.marketCap,
+      unrealizedPl: p.unrealizedPl != null ? Number(p.unrealizedPl) : null,
+      realizedPl: p.realizedPl != null ? Number(p.realizedPl) : null,
+    };
+  });
 }
 
 function applyLocalPortfolio(){
@@ -873,11 +880,53 @@ async function lookupBuyPrice(symbol, date){
 }
 
 /* ---- metrics ------------------------------------------------------------- */
-function assetClass(symbol){
+/** Resolve Stocks / ETFs / Crypto for the Total Assets donut. */
+function assetClass(p){
+  const symbol = typeof p === "string" ? p : (p && p.symbol) || "";
+  const name = typeof p === "object" && p ? (p.name || "") : "";
+  const kind = (typeof p === "object" && p && p.assetKind)
+    || S.assetKindBySym[symbol]
+    || null;
+  if (kind === "etf") return "ETFs";
+  if (kind === "crypto") return "Crypto";
   if (ETF_SET.has(symbol)) return "ETFs";
   // Crypto tickers are rare in this universe; keep the bucket for the UI.
   if (/USD$|-USD$/.test(symbol) || ["BTC","ETH","SOL","DOGE"].includes(symbol)) return "Crypto";
+  // Soft fallback when market_symbol is not synced yet.
+  if (/\bETF\b/i.test(name) || /\bETN\b/i.test(name)) return "ETFs";
   return "Stocks";
+}
+
+/** Attach ETF/crypto kind from ledger.market_symbol (batch, with per-symbol fallback). */
+async function enrichAssetKinds(positions){
+  const syms = [...new Set((positions || []).map(p => p.symbol).filter(Boolean))];
+  if (!syms.length) return positions || [];
+
+  const by = {};
+  try {
+    const rows = await rpc("get_market_symbols", { p_symbols: syms });
+    const list = Array.isArray(rows) ? rows
+      : (rows && Array.isArray(rows.items) ? rows.items : []);
+    list.forEach(r => {
+      if (r && r.symbol && r.kind) by[r.symbol] = { kind: r.kind, name: r.name };
+    });
+  } catch {
+    await Promise.all(syms.map(async sym => {
+      try {
+        const meta = await rpc("get_market_symbol", { p_symbol: sym });
+        if (meta && meta.kind) by[sym] = { kind: meta.kind, name: meta.name };
+      } catch {}
+    }));
+  }
+
+  return positions.map(p => {
+    const hit = by[p.symbol];
+    const assetKind = (hit && hit.kind) || p.assetKind || S.assetKindBySym[p.symbol] || null;
+    if (assetKind) S.assetKindBySym[p.symbol] = assetKind;
+    const name = p.name || (hit && hit.name) || null;
+    if (!assetKind && !name) return p;
+    return { ...p, assetKind, name: name || p.name };
+  });
 }
 
 /** Live mark when we have a quote; otherwise cost basis so the page is never blank. */
@@ -978,7 +1027,7 @@ function allocation(positions){
     const px = markPrice(p);
     const v = (px || 0) * p.quantity;
     if (!(v > 0)) continue;
-    const cls = assetClass(p.symbol);
+    const cls = assetClass(p);
     totals[cls] += v;
     sum += v;
   }
@@ -1913,7 +1962,9 @@ function wireTickerSearch(inputId, acId, formId, onPick){
       if (!items.length) return close();
       ac.innerHTML = items.slice(0, 6).map(x => {
         const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
-        return `<div data-s="${esc(x.ticker)}"><b>${esc(x.ticker)}</b>` +
+        const kAttr = (x.kind === "etf" || x.kind === "crypto")
+          ? ` data-kind="${esc(x.kind)}"` : "";
+        return `<div data-s="${esc(x.ticker)}"${kAttr}><b>${esc(x.ticker)}</b>` +
           `<span>${esc(x.name)}${esc(kind)}</span></div>`;
       }).join("");
       ac.classList.add("open");
@@ -1921,6 +1972,9 @@ function wireTickerSearch(inputId, acId, formId, onPick){
         d.onmousedown = e => {
           e.preventDefault();
           GA.track("search", { search_term: term, source: "portfolio" });
+          if (d.dataset.kind === "etf" || d.dataset.kind === "crypto") {
+            S.assetKindBySym[d.dataset.s] = d.dataset.kind;
+          }
           close();
           q.value = "";
           onPick(d.dataset.s);
@@ -1957,9 +2011,13 @@ async function boot(showLoading = true){
   await loadPortfolio();
   if (S.positions.length) {
     S.positions = await enrichPrices(S.positions);
+    S.positions = await enrichAssetKinds(S.positions);
     // Credit any ex-date dividends that have arrived since the holding was logged.
     const credited = await syncDividends(S.positions);
-    if (credited) S.positions = await enrichPrices(S.positions);
+    if (credited) {
+      S.positions = await enrichPrices(S.positions);
+      S.positions = await enrichAssetKinds(S.positions);
+    }
     // Prefetch history used by vol score / chart.
     await Promise.all(S.positions.map(p => seriesForSymbol(p.symbol, rangeStartISO("1Y"))));
     renderDashboard();
@@ -1968,8 +2026,12 @@ async function boot(showLoading = true){
       setTimeout(async () => {
         S.priceCache = {};
         S.positions = await enrichPrices(S.positions);
+        S.positions = await enrichAssetKinds(S.positions);
         const again = await syncDividends(S.positions);
-        if (again) S.positions = await enrichPrices(S.positions);
+        if (again) {
+          S.positions = await enrichPrices(S.positions);
+          S.positions = await enrichAssetKinds(S.positions);
+        }
         if (S.positions.some(p => p.price != null) || again) renderDashboard();
       }, 2000);
     }
