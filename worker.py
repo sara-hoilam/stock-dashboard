@@ -11,6 +11,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py news               refresh market news
     python worker.py earnings           refresh earnings calendar
     python worker.py economics          refresh US economic calendar
+    python worker.py logos [N]          cache Logo.dev images (S&P 500 + crypto)
     python worker.py prices [TICKER...] fill price requests, or named symbols
     python worker.py analyst [TICKER...] fill coverage requests, or named symbols
     python worker.py intraday TICKER    refresh one chart series
@@ -745,6 +746,38 @@ def refresh_earnings() -> bool:
     return True
 
 
+def refresh_logos(limit: int = 40) -> int:
+    """Fetch Logo.dev images for S&P 500 + top crypto; cache in Supabase.
+
+    Free-plan friendly: only the priority set is considered, and ``logos_due``
+    skips symbols already cached within 30 days. Returns rows upserted.
+    """
+    targets = market.logo_priority_targets(40)
+    due = store.logos_due(targets, limit=limit)
+    if not due:
+        log("logos: nothing due (S&P 500 + top crypto already cached)")
+        return 0
+    rows = []
+    ok = miss = err = 0
+    for t in due:
+        sym = (t.get("symbol") or "").upper()
+        kind = t.get("kind") or "stock"
+        if not sym:
+            continue
+        row = market.download_logo(sym, kind)
+        rows.append(row)
+        st = row.get("status")
+        if st == "ok":
+            ok += 1
+        elif st == "missing":
+            miss += 1
+        else:
+            err += 1
+    n = store.upsert_symbol_logos(rows) if rows else 0
+    log(f"logos: upserted {n} (ok={ok} missing={miss} error={err})")
+    return n
+
+
 def refresh_economic_calendar() -> bool:
     """FMP US economic releases for the portfolio Calendar panel."""
     if not market.configured():
@@ -832,9 +865,13 @@ def run() -> None:
     last_directory = 0.0
     last_market = 0.0
     last_sections = 0.0
+    last_logos = 0.0
     last_sweep_day: dt.date | None = None
     market_every = int(os.environ.get("MARKET_REFRESH_SECONDS", "900"))
     sections_every = int(os.environ.get("SECTIONS_REFRESH_SECONDS", "3600"))
+    # Pace Logo.dev: a small batch each cycle until the priority set is warm.
+    logos_every = int(os.environ.get("LOGOS_REFRESH_SECONDS", "3600"))
+    logos_batch = int(os.environ.get("LOGOS_BATCH", "25"))
 
     while True:
         try:
@@ -875,6 +912,15 @@ def run() -> None:
                 except market.MarketError as exc:
                     log(f"sections refresh failed (continuing): {exc}")
                 last_sections = now
+
+            if now - last_logos > logos_every:
+                try:
+                    refresh_logos(logos_batch)
+                except store.StoreError as exc:
+                    log(f"logos refresh failed (continuing): {exc}")
+                except Exception as exc:
+                    log(f"logos refresh failed (continuing): {type(exc).__name__}: {exc}")
+                last_logos = now
 
             # Visitors first: a queued company should appear within a minute.
             if drain_backfill():
@@ -969,6 +1015,9 @@ def main(argv: list[str]) -> int:
     elif cmd == "economics" or cmd == "economic-calendar":
         log("economic calendar refreshed" if refresh_economic_calendar()
             else "economic calendar unavailable (check FMP_API_KEY / plan / migration)")
+    elif cmd == "logos":
+        n = refresh_logos(int(argv[1]) if len(argv) > 1 else 40)
+        log(f"logos done ({n} row(s))" if n else "logos: nothing due or upsert failed")
     elif cmd == "profiles":
         if len(argv) > 1:
             for sym in argv[1:]:

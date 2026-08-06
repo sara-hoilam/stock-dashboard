@@ -272,3 +272,15 @@ def upsert_analyst(symbol: str, row: dict) -> int:
 
 def pending_analyst(limit: int = 5) -> list[str]:
     return rpc("pending_analyst", {"p_limit": limit}) or []
+
+
+def upsert_symbol_logos(rows: list[dict]) -> int:
+    """Cache Logo.dev image bytes (and status) for ticker / crypto symbols."""
+    if not rows:
+        return 0
+    return rpc("upsert_symbol_logos", {"p_rows": rows}) or 0
+
+
+def logos_due(targets: list[dict], limit: int = 40) -> list[dict]:
+    """Preferred symbols that still need a Logo.dev fetch (or are stale)."""
+    return rpc("logos_due", {"p_targets": targets, "p_limit": limit}) or []

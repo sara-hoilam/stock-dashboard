@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — Earnings</title>
 <script src="config.js"></script>
+<script src="logo.js"></script>
 <script src="analytics.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
@@ -389,7 +390,7 @@ function paintDay(){
     return `<article class="ecard">
       <div class="top">
         <div class="who">
-          <span class="dot" style="background:${avatarColour(r.symbol)}">${esc((r.symbol||"").slice(0,2))}</span>
+          <span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc((r.symbol||"").slice(0,2))}</span>
           <div style="min-width:0">
             <div class="name">${esc(r.name || r.symbol)}</div>
             <div class="tick">${esc(r.symbol)}</div>
@@ -401,6 +402,9 @@ function paintDay(){
       <a class="more" href="company.html?t=${encodeURIComponent(r.symbol)}&src=earnings_page">Company report →</a>
     </article>`;
   }).join("");
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(S.dayRows.map(r => r.symbol), host);
+  }
 }
 
 async function loadWeek(){
@@ -435,7 +439,7 @@ function paintSidebar(){
     </tr></thead><tbody>${S.rows.map(r => `
       <tr data-s="${esc(r.symbol)}">
         <td><span class="sym">
-          <span class="dot" style="background:${avatarColour(r.symbol)}">${esc((r.symbol||"").slice(0,2))}</span>
+          <span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc((r.symbol||"").slice(0,2))}</span>
           <span class="symtext">
             <span class="tickline">
               <span class="tick">${esc(r.symbol)}</span>
@@ -451,6 +455,10 @@ function paintSidebar(){
         <td class="next-earn">${r.nextEarnings ? esc(r.nextEarnings) : "—"}</td>
         <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
       </tr>`).join("")}</tbody></table>`;
+
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(S.rows.map(r => r.symbol), host);
+  }
 
   host.querySelectorAll("[data-star]").forEach(btn => {
     btn.onclick = async e => {

@@ -15,6 +15,7 @@
 #   nav.js/.css   the top bar every page injects
 #   analytics.js  Google Analytics 4 (gtag.js) and the consent banner
 #   clarity-init.js + vendor/clarity  Microsoft Clarity (@microsoft/clarity)
+#   logo.js       cached Logo.dev company logos (via Supabase)
 set -euo pipefail
 
 # Clarity ships as an npm package; install it when the build environment does
@@ -37,6 +38,7 @@ cp portfolio.html public/portfolio.html
 cp privacy.html   public/privacy.html
 cp nav.js nav.css public/
 cp analytics.js public/
+cp logo.js public/
 cp clarity-init.js public/
 cp node_modules/@microsoft/clarity/index.js      public/vendor/clarity/
 cp node_modules/@microsoft/clarity/package.json  public/vendor/clarity/

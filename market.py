@@ -15,6 +15,7 @@ Standard library only.
 
 from __future__ import annotations
 
+import base64
 import datetime as dt
 import json
 import os
@@ -1434,4 +1435,166 @@ def analyst_view(symbol: str, houses: int = 14, stories: int = 6) -> dict:
     except MarketError:
         pass
 
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Logo.dev — company / crypto logos (publishable key; worker caches bytes)
+# ---------------------------------------------------------------------------
+
+# Safe to ship client-side; override via env if the key rotates.
+LOGO_DEV_KEY = os.environ.get(
+    "LOGO_DEV_PUBLISHABLE_KEY", "pk_RQkedGufR1uCvTvlztKeQg")
+LOGO_DEV_BASE = "https://img.logo.dev"
+_LOGO_MIN_INTERVAL = 0.2
+_logo_last = [0.0]
+
+# Well-known large-cap cryptos when FMP quote ranking is unavailable.
+_TOP_CRYPTO_FALLBACK = [
+    "BTCUSD", "ETHUSD", "BNBUSD", "XRPUSD", "SOLUSD", "ADAUSD", "DOGEUSD",
+    "TRXUSD", "TONUSD", "AVAXUSD", "LINKUSD", "DOTUSD", "MATICUSD", "SHIBUSD",
+    "LTCUSD", "BCHUSD", "UNIUSD", "ATOMUSD", "XLMUSD", "NEARUSD", "APTUSD",
+    "ICPUSD", "FILUSD", "ARBUSD", "OPUSD", "VETUSD", "HBARUSD", "AAVEUSD",
+    "MKRUSD", "GRTUSD", "SANDUSD", "MANAUSD", "AXSUSD", "EGLDUSD", "FTMUSD",
+    "ALGOUSD", "XTZUSD", "EOSUSD", "FLOWUSD", "THETAUSD",
+]
+
+
+def crypto_base_symbol(symbol: str) -> str:
+    """Map FMP pair tickers (BTCUSD) to Logo.dev crypto ids (BTC)."""
+    s = (symbol or "").upper().strip()
+    for suffix in ("USD", "USDT", "USDC", "EUR", "GBP"):
+        if s.endswith(suffix) and len(s) > len(suffix):
+            return s[: -len(suffix)]
+    return s
+
+
+def logo_dev_url(symbol: str, kind: str = "stock", *, size: int = 128) -> str:
+    """CDN URL for one logo. ``fallback=404`` so we can detect misses."""
+    sym = (symbol or "").upper().strip()
+    if kind == "crypto":
+        path = f"crypto/{crypto_base_symbol(sym)}"
+    else:
+        path = f"ticker/{sym}"
+    q = urllib.parse.urlencode({
+        "token": LOGO_DEV_KEY,
+        "size": str(size),
+        "format": "png",
+        "fallback": "404",
+        "retina": "true",
+    })
+    return f"{LOGO_DEV_BASE}/{path}?{q}"
+
+
+def download_logo(symbol: str, kind: str = "stock", *, size: int = 128
+                  ) -> dict:
+    """Fetch one logo image. Returns a row ready for ``upsert_symbol_logos``."""
+    url = logo_dev_url(symbol, kind, size=size)
+    wait = _LOGO_MIN_INTERVAL - (time.time() - _logo_last[0])
+    if wait > 0:
+        time.sleep(wait)
+    _logo_last[0] = time.time()
+
+    row = {
+        "symbol": (symbol or "").upper().strip(),
+        "kind": "crypto" if kind == "crypto" else "stock",
+        "logoUrl": url,
+        "imageMime": None,
+        "imageB64": None,
+        "status": "missing",
+    }
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "TickerAlpha/1.0 (logo-cache)",
+            "Accept": "image/png,image/webp,image/jpeg,*/*",
+        })
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+            ctype = (resp.headers.get("Content-Type") or "image/png").split(";")[0].strip()
+            if not raw or len(raw) < 32:
+                row["status"] = "missing"
+                return row
+            row["imageMime"] = ctype if ctype.startswith("image/") else "image/png"
+            row["imageB64"] = base64.b64encode(raw).decode("ascii")
+            row["status"] = "ok"
+            return row
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            row["status"] = "missing"
+        else:
+            row["status"] = "error"
+        return row
+    except Exception:
+        row["status"] = "error"
+        return row
+
+
+def sp500_symbols() -> list[str]:
+    """Current S&P 500 constituents from FMP (free-plan logo priority)."""
+    if not KEY:
+        return []
+    try:
+        rows = _get("sp500-constituent") or []
+    except MarketError:
+        return []
+    out, seen = [], set()
+    for r in rows:
+        sym = (r.get("symbol") or "").upper().strip()
+        if not sym or sym in seen:
+            continue
+        if not re.match(r"^[A-Z][A-Z0-9.\-]{0,9}$", sym):
+            continue
+        seen.add(sym)
+        out.append(sym)
+    out.sort()
+    return out
+
+
+def top_crypto_by_cap(n: int = 40) -> list[str]:
+    """Top cryptocurrencies by market cap (FMP quotes), for logo priority."""
+    n = max(1, min(int(n or 40), 80))
+    if KEY:
+        try:
+            listed = crypto_list()
+            caps: list[tuple[float, str]] = []
+            chunk = 50
+            syms = [r["symbol"] for r in listed]
+            for i in range(0, min(len(syms), 400), chunk):
+                batch = syms[i:i + chunk]
+                for q in quotes(batch) or []:
+                    sym = (q.get("symbol") or "").upper().strip()
+                    cap = q.get("marketCap")
+                    try:
+                        cap_f = float(cap) if cap is not None else 0.0
+                    except (TypeError, ValueError):
+                        cap_f = 0.0
+                    if sym and cap_f > 0:
+                        caps.append((cap_f, sym))
+            if caps:
+                caps.sort(key=lambda x: x[0], reverse=True)
+                return [s for _, s in caps[:n]]
+        except MarketError:
+            pass
+    return _TOP_CRYPTO_FALLBACK[:n]
+
+
+def logo_priority_targets(crypto_n: int = 40) -> list[dict]:
+    """S&P 500 equities + top crypto — the free-plan logo backfill set."""
+    out, seen = [], set()
+    for sym in sp500_symbols():
+        if sym in seen:
+            continue
+        seen.add(sym)
+        out.append({"symbol": sym, "kind": "stock"})
+    for sym in top_crypto_by_cap(crypto_n):
+        if sym in seen:
+            continue
+        seen.add(sym)
+        out.append({"symbol": sym, "kind": "crypto"})
+    if not any(t["kind"] == "stock" for t in out):
+        for sym in ("AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "BRK.B",
+                    "TSLA", "JPM", "V", "UNH", "XOM", "JNJ", "WMT", "MA"):
+            if sym not in seen:
+                seen.add(sym)
+                out.append({"symbol": sym, "kind": "stock"})
     return out
