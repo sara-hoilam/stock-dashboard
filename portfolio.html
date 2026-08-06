@@ -733,32 +733,49 @@ function mirrorRemoteToLocal(remoteTx){
 }
 
 async function loadPortfolio(){
-  const local = localPort.read();
+  // Portfolio is account-backed. Never surface a previous session's local
+  // mirror while signed out.
+  if (!signedIn()) {
+    S.transactions = [];
+    S.positions = [];
+    return;
+  }
 
-  if (signedIn()) {
-    try {
-      await mergeLocalIfNeeded();
-      const d = await rpc("get_portfolio");
-      if (d && !d.error) {
-        const remoteTx = mapRemoteTxns(d.transactions);
-        const remotePos = mapRemotePositions(d.positions);
-        // Remote empty but local still has drafts — keep showing local and
-        // retry merge next time rather than bouncing to the empty state.
-        if (!remotePos.length && local.length) {
-          applyLocalPortfolio();
-          return;
-        }
-        S.transactions = remoteTx;
-        S.positions = remotePos;
-        // Mirror remote into local so a reload before auth is ready still works.
-        if (remoteTx.length) mirrorRemoteToLocal(remoteTx);
+  const local = localPort.read();
+  try {
+    await mergeLocalIfNeeded();
+    const d = await rpc("get_portfolio");
+    if (d && !d.error) {
+      const remoteTx = mapRemoteTxns(d.transactions);
+      const remotePos = mapRemotePositions(d.positions);
+      // Remote empty but local still has drafts — keep showing local and
+      // retry merge next time rather than bouncing to the empty state.
+      if (!remotePos.length && local.length) {
+        applyLocalPortfolio();
         return;
       }
-    } catch (e) {
-      console.warn("[portfolio] remote load failed, using local", e);
+      S.transactions = remoteTx;
+      S.positions = remotePos;
+      // Mirror remote into local so a reload before auth is ready still works.
+      if (remoteTx.length) mirrorRemoteToLocal(remoteTx);
+      return;
     }
+  } catch (e) {
+    console.warn("[portfolio] remote load failed, using local", e);
   }
   applyLocalPortfolio();
+}
+
+/** Drop mirrored holdings/watchlist from this browser on sign-out. */
+function clearLocalCaches(){
+  localPort.clear();
+  try { localStorage.removeItem(WATCH_KEY); } catch {}
+  try { sessionStorage.removeItem(MERGED_KEY); } catch {}
+  S.transactions = [];
+  S.positions = [];
+  S.priceCache = {};
+  S.assetKindBySym = {};
+  S.selected = "PORTFOLIO";
 }
 
 /** True for client-only drafts. Mirrored postgres ids must never be re-merged. */
@@ -820,6 +837,11 @@ function writeLocalTxn(row, { allowMerge = true } = {}){
 
 async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, note,
                                 quiet = false, reload = true }){
+  if (!signedIn()) {
+    if (!quiet) promptSignIn();
+    throw new Error("Please log in to add and view your portfolio.");
+  }
+
   const row = {
     symbol: String(symbol).toUpperCase().trim(),
     kind: kind || "buy",
@@ -832,32 +854,26 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, n
     realizedPl: null,
   };
 
-  const isIn = signedIn();
-  // Always persist locally first so a reload never drops the holding, even if
-  // auth is not ready yet or the remote RPC is missing a migration.
-  writeLocalTxn(row, { allowMerge: !isIn });
+  // Keep a local mirror for fast reloads while signed in; remote is source of truth.
+  writeLocalTxn(row, { allowMerge: false });
 
-  if (isIn) {
-    try {
-      // P/L is computed client-side from live price − avg cost; do not store snapshots.
-      const d = await rpc("add_portfolio_transaction", {
-        p_symbol: row.symbol,
-        p_kind: row.kind,
-        p_trade_date: row.tradeDate,
-        p_quantity: row.quantity,
-        p_price: row.price,
-        p_fee: row.fee,
-        p_note: row.note,
-      });
-      if (d && d.error) throw new Error(d.error);
-    } catch (e) {
-      console.warn("[portfolio] remote save failed; kept local draft", e);
-      // Remote failed — allow a later merge to upload this local-* draft only
-      // (mergeLocalIfNeeded ignores already-mirrored numeric ids).
-      try { sessionStorage.removeItem(MERGED_KEY); } catch {}
-    }
-  } else if (!quiet && window.TA?.showSignupModal) {
-    window.TA.showSignupModal({ reason: "portfolio" });
+  try {
+    // P/L is computed client-side from live price − avg cost; do not store snapshots.
+    const d = await rpc("add_portfolio_transaction", {
+      p_symbol: row.symbol,
+      p_kind: row.kind,
+      p_trade_date: row.tradeDate,
+      p_quantity: row.quantity,
+      p_price: row.price,
+      p_fee: row.fee,
+      p_note: row.note,
+    });
+    if (d && d.error) throw new Error(d.error);
+  } catch (e) {
+    console.warn("[portfolio] remote save failed; kept local draft", e);
+    // Remote failed — allow a later merge to upload this local-* draft only
+    // (mergeLocalIfNeeded ignores already-mirrored numeric ids).
+    try { sessionStorage.removeItem(MERGED_KEY); } catch {}
   }
 
   if (!quiet) {
@@ -1268,6 +1284,32 @@ function halfDonutSvg(parts){
 }
 
 /* ---- render: empty ------------------------------------------------------- */
+function promptSignIn(){
+  if (window.TA && typeof window.TA.signIn === "function") window.TA.signIn();
+  else {
+    const btn = document.getElementById("nav-login");
+    if (btn) btn.click();
+  }
+}
+
+/** Signed-out gate — portfolio and watchlist are account-specific. */
+function renderSignInGate(){
+  const app = document.getElementById("app");
+  app.innerHTML = `
+    <section class="empty panel">
+      <div class="empty-bg" aria-hidden="true"></div>
+      <div class="empty-card">
+        <h1>Your portfolio</h1>
+        <p class="lead">Please log in to add and view your portfolio, or to add and view your watchlist.</p>
+        <div class="empty-actions" style="justify-content:center">
+          <button type="button" class="btn btn-primary" id="empty-login">Log in</button>
+        </div>
+        <p class="empty-foot">Holdings and watchlists stay private to your account</p>
+      </div>
+    </section>`;
+  document.getElementById("empty-login").onclick = promptSignIn;
+}
+
 function renderEmpty(){
   const app = document.getElementById("app");
   app.innerHTML = `
@@ -1285,7 +1327,7 @@ function renderEmpty(){
             <span>Daily return, book P/L vs cost, allocation, and a volatility score.</span></div></li>
           <li><span class="ico" aria-hidden="true">◎</span>
             <div><b>Stays on your account</b>
-            <span>Signed-in portfolios sync across devices. Local drafts merge when you sign in.</span></div></li>
+            <span>Your portfolio and watchlist sync across devices when you are signed in.</span></div></li>
         </ul>
         <div class="empty-actions">
           <form class="pf-search" id="empty-search">
@@ -1490,6 +1532,18 @@ async function renderList(){
   const searchHost = document.getElementById("list-search-host");
   if (!host) return;
 
+  if (!signedIn()) {
+    if (searchHost) searchHost.innerHTML = "";
+    host.innerHTML = `<div class="note">${S.view === "watchlist"
+      ? "Please log in to add and view your watchlist."
+      : "Please log in to add and view your portfolio."}
+      <div style="margin-top:12px"><button type="button" class="btn btn-primary" id="rows-login">Log in</button></div>
+    </div>`;
+    const btn = document.getElementById("rows-login");
+    if (btn) btn.onclick = promptSignIn;
+    return;
+  }
+
   if (S.view === "watchlist") {
     searchHost.innerHTML = `
       <form class="wl-search" id="wl-search">
@@ -1656,20 +1710,14 @@ async function renderList(){
 }
 
 async function loadWatchlistItems(){
+  if (!signedIn()) return [];
   let items = [];
-  if (signedIn()) {
-    try {
-      const d = await rpc("get_watchlist");
-      items = ((d && d.items) || []).map(i => ({
-        symbol: i.symbol, name: i.name, price: i.price, changePct: i.changePct,
-      }));
-    } catch {}
-  }
-  if (!items.length) {
-    let local = [];
-    try { local = JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch {}
-    items = local.map(symbol => ({ symbol, price: null, changePct: null }));
-  }
+  try {
+    const d = await rpc("get_watchlist");
+    items = ((d && d.items) || []).map(i => ({
+      symbol: i.symbol, name: i.name, price: i.price, changePct: i.changePct,
+    }));
+  } catch {}
   const missing = items.filter(i => i.price == null).map(i => i.symbol);
   if (missing.length) {
     try {
@@ -1683,14 +1731,11 @@ async function loadWatchlistItems(){
 }
 
 async function toggleWatch(sym){
-  if (signedIn()) {
-    try { await rpc("toggle_watchlist", { p_symbol: sym }); return; } catch {}
+  if (!signedIn()) {
+    promptSignIn();
+    return;
   }
-  let list = [];
-  try { list = JSON.parse(localStorage.getItem(WATCH_KEY) || "[]"); } catch {}
-  const set = new Set(list);
-  if (set.has(sym)) set.delete(sym); else set.add(sym);
-  try { localStorage.setItem(WATCH_KEY, JSON.stringify([...set])); } catch {}
+  try { await rpc("toggle_watchlist", { p_symbol: sym }); } catch {}
 }
 
 /* ---- charts -------------------------------------------------------------- */
@@ -2068,10 +2113,12 @@ function setModalMode(kind, symbol, prefill){
 }
 
 function openAddModal(symbol, kind){
+  if (!signedIn()) { promptSignIn(); return; }
   setModalMode(kind === "sell" ? "sell" : "buy", symbol, null);
 }
 
 function openEditModal(symbol){
+  if (!signedIn()) { promptSignIn(); return; }
   const pos = S.positions.find(p => p.symbol === symbol);
   if (!pos) return;
   setModalMode("edit", symbol, {
@@ -2859,11 +2906,26 @@ async function loadTradeFlow(){
 }
 
 /* ---- boot ---------------------------------------------------------------- */
+let _wasSignedIn = null;
+
 async function boot(showLoading = true){
   if (showLoading) {
     document.getElementById("app").innerHTML =
       `<div class="note"><span class="load"></span></div>`;
   }
+
+  const isIn = signedIn();
+  // Leaving an account: drop mirrored holdings so the next visitor cannot see them.
+  if (_wasSignedIn === true && !isIn) clearLocalCaches();
+  _wasSignedIn = isIn;
+
+  if (!isIn) {
+    S.transactions = [];
+    S.positions = [];
+    renderSignInGate();
+    return;
+  }
+
   await loadPortfolio();
   if (S.positions.length) {
     S.positions = await enrichPrices(S.positions);
@@ -2880,6 +2942,7 @@ async function boot(showLoading = true){
     // Quotes / dividends sometimes arrive a beat late after request_prices.
     if (S.positions.some(p => p.price == null) || !credited) {
       setTimeout(async () => {
+        if (!signedIn()) return;
         S.priceCache = {};
         S.positions = await enrichPrices(S.positions);
         S.positions = await enrichAssetKinds(S.positions);
