@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — markets today</title>
 <script src="config.js"></script>
+<script src="logo.js"></script>
 <script src="analytics.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
@@ -1075,7 +1076,7 @@ function renderRows(into){
       <tr data-s="${esc(r.symbol)}" aria-selected="${r.symbol === S.symbol}"
           title="Open ${esc(r.symbol)} financials">
         <td><span class="sym">
-          <span class="dot" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
+          <span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>
           <span class="symtext">
             <span class="tickline">
               <span class="tick">${esc(r.symbol)}</span>
@@ -1091,6 +1092,10 @@ function renderRows(into){
         ${showCap ? `<td>${esc(cap(r.marketCap))}</td>` : ""}
         <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
       </tr>`).join("")}</tbody></table>`;
+
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(S.rows.map(r => r.symbol), host);
+  }
 
   // A row click loads the chart; the symbol itself opens the financials, which
   // is the whole point of the landing page.
@@ -1400,7 +1405,7 @@ async function renderWatchEmpty(host){
       <div class="wl-grid">${popular.map(q => `
         <div class="wl-card" data-add="${esc(q.symbol)}">
           <div class="wl-top">
-            <span class="dot" style="background:${avatarColour(q.symbol)}">${esc(q.symbol.slice(0,2))}</span>
+            <span class="dot" data-logo="${esc(q.symbol)}" style="background:${avatarColour(q.symbol)}">${esc(q.symbol.slice(0,2))}</span>
             <b>${esc(q.symbol)}</b>
             <button type="button" class="wl-plus" aria-label="Add ${esc(q.symbol)}">+</button>
           </div>
@@ -1410,6 +1415,10 @@ async function renderWatchEmpty(host){
         </div>`).join("")}</div>
 
     </div>`;
+
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(popular.map(q => q.symbol), host);
+  }
 
   host.querySelectorAll("[data-add]").forEach(card => {
     card.onclick = async () => {

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — Portfolio</title>
 <script src="config.js"></script>
+<script src="logo.js"></script>
 <script src="analytics.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
@@ -2981,7 +2982,7 @@ function weekAvatars(iso){
       const sym = String(e.symbol || "").toUpperCase();
       if (!sym || seen.has(sym)) continue;
       seen.add(sym);
-      chips.push({ letter: sym.slice(0, 2), colour: avatarColour(sym) });
+      chips.push({ letter: sym.slice(0, 2), colour: avatarColour(sym), symbol: sym });
     }
     if (chips.length >= 4) break;
   }
@@ -2992,6 +2993,7 @@ function renderCalWeek(){
   const host = document.getElementById("cal-week");
   if (!host || !CAL.weekStart) return;
   const days = weekDays(CAL.weekStart);
+  const logoSyms = [];
   host.innerHTML = days.map(day => {
     const { chips, total } = weekAvatars(day.iso);
     const on = day.iso === CAL.selected;
@@ -3001,12 +3003,18 @@ function renderCalWeek(){
       <div class="dow">${day.dow}</div>
       <div class="dom">${day.date.getDate()}</div>
       <div class="foot">
-        <div class="avatars">${chips.map(c =>
-          `<span style="background:${c.colour}">${esc(c.letter)}</span>`).join("")}</div>
+        <div class="avatars">${chips.map(c => {
+          if (c.symbol) logoSyms.push(c.symbol);
+          const logo = c.symbol ? ` data-logo="${esc(c.symbol)}"` : "";
+          return `<span${logo} style="background:${c.colour}">${esc(c.letter)}</span>`;
+        }).join("")}</div>
         ${total ? `<span class="n">${esc(countLabel)}</span>` : ""}
       </div>
     </button>`;
   }).join("");
+  if (window.TickerLogos && logoSyms.length) {
+    window.TickerLogos.hydrate(logoSyms, host);
+  }
   host.querySelectorAll(".cal-daycard").forEach(btn => {
     btn.onclick = () => {
       CAL.selected = btn.dataset.iso;
@@ -3120,7 +3128,7 @@ function renderCalDay(){
       ? `<a class="sym" href="${det.href}">${esc(det.title)}</a>`
       : `<span class="sym">${esc(det.title)}</span>`;
     return `<div class="cal-ev" data-key="${esc(ev.key)}">
-      <span class="av" style="background:${colour}">${esc(letter)}</span>
+      <span class="av"${ev.kind !== "economics" && ev.symbol ? ` data-logo="${esc(ev.symbol)}"` : ""} style="background:${colour}">${esc(letter)}</span>
       <div class="body">
         <div class="row1">${titleHtml}
           <span class="sess">${sessIcon}${esc(det.sess.label)}</span></div>
@@ -3130,6 +3138,11 @@ function renderCalDay(){
               aria-label="Add to calendar" title="Add to Apple or Google Calendar">${calAddIcon()}</button>
     </div>`;
   }).join("");
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(
+      all.filter(e => e.kind !== "economics" && e.symbol).map(e => e.symbol),
+      list);
+  }
   list.querySelectorAll(".cal-add").forEach(btn => {
     btn.onclick = () => {
       const ev = all.find(e => e.key === btn.dataset.key);

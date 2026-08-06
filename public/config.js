@@ -26,4 +26,8 @@ window.ALPHATICKER_CONFIG = {
   // admin belongs to a Google Tag container this site does not use.
   // See analytics.js.
   gaMeasurementId: "G-BTQ5F5F2GR",
+
+  // Logo.dev publishable key (safe client-side). Logos are cached in Supabase
+  // by the worker; this key is kept for reference / future CDN fallbacks.
+  logoDevPublishableKey: "pk_RQkedGufR1uCvTvlztKeQg",
 };

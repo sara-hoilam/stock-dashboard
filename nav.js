@@ -539,7 +539,7 @@
   if (!document.querySelector(".site-foot")) {
     document.body.insertAdjacentHTML("beforeend", `
       <footer class="site-foot">
-        <span>© ${new Date().getFullYear()} Ticker Alpha</span>
+        <span>© ${new Date().getFullYear()} Ticker Alpha · Logos by <a href="https://logo.dev" target="_blank" rel="noopener">Logo.dev</a></span>
         <span class="site-foot-links">
           <a href="privacy.html">Privacy Policy</a>
           <a href="news.html">News</a>

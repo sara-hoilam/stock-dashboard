@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — market news</title>
 <script src="config.js"></script>
+<script src="logo.js"></script>
 <script src="analytics.js"></script>
 <script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
@@ -310,10 +311,13 @@ async function setView(v){
   host.innerHTML = `<table><thead><tr><th>Token</th><th>Price</th><th>Change</th></tr></thead>
     <tbody>${rows.map(r => `
       <tr data-s="${esc(r.symbol)}">
-        <td><span class="sym"><span class="dot" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>${esc(r.symbol)}</span></td>
+        <td><span class="sym"><span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>${esc(r.symbol)}</span></td>
         <td>${esc(price(r.price))}</td>
         <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
       </tr>`).join("")}</tbody></table>`;
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(rows.map(r => r.symbol), host);
+  }
   // Clicking a row filters the news to that company -- the whole reason the
   // list sits beside the stories rather than on its own page.
   host.querySelectorAll("tr[data-s]").forEach(tr =>
