@@ -2719,10 +2719,6 @@ const CAL = {
   prefs: null,
 };
 
-function todayISO(){
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-}
 function isoDate(y, m, d){
   return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 }
