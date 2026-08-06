@@ -185,6 +185,13 @@ tr.on td{background:var(--accent-soft)}
 .row-actions button:hover{border-color:var(--accent);color:var(--accent)}
 .row-actions .icon-btn{padding:3px 6px;color:var(--ink-3)}
 .row-actions .icon-btn svg{width:13px;height:13px;display:block}
+.rows th.col-act .icon-btn{
+  border:1px solid var(--rule);background:var(--card);border-radius:6px;
+  padding:3px 6px;min-height:26px;cursor:pointer;color:var(--ink-3);
+  display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;
+}
+.rows th.col-act .icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.rows th.col-act .icon-btn svg{width:13px;height:13px;display:block}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;align-items:center}
 .modal-actions .grow{flex:1;display:flex;justify-content:flex-start}
 .btn-danger{
@@ -667,6 +674,46 @@ tr.on td{background:var(--accent-soft)}
         <button type="submit" class="btn btn-primary" id="add-save">Add holding</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal" id="cash-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cash-title">
+    <button type="button" class="modal-x" id="cash-x" aria-label="Close">×</button>
+    <h2 id="cash-title">Edit cash</h2>
+    <p class="sub">Set your available cash balance. Buys and sells will continue to adjust Cash from this amount.</p>
+    <form id="cash-form">
+      <div class="field">
+        <label for="f-cash-amt">Cash balance (USD)</label>
+        <input id="f-cash-amt" name="cash" type="number" step="any" min="0" required placeholder="0.00">
+        <div class="hint">Current spendable cash in this portfolio.</div>
+      </div>
+      <div class="err" id="cash-err"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="cash-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="cash-save">Save cash</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="reset-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+    <button type="button" class="modal-x" id="reset-x" aria-label="Close">×</button>
+    <h2 id="reset-title">Reset portfolio?</h2>
+    <p class="sub">This permanently deletes every holding, cash entry, and dividend in this portfolio. This cannot be undone.</p>
+    <div class="err" id="reset-err"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="reset-cancel">Cancel</button>
+      <button type="button" class="btn-danger" id="reset-confirm" aria-label="Reset portfolio">
+        <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 10a6.5 6.5 0 0 1 11.2-4.5M16.5 10a6.5 6.5 0 0 1-11.2 4.5"/>
+          <path d="M14.2 2.8v4.2h-4.2M5.8 17.2v-4.2h4.2"/>
+        </svg>
+        Reset portfolio
+      </button>
+    </div>
   </div>
 </div>
 
@@ -1815,6 +1862,10 @@ async function renderList(){
     const penSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
       stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
+    const resetSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
+      stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.5 10a6.5 6.5 0 0 1 11.2-4.5M16.5 10a6.5 6.5 0 0 1-11.2 4.5"/>
+      <path d="M14.2 2.8v4.2h-4.2M5.8 17.2v-4.2h4.2"/></svg>`;
     const plTip = "Includes both stock return and total dividend received, in USD.";
     const divTip = "Dividend received (credited on the ex-dividend date if the stock was logged by then), in USD before tax.";
     const holdingsMv = rows.reduce((s, r) => {
@@ -1847,7 +1898,10 @@ async function renderList(){
         <th class="col-num">Today's P/L</th>
         <th class="col-num"><span class="th-with-tip">P/L ${infoTip(plTip)}</span></th>
         <th class="col-num"><span class="th-with-tip">Dividend ${infoTip(divTip)}</span></th>
-        <th class="col-act"></th>
+        <th class="col-act">
+          <button type="button" class="icon-btn" id="pf-reset" title="Reset portfolio"
+                  aria-label="Reset portfolio">${resetSvg}</button>
+        </th>
       </tr></thead>
       <tbody>
         <tr data-sym="PORTFOLIO" class="${S.selected === "PORTFOLIO" ? "on" : ""}">
@@ -1882,7 +1936,10 @@ async function renderList(){
           <td class="col-num num">—</td>
           <td class="col-num">${dash}</td>
           <td class="col-num">${dash}</td>
-          <td class="col-act"></td>
+          <td class="col-act"><div class="row-actions">
+            <button type="button" class="icon-btn" data-act="edit-cash"
+                    title="Edit cash" aria-label="Edit cash">${penSvg}</button>
+          </div></td>
         </tr>
         ${rows.map(r => {
           const livePx = r.price != null ? r.price : null;
@@ -1930,10 +1987,16 @@ async function renderList(){
       btn.onclick = e => {
         e.stopPropagation();
         const act = btn.dataset.act;
-        if (act === "edit") openEditModal(btn.dataset.s);
+        if (act === "edit-cash") openCashModal();
+        else if (act === "edit") openEditModal(btn.dataset.s);
         else openAddModal(btn.dataset.s, act === "sell" ? "sell" : "buy");
       };
     });
+    const resetBtn = document.getElementById("pf-reset");
+    if (resetBtn) resetBtn.onclick = e => {
+      e.stopPropagation();
+      openResetModal();
+    };
     wireInfoTips(host);
   }
 
@@ -2391,6 +2454,106 @@ function openEditModal(symbol){
   });
 }
 
+function openCashModal(){
+  if (!signedIn()) { promptSignIn(); return; }
+  const modal = document.getElementById("cash-modal");
+  const input = document.getElementById("f-cash-amt");
+  const err = document.getElementById("cash-err");
+  const cur = cashBalance();
+  input.value = Number.isFinite(cur) ? String(Number(cur.toFixed(2))) : "0";
+  err.textContent = "";
+  modal.hidden = false;
+  input.focus();
+  input.select();
+}
+
+function closeCashModal(){
+  document.getElementById("cash-modal").hidden = true;
+}
+
+function openResetModal(){
+  if (!signedIn()) { promptSignIn(); return; }
+  const modal = document.getElementById("reset-modal");
+  document.getElementById("reset-err").textContent = "";
+  modal.hidden = false;
+  document.getElementById("reset-cancel").focus();
+}
+
+function closeResetModal(){
+  document.getElementById("reset-modal").hidden = true;
+}
+
+/** Adjust the cash ledger so the balance equals ``target`` (USD). */
+async function setCashBalance(target){
+  const next = Number(target);
+  if (!Number.isFinite(next) || next < 0) throw new Error("Enter a valid cash amount.");
+  const cur = cashBalance();
+  const delta = next - cur;
+  if (Math.abs(delta) < 1e-9) return;
+  const tradeDate = todayISO();
+  if (delta > 0) {
+    await addTransaction({
+      symbol: "CASH",
+      kind: "deposit",
+      tradeDate,
+      quantity: 1,
+      price: delta,
+      note: "adjust:set",
+      quiet: true,
+    });
+  } else {
+    await addTransaction({
+      symbol: "CASH",
+      kind: "withdrawal",
+      tradeDate,
+      quantity: 1,
+      price: Math.abs(delta),
+      note: "adjust:set",
+      quiet: true,
+    });
+  }
+  GA.track("portfolio_cash_edit");
+}
+
+/** Wipe every transaction in the portfolio (remote + local mirror). */
+async function resetPortfolio(){
+  if (!signedIn()) {
+    promptSignIn();
+    throw new Error("Please log in to reset your portfolio.");
+  }
+
+  let cleared = false;
+  try {
+    const d = await rpc("clear_portfolio");
+    if (d && d.error) throw new Error(d.error);
+    cleared = !!(d && d.cleared);
+  } catch (e) {
+    // Migration not applied yet — fall back to per-row deletes.
+    console.warn("[portfolio] clear_portfolio unavailable, deleting rows", e);
+    const txns = [...(S.transactions || [])];
+    for (const t of txns) {
+      const id = Number(t.id);
+      if (!Number.isFinite(id)) continue;
+      try {
+        const d = await rpc("delete_portfolio_transaction", { p_id: id });
+        if (d && d.error) console.warn("[portfolio] delete failed", d.error);
+      } catch (ex) {
+        console.warn("[portfolio] delete failed", ex);
+      }
+    }
+    cleared = true;
+  }
+
+  localPort.clear();
+  try { sessionStorage.setItem(MERGED_KEY, "1"); } catch {}
+  S.transactions = [];
+  S.positions = [];
+  S.priceCache = {};
+  S.assetKindBySym = {};
+  S.selected = "PORTFOLIO";
+  GA.track("portfolio_reset", { ok: cleared });
+}
+
 function closeAddModal(){
   document.getElementById("add-modal").hidden = true;
   editSymbol = null;
@@ -2443,8 +2606,60 @@ function wireModal(){
   document.getElementById("add-x").onclick = closeAddModal;
   document.getElementById("add-cancel").onclick = closeAddModal;
   modal.addEventListener("click", e => { if (e.target === modal) closeAddModal(); });
+
+  const cashModal = document.getElementById("cash-modal");
+  document.getElementById("cash-x").onclick = closeCashModal;
+  document.getElementById("cash-cancel").onclick = closeCashModal;
+  cashModal.addEventListener("click", e => { if (e.target === cashModal) closeCashModal(); });
+  document.getElementById("cash-form").onsubmit = async e => {
+    e.preventDefault();
+    const err = document.getElementById("cash-err");
+    err.textContent = "";
+    const amt = Number(document.getElementById("f-cash-amt").value);
+    if (!Number.isFinite(amt) || amt < 0) {
+      err.textContent = "Enter a cash amount of 0 or more.";
+      return;
+    }
+    const save = document.getElementById("cash-save");
+    save.disabled = true;
+    try {
+      await setCashBalance(amt);
+      closeCashModal();
+      toast(`Cash set to ${money(amt)}`);
+      await boot(false);
+    } catch (ex) {
+      err.textContent = ex.message || "Could not update cash.";
+    } finally {
+      save.disabled = false;
+    }
+  };
+
+  const resetModal = document.getElementById("reset-modal");
+  document.getElementById("reset-x").onclick = closeResetModal;
+  document.getElementById("reset-cancel").onclick = closeResetModal;
+  resetModal.addEventListener("click", e => { if (e.target === resetModal) closeResetModal(); });
+  document.getElementById("reset-confirm").onclick = async () => {
+    const err = document.getElementById("reset-err");
+    const btn = document.getElementById("reset-confirm");
+    err.textContent = "";
+    btn.disabled = true;
+    try {
+      await resetPortfolio();
+      closeResetModal();
+      toast("Portfolio reset");
+      await boot(false);
+    } catch (ex) {
+      err.textContent = ex.message || "Could not reset portfolio.";
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && !modal.hidden) closeAddModal();
+    if (e.key !== "Escape") return;
+    if (!modal.hidden) closeAddModal();
+    else if (!cashModal.hidden) closeCashModal();
+    else if (!resetModal.hidden) closeResetModal();
   });
 
   document.getElementById("add-delete").onclick = async () => {
