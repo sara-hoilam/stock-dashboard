@@ -2070,7 +2070,14 @@ function openIndexSymbol(ticker, meta){
 
     <div class="pricerow" id="pricerow" hidden></div>
 
-    <h3 class="grouphead">Holdings breakdown</h3>
+    <h3 class="grouphead" id="idx-hold-title">Holdings breakdown</h3>
+    <p class="note" id="idx-hold-note" style="text-align:left;padding:0 0 10px;margin:0">
+      ${c.ticker === "IXIC"
+        ? "Price is the NASDAQ Composite; holdings below are the Nasdaq-100 (the investable large-cap book)."
+        : c.ticker === "DJI"
+          ? "Dow weights are price-weighted (not market-cap)."
+          : "Weights follow the index methodology (float market-cap for the S&P 500)."}
+    </p>
     <div class="idx-hold" id="idx-holdings">
       <div class="note"><span class="load"></span> &nbsp;Loading holdings…</div>
     </div>
@@ -2104,6 +2111,15 @@ async function loadIndexHoldings(symbol){
     return;
   }
 
+  const src = (rows[0] && rows[0].source) || "";
+  const srcLabel = src === "slickcharts" ? "Slickcharts index weights"
+    : src === "fmp" ? "Financial Modeling Prep constituents"
+    : src === "wikipedia" ? "Wikipedia constituents"
+    : src === "datasets" ? "S&P 500 companies dataset"
+    : "index constituents";
+  const title = document.getElementById("idx-hold-title");
+  if (title && symbol === "IXIC") title.textContent = "Holdings breakdown (Nasdaq-100)";
+
   holdHost.innerHTML = `<div class="scroll"><table class="htab">
     <thead><tr>
       <th>Ticker</th><th>Company</th><th>Industry</th><th style="text-align:right">% Holding</th>
@@ -2113,7 +2129,9 @@ async function loadIndexHoldings(symbol){
       <td class="name" title="${esc(r.name || "")}">${esc(r.name || "—")}</td>
       <td class="ind" title="${esc(r.industry || "")}">${esc(r.industry || "—")}</td>
       <td class="w">${r.weightPct != null ? esc((+r.weightPct).toFixed(2) + "%") : "—"}</td>
-    </tr>`).join("")}</tbody></table></div>`;
+    </tr>`).join("")}</tbody></table></div>
+    <p class="note" style="text-align:left;padding:10px 2px 0">Weights: ${esc(srcLabel)}.
+      Industries: Financial Modeling Prep screener.</p>`;
 
   // Industry pie: sum weightPct by industry; unknown bucket last.
   const byInd = new Map();
