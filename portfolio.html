@@ -417,15 +417,19 @@ tr.on td{background:var(--accent-soft)}
   flex-shrink:0
 }
 .info-i:hover, .info-i:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
-/* Fixed so .panel overflow:hidden cannot crop the bubble. */
-.info-i .info-tip{
-  display:none;position:fixed;left:0;top:0;z-index:200;width:min(280px,72vw);
-  padding:8px 10px;border-radius:8px;background:var(--card);color:var(--ink);
-  border:1px solid var(--rule);box-shadow:var(--shadow);font-size:11.5px;font-weight:500;
-  line-height:1.35;text-align:left;text-transform:none;letter-spacing:0;pointer-events:none;
+/* Panel (i) bubbles — separate class from column .info-tip icons so icon
+   sizing (14×14, no fill) cannot leak onto the readable tip surface. */
+.info-i .info-bubble, .info-bubble{
+  display:none;position:fixed;left:0;top:0;z-index:200;
+  width:min(280px,72vw);height:auto;min-height:0;
+  padding:8px 10px;border-radius:8px;
+  background-color:var(--card);background:var(--card);color:var(--ink);
+  border:1px solid var(--rule);box-shadow:var(--shadow);
+  font-size:11.5px;font-weight:500;line-height:1.35;
+  text-align:left;text-transform:none;letter-spacing:0;pointer-events:none;
   white-space:normal
 }
-.info-i:hover .info-tip, .info-i:focus-visible .info-tip, .info-i .info-tip.on{display:block}
+.info-i:hover .info-bubble, .info-i:focus-visible .info-bubble, .info-bubble.on{display:block}
 .grid2 > .panel{overflow:visible}
 .scroll{overflow-x:auto;padding:10px 18px 18px}
 #insiders.scroll, #congress.scroll{
@@ -1459,7 +1463,7 @@ function renderDashboard(){
             <h3>Insider Transactions</h3>
             <button type="button" class="info-i" aria-label="About Insider Transactions">
               <span aria-hidden="true">i</span>
-              <span class="info-tip">Officers and directors buying or selling stock in companies you hold, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
+              <span class="info-bubble">Officers and directors buying or selling stock in companies you hold, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
             </button>
           </div>
         </div>
@@ -1482,7 +1486,7 @@ function renderDashboard(){
             <h3>Congress Trades</h3>
             <button type="button" class="info-i" aria-label="About Congress Trades">
               <span aria-hidden="true">i</span>
-              <span class="info-tip">Trades disclosed by members of the House and Senate over the last 14 days. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
+              <span class="info-bubble">Trades disclosed by members of the House and Senate over the last 14 days. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
             </button>
           </div>
         </div>
@@ -2696,12 +2700,13 @@ function bootTrades(){
   wirePanelInfoTips();
 }
 
-/** Pin .info-i bubbles with position:fixed so panel overflow cannot crop them. */
+/** Pin .info-i bubbles on document.body so panel/button overflow cannot crop them. */
 function wirePanelInfoTips(root){
   (root || document).querySelectorAll(".info-i").forEach(btn => {
-    const tip = btn.querySelector(".info-tip");
+    const tip = btn.querySelector(".info-bubble");
     if (!tip || btn.dataset.tipWired) return;
     btn.dataset.tipWired = "1";
+    document.body.appendChild(tip);
     const place = () => {
       tip.classList.add("on");
       const r = btn.getBoundingClientRect();
