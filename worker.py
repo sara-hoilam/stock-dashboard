@@ -747,15 +747,18 @@ def refresh_earnings() -> bool:
 
 
 def refresh_logos(limit: int = 40) -> int:
-    """Fetch Logo.dev images for S&P 500 + top crypto; cache in Supabase.
+    """Fetch Logo.dev images for index + common stocks + crypto; cache in Supabase.
 
-    Free-plan friendly: only the priority set is considered, and ``logos_due``
-    skips symbols already cached within 30 days. Returns rows upserted.
+    Priority set: S&P 500, Nasdaq-100, Dow, Russell 1000, common stocks, and
+    top crypto. ``logos_due`` skips symbols already cached within 30 days.
+    Returns rows upserted.
     """
-    targets = market.logo_priority_targets(40)
+    crypto_n = int(os.environ.get("LOGOS_CRYPTO_N", "80"))
+    common_n = int(os.environ.get("LOGOS_COMMON_N", "2000"))
+    targets = market.logo_priority_targets(crypto_n=crypto_n, common_n=common_n)
     due = store.logos_due(targets, limit=limit)
     if not due:
-        log("logos: nothing due (S&P 500 + top crypto already cached)")
+        log("logos: nothing due (priority indexes + crypto already cached)")
         return 0
     rows = []
     ok = miss = err = 0
@@ -871,7 +874,9 @@ def run() -> None:
     sections_every = int(os.environ.get("SECTIONS_REFRESH_SECONDS", "3600"))
     # Pace Logo.dev: a small batch each cycle until the priority set is warm.
     logos_every = int(os.environ.get("LOGOS_REFRESH_SECONDS", "3600"))
-    logos_batch = int(os.environ.get("LOGOS_BATCH", "25"))
+    # Larger priority set (indexes + common stocks + crypto) — 50/hour warms
+    # ~1.2k logos/day and stays well under Logo.dev's free monthly cap.
+    logos_batch = int(os.environ.get("LOGOS_BATCH", "50"))
 
     while True:
         try:

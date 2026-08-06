@@ -2,10 +2,10 @@
 --
 -- Apply after 0045. Safe to re-run.
 --
--- The worker fetches logos once (S&P 500 + top crypto by market cap) and
--- stores the image bytes so the browser does not re-hit Logo.dev on every
--- page load. Clients read via get_symbol_logos; missing rows keep using
--- initials in the UI.
+-- The worker fetches logos once (S&P 500, Nasdaq-100, Dow, Russell 1000,
+-- common stocks, and top crypto by market cap) and stores the image bytes so
+-- the browser does not re-hit Logo.dev on every page load. Clients read via
+-- get_symbol_logos; missing rows keep using initials in the UI.
 
 create table if not exists ledger.symbol_logo (
   symbol      text primary key,

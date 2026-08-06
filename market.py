@@ -1456,7 +1456,13 @@ _TOP_CRYPTO_FALLBACK = [
     "LTCUSD", "BCHUSD", "UNIUSD", "ATOMUSD", "XLMUSD", "NEARUSD", "APTUSD",
     "ICPUSD", "FILUSD", "ARBUSD", "OPUSD", "VETUSD", "HBARUSD", "AAVEUSD",
     "MKRUSD", "GRTUSD", "SANDUSD", "MANAUSD", "AXSUSD", "EGLDUSD", "FTMUSD",
-    "ALGOUSD", "XTZUSD", "EOSUSD", "FLOWUSD", "THETAUSD",
+    "ALGOUSD", "XTZUSD", "EOSUSD", "FLOWUSD", "THETAUSD", "SUIUSD", "SEIUSD",
+    "INJUSD", "IMXUSD", "RNDRUSD", "PEPEUSD", "WIFUSD", "BONKUSD", "FLRUSD",
+    "STXUSD", "TIAUSD", "RUNEUSD", "KASUSD", "CFXUSD", "GALAUSD", "ENSUSD",
+    "LDOUSD", "CRVUSD", "SNXUSD", "COMPUSD", "1INCHUSD", "ZRXUSD", "BATUSD",
+    "CHZUSD", "ENJUSD", "ROSEUSD", "KAVAUSD", "ZILUSD", "IOTAUSD", "QTUMUSD",
+    "DASHUSD", "ZECUSD", "XMRUSD", "NEOUSD", "WAVESUSD", "CAKEUSD", "DYDXUSD",
+    "GMTUSD", "APEUSD", "BLURUSD",
 ]
 
 
@@ -1529,37 +1535,208 @@ def download_logo(symbol: str, kind: str = "stock", *, size: int = 128
         return row
 
 
-def sp500_symbols() -> list[str]:
-    """Current S&P 500 constituents from FMP (free-plan logo priority)."""
+_SYM_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+# Public constituent CSVs used when FMP's index endpoints are not on the plan.
+_INDEX_CSV = {
+    "sp500": (
+        "https://raw.githubusercontent.com/datasets/s-and-p-500-companies"
+        "/master/data/constituents.csv"),
+    "nasdaq100": (
+        "https://yfiua.github.io/index-constituents/constituents-nasdaq100.csv"),
+    "dowjones": (
+        "https://yfiua.github.io/index-constituents/constituents-dowjones.csv"),
+}
+
+
+def _normalize_symbol(raw: str) -> str | None:
+    sym = (raw or "").upper().strip().replace("/", ".")
+    # Wikipedia / some CSVs use BRK-B; Logo.dev and FMP prefer BRK.B.
+    if "-" in sym and re.match(r"^[A-Z]+-[A-Z]$", sym):
+        sym = sym.replace("-", ".")
+    if not sym or not _SYM_RE.match(sym):
+        return None
+    return sym
+
+
+def _add_symbol(raw: str, out: list[str], seen: set[str]) -> None:
+    sym = _normalize_symbol(raw)
+    if not sym or sym in seen:
+        return
+    seen.add(sym)
+    out.append(sym)
+
+
+def _symbols_from_fmp(path: str) -> list[str]:
     if not KEY:
         return []
     try:
-        rows = _get("sp500-constituent") or []
+        rows = _get(path) or []
     except MarketError:
         return []
     out, seen = [], set()
     for r in rows:
-        sym = (r.get("symbol") or "").upper().strip()
-        if not sym or sym in seen:
+        if isinstance(r, dict):
+            _add_symbol(r.get("symbol") or "", out, seen)
+    return out
+
+
+def _symbols_from_csv(url: str) -> list[str]:
+    """First-column ticker CSV (header row skipped)."""
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "TickerAlpha/1.0 (logo-priority)"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            text = resp.read().decode("utf-8", "replace")
+    except Exception:
+        return []
+    out, seen = [], set()
+    for i, line in enumerate(text.splitlines()):
+        if i == 0 or not line.strip():
             continue
-        if not re.match(r"^[A-Z][A-Z0-9.\-]{0,9}$", sym):
+        _add_symbol(line.split(",", 1)[0].strip().strip('"'), out, seen)
+    return out
+
+
+def _symbols_from_wikipedia(title: str) -> list[str]:
+    """Tickers from the first Symbol/Ticker column of a Wikipedia wikitable."""
+    url = "https://en.wikipedia.org/wiki/" + urllib.parse.quote(title)
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "TickerAlpha/1.0 (logo-priority)"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            html = resp.read().decode("utf-8", "replace")
+    except Exception:
+        return []
+    tables = re.findall(
+        r'<table[^>]*class="[^"]*wikitable[^"]*"[^>]*>(.*?)</table>',
+        html, re.S | re.I)
+    out, seen = [], set()
+    for table in tables:
+        header = re.search(r"<tr[^>]*>(.*?)</tr>", table, re.S | re.I)
+        if not header:
             continue
-        seen.add(sym)
-        out.append(sym)
+        cells = re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", header.group(1), re.S | re.I)
+        col = -1
+        for i, cell in enumerate(cells):
+            plain = re.sub(r"<[^>]+>", "", cell).strip().lower()
+            if plain in ("symbol", "ticker", "ticker symbol"):
+                col = i
+                break
+        if col < 0:
+            continue
+        for row_html in re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.S | re.I)[1:]:
+            row_cells = re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", row_html, re.S | re.I)
+            if col >= len(row_cells):
+                continue
+            plain = re.sub(r"<[^>]+>", " ", row_cells[col])
+            plain = re.sub(r"\s+", " ", plain).strip()
+            # Prefer the first token that looks like a ticker.
+            for tok in re.split(r"[\s,;/]+", plain):
+                if _normalize_symbol(tok):
+                    _add_symbol(tok, out, seen)
+                    break
+        if out:
+            break
+    return out
+
+
+def sp500_symbols() -> list[str]:
+    """S&P 500 tickers for logo priority (FMP, else public CSV)."""
+    out = _symbols_from_fmp("sp500-constituent")
+    if len(out) < 100:
+        for sym in _symbols_from_csv(_INDEX_CSV["sp500"]):
+            if sym not in out:
+                out.append(sym)
+    if len(out) < 40:
+        for sym in HEATMAP_UNIVERSE:
+            if _normalize_symbol(sym) and sym not in out:
+                out.append(sym)
     out.sort()
     return out
 
 
-def top_crypto_by_cap(n: int = 40) -> list[str]:
+def nasdaq100_symbols() -> list[str]:
+    """Nasdaq-100 tickers for logo priority."""
+    out = _symbols_from_fmp("nasdaq-constituent")
+    if len(out) < 50:
+        for sym in _symbols_from_csv(_INDEX_CSV["nasdaq100"]):
+            if sym not in out:
+                out.append(sym)
+    if len(out) < 50:
+        for sym in _symbols_from_wikipedia("Nasdaq-100"):
+            if sym not in out:
+                out.append(sym)
+    out.sort()
+    return out
+
+
+def dowjones_symbols() -> list[str]:
+    """Dow Jones Industrial Average tickers for logo priority."""
+    out = _symbols_from_fmp("dowjones-constituent")
+    if len(out) < 20:
+        for sym in _symbols_from_csv(_INDEX_CSV["dowjones"]):
+            if sym not in out:
+                out.append(sym)
+    if len(out) < 20:
+        for sym in _symbols_from_wikipedia("Dow_Jones_Industrial_Average"):
+            if sym not in out:
+                out.append(sym)
+    out.sort()
+    return out
+
+
+def russell1000_symbols() -> list[str]:
+    """Russell 1000 tickers for logo priority (Wikipedia; FMP has no stable list)."""
+    out = _symbols_from_wikipedia("Russell_1000_Index")
+    out.sort()
+    return out
+
+
+def common_stock_symbols(limit: int = 2000) -> list[str]:
+    """Actively traded common stocks (ex-ETF/fund), ranked by market cap."""
+    limit = max(1, min(int(limit or 2000), 5000))
+    if not KEY:
+        return []
+    try:
+        rows = _get(
+            "company-screener",
+            marketCapMoreThan=int(5e8),
+            isActivelyTrading="true",
+            isEtf="false",
+            isFund="false",
+            limit=limit,
+        ) or []
+    except MarketError:
+        return []
+    scored: list[tuple[float, str]] = []
+    seen = set()
+    for r in rows:
+        sym = _normalize_symbol(r.get("symbol") or "")
+        if not sym or sym in seen:
+            continue
+        if r.get("isEtf") or r.get("isFund"):
+            continue
+        try:
+            cap = float(r.get("marketCap") or 0)
+        except (TypeError, ValueError):
+            cap = 0.0
+        seen.add(sym)
+        scored.append((cap, sym))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [s for _, s in scored[:limit]]
+
+
+def top_crypto_by_cap(n: int = 80) -> list[str]:
     """Top cryptocurrencies by market cap (FMP quotes), for logo priority."""
-    n = max(1, min(int(n or 40), 80))
+    n = max(1, min(int(n or 80), 120))
     if KEY:
         try:
             listed = crypto_list()
             caps: list[tuple[float, str]] = []
             chunk = 50
             syms = [r["symbol"] for r in listed]
-            for i in range(0, min(len(syms), 400), chunk):
+            for i in range(0, min(len(syms), 600), chunk):
                 batch = syms[i:i + chunk]
                 for q in quotes(batch) or []:
                     sym = (q.get("symbol") or "").upper().strip()
@@ -1575,26 +1752,46 @@ def top_crypto_by_cap(n: int = 40) -> list[str]:
                 return [s for _, s in caps[:n]]
         except MarketError:
             pass
-    return _TOP_CRYPTO_FALLBACK[:n]
+    # Extend the hardcoded fallback if more than its length is requested.
+    base = list(_TOP_CRYPTO_FALLBACK)
+    return base[:n] if n <= len(base) else base
 
 
-def logo_priority_targets(crypto_n: int = 40) -> list[dict]:
-    """S&P 500 equities + top crypto — the free-plan logo backfill set."""
+def logo_priority_targets(crypto_n: int = 80,
+                          common_n: int = 2000) -> list[dict]:
+    """Index equities + common stocks + top crypto for Logo.dev backfill.
+
+    Sources (unioned, de-duplicated):
+      S&P 500, Nasdaq-100, Dow Jones, Russell 1000, common stocks (screener),
+      and the top ``crypto_n`` cryptocurrencies by market cap.
+    """
     out, seen = [], set()
-    for sym in sp500_symbols():
+
+    def add_stock(sym: str) -> None:
         if sym in seen:
-            continue
+            return
         seen.add(sym)
         out.append({"symbol": sym, "kind": "stock"})
+
+    for sym in sp500_symbols():
+        add_stock(sym)
+    for sym in nasdaq100_symbols():
+        add_stock(sym)
+    for sym in dowjones_symbols():
+        add_stock(sym)
+    for sym in russell1000_symbols():
+        add_stock(sym)
+    for sym in common_stock_symbols(common_n):
+        add_stock(sym)
+
     for sym in top_crypto_by_cap(crypto_n):
         if sym in seen:
             continue
         seen.add(sym)
         out.append({"symbol": sym, "kind": "crypto"})
+
     if not any(t["kind"] == "stock" for t in out):
         for sym in ("AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "BRK.B",
                     "TSLA", "JPM", "V", "UNH", "XOM", "JNJ", "WMT", "MA"):
-            if sym not in seen:
-                seen.add(sym)
-                out.append({"symbol": sym, "kind": "stock"})
+            add_stock(sym)
     return out
