@@ -128,6 +128,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .pulse .chg{margin-top:6px;font-size:12.5px;font-weight:600}
 .pulse .chg.up{color:var(--up)} .pulse .chg.down{color:var(--down)}
 .pulse .chg.mut{color:var(--ink-3);font-weight:500}
+.mut{color:var(--ink-3)}
 .pulse .scale{margin-top:10px;height:6px;border-radius:99px;position:relative;
   background:linear-gradient(90deg,#1baf7a 0%,#eda100 50%,#c0392e 100%)}
 .pulse .scale i{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
@@ -529,39 +530,42 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee })
 
 /* ---- quotes / historical prices ----------------------------------------- */
 async function enrichPrices(positions){
-  const missing = positions.filter(p => p.price == null).map(p => p.symbol);
-  const needVol = positions.map(p => p.symbol);
-  const syms = [...new Set([...missing, ...needVol])];
+  const syms = [...new Set(positions.map(p => p.symbol).filter(Boolean))];
   if (!syms.length) return positions;
 
   let by = {};
   try {
-    const rows = await rpc("get_symbol_quotes", { p_symbols: syms }) || [];
-    if (Array.isArray(rows)) rows.forEach(r => { if (r?.symbol) by[r.symbol] = r; });
-  } catch {}
+    const rows = await rpc("get_symbol_quotes", { p_symbols: syms });
+    const list = Array.isArray(rows) ? rows
+      : (rows && Array.isArray(rows.items) ? rows.items : []);
+    list.forEach(r => { if (r && r.symbol) by[r.symbol] = r; });
+  } catch (e) {
+    console.warn("[portfolio] get_symbol_quotes failed", e);
+  }
 
   await Promise.all(syms.map(async sym => {
-    if (!S.priceCache[sym]) {
-      try {
-        await rpc("request_prices", { p_symbol: sym }).catch(() => {});
+    try {
+      if (!S.priceCache[sym] || !((S.priceCache[sym].bars || []).length)) {
+        try { await rpc("request_prices", { p_symbol: sym }); } catch {}
         const d = await rpc("get_prices", { p_symbol: sym });
-        S.priceCache[sym] = d || { bars: [] };
-      } catch {
-        S.priceCache[sym] = { bars: [] };
+        if (d) S.priceCache[sym] = d;
       }
+    } catch (e) {
+      console.warn("[portfolio] get_prices failed", sym, e);
+      if (!S.priceCache[sym]) S.priceCache[sym] = { bars: [] };
     }
     if (!by[sym] || by[sym].price == null) {
-      const d = S.priceCache[sym];
-      const q = d && d.quote;
-      const bars = (d && d.bars) || [];
-      const px = (q && (q.price ?? q.close)) ?? (bars.length ? bars[bars.length - 1].c : null);
+      const d = S.priceCache[sym] || {};
+      const q = d.quote || {};
+      const bars = d.bars || [];
+      const px = q.price ?? q.close ?? (bars.length ? bars[bars.length - 1].c : null);
       if (px != null) {
         by[sym] = {
           symbol: sym,
-          name: q && q.name,
+          name: q.name,
           price: Number(px),
-          changePct: q && (q.change_pct ?? q.changePct),
-          previousClose: q && (q.previous_close ?? q.previousClose),
+          changePct: q.change_pct ?? q.changePct ?? null,
+          previousClose: q.previous_close ?? q.previousClose ?? null,
         };
       }
     }
@@ -572,9 +576,10 @@ async function enrichPrices(positions){
     if (!e) return p;
     return {
       ...p,
-      name: p.name || e.name,
-      price: p.price != null ? p.price : e.price,
-      changePct: p.changePct != null ? p.changePct : (e.changePct != null ? Number(e.changePct) : null),
+      name: p.name || e.name || null,
+      price: p.price != null ? p.price : (e.price != null ? Number(e.price) : null),
+      changePct: p.changePct != null ? p.changePct
+        : (e.changePct != null ? Number(e.changePct) : null),
       previousClose: p.previousClose != null ? p.previousClose
         : (e.previousClose != null ? Number(e.previousClose) : null),
     };
@@ -612,11 +617,19 @@ function assetClass(symbol){
   return "Stocks";
 }
 
+/** Live mark when we have a quote; otherwise cost basis so the page is never blank. */
+function markPrice(p){
+  if (p.price != null && Number.isFinite(p.price)) return p.price;
+  if (p.avgCost != null && Number.isFinite(p.avgCost)) return p.avgCost;
+  return null;
+}
+
 function allocation(positions){
   const totals = { Cash: 0, Stocks: 0, Funds: 0, ETFs: 0, Crypto: 0 };
   let sum = 0;
   for (const p of positions) {
-    const v = (p.price || 0) * p.quantity;
+    const px = markPrice(p);
+    const v = (px || 0) * p.quantity;
     if (!(v > 0)) continue;
     const cls = assetClass(p.symbol);
     totals[cls] += v;
@@ -631,14 +644,18 @@ function allocation(positions){
 function dailyReturn(positions){
   let value = 0, dayPl = 0;
   for (const p of positions) {
-    if (p.price == null || !p.quantity) continue;
-    const v = p.price * p.quantity;
+    const px = markPrice(p);
+    if (px == null || !p.quantity) continue;
+    const v = px * p.quantity;
     value += v;
+    // Day P/L only from a live quote — cost basis is not a daily move.
+    if (p.price == null) continue;
     if (p.changePct != null) dayPl += v * (p.changePct / (100 + p.changePct));
     else if (p.previousClose != null) dayPl += (p.price - p.previousClose) * p.quantity;
   }
-  const pctDay = value - dayPl !== 0 ? (dayPl / (value - dayPl)) * 100 : null;
-  return { amount: dayPl, pct: pctDay, value };
+  const hasLive = positions.some(p => p.price != null && p.quantity);
+  const pctDay = hasLive && value - dayPl !== 0 ? (dayPl / (value - dayPl)) * 100 : null;
+  return { amount: hasLive ? dayPl : null, pct: pctDay, value };
 }
 
 function ytdReturn(positions){
@@ -646,13 +663,14 @@ function ytdReturn(positions){
   const ytdStart = `${y}-01-01`;
   let start = 0, current = 0;
   for (const p of positions) {
-    if (p.price == null || !p.quantity) continue;
-    current += p.price * p.quantity;
+    const px = markPrice(p);
+    if (px == null || !p.quantity) continue;
+    current += px * p.quantity;
     const bars = (S.priceCache[p.symbol] && S.priceCache[p.symbol].bars) || [];
     const jan = closeOnOrBefore(bars, ytdStart);
     // Bought this year: cost basis is the YTD start for that lot (approx avgCost).
     if (!jan || (p.firstTrade && p.firstTrade > ytdStart)) {
-      start += (p.avgCost != null ? p.avgCost : p.price) * p.quantity;
+      start += (p.avgCost != null ? p.avgCost : px) * p.quantity;
     } else {
       start += jan * p.quantity;
     }
@@ -666,14 +684,14 @@ function ytdReturn(positions){
  *  65% weighted holding volatility (annualised 60d σ, capped at 50%),
  *  35% concentration (Herfindahl–Hirschman of weights). */
 function volatilityScore(positions){
-  const valued = positions.filter(p => p.price != null && p.quantity > 0);
-  const total = valued.reduce((s, p) => s + p.price * p.quantity, 0);
+  const valued = positions.filter(p => markPrice(p) != null && p.quantity > 0);
+  const total = valued.reduce((s, p) => s + markPrice(p) * p.quantity, 0);
   if (!total) return null;
 
   let wVol = 0;
   let hhi = 0;
   for (const p of valued) {
-    const w = (p.price * p.quantity) / total;
+    const w = (markPrice(p) * p.quantity) / total;
     hhi += w * w;
     const bars = ((S.priceCache[p.symbol] && S.priceCache[p.symbol].bars) || []).slice(-61);
     const rets = [];
@@ -903,7 +921,7 @@ async function renderList(){
     wireTickerSearch("wl-q", "wl-ac", "wl-search", sym => openAddModal(sym));
 
     const rows = S.positions.slice().sort((a, b) =>
-      ((b.price || 0) * b.quantity) - ((a.price || 0) * a.quantity));
+      ((markPrice(b) || 0) * b.quantity) - ((markPrice(a) || 0) * a.quantity));
     host.innerHTML = `<table>
       <thead><tr><th>Symbol</th><th>Qty</th><th>Price</th><th>Value</th><th></th></tr></thead>
       <tbody>
@@ -913,13 +931,16 @@ async function renderList(){
           <td></td>
         </tr>
         ${rows.map(r => {
-          const val = r.price != null ? r.price * r.quantity : null;
+          const px = markPrice(r);
+          const val = px != null ? px * r.quantity : null;
+          const live = r.price != null;
           return `<tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
             <td><span class="tsym"><span class="tsym-t">${esc(r.symbol)}</span>
               <span class="tsym-n">${esc(r.name || "")}</span></span></td>
             <td class="num">${esc(String(Number(r.quantity.toFixed(4))))}</td>
-            <td class="num">${esc(priceFmt(r.price))}
-              <div style="font-size:10.5px" class="${dir(r.changePct)}">${esc(pct(r.changePct))}</div></td>
+            <td class="num">${esc(priceFmt(px))}
+              <div style="font-size:10.5px" class="${live ? dir(r.changePct) : "mut"}">${
+                live ? esc(pct(r.changePct)) : "at cost"}</div></td>
             <td class="num">${esc(money(val))}</td>
             <td><div class="row-actions">
               <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
@@ -1322,6 +1343,14 @@ async function boot(showLoading = true){
     // Prefetch history used by YTD / vol / chart.
     await Promise.all(S.positions.map(p => seriesForSymbol(p.symbol, rangeStartISO("1Y"))));
     renderDashboard();
+    // Quotes sometimes arrive a beat late after request_prices — refresh once.
+    if (S.positions.some(p => p.price == null)) {
+      setTimeout(async () => {
+        S.priceCache = {};
+        S.positions = await enrichPrices(S.positions);
+        if (S.positions.some(p => p.price != null)) renderDashboard();
+      }, 1500);
+    }
   } else {
     renderEmpty();
   }
