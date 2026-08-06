@@ -205,13 +205,17 @@ tr.on td{background:var(--accent-soft)}
 .rows table{font-size:12.5px;width:100%;border-collapse:collapse}
 .rows th,.rows td{padding:9px 10px;white-space:nowrap}
 .rows th:first-child,.rows td:first-child{padding-left:10px}
-.rows .idcol{white-space:normal;width:1%;max-width:152px;padding-right:8px}
-/* Keep numeric columns tight so Symbol / Price/Cost do not stretch. */
-.rows th.col-num,.rows td.col-num{width:1%;padding-left:6px;padding-right:6px}
-.rows th.col-px,.rows td.col-px{width:1%;padding-left:6px;padding-right:6px}
-.rows th.col-act,.rows td.col-act{width:1%;padding-left:6px;padding-right:10px}
+.rows .idcol{white-space:normal;width:1%;max-width:152px;padding-right:8px;text-align:left}
+/* Numeric columns: right-align headers and values (Symbol stays left). */
+.rows th.col-num,.rows td.col-num,
+.rows th.col-px,.rows td.col-px,
+.rows th.col-act,.rows td.col-act{width:1%;padding-left:6px;padding-right:6px;text-align:right}
+.rows th.col-act,.rows td.col-act{padding-right:10px}
+.rows td.col-num .stack-cell,
+.rows td.col-px .stack-cell{margin-left:auto}
+.rows td.col-act .row-actions{justify-content:flex-end}
 .rows{overflow-x:auto}
-.th-with-tip{display:inline-flex;align-items:center;gap:4px}
+.th-with-tip{display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;width:100%}
 .info-tip{
   position:relative;display:inline-flex;align-items:center;justify-content:center;
   width:14px;height:14px;border-radius:50%;border:1px solid var(--ink-3);
@@ -249,7 +253,12 @@ tr.on td{background:var(--accent-soft)}
 .chead .price b{font-family:"IBM Plex Mono",monospace}
 .chead .meta{font-size:12.5px;color:var(--ink-3);margin-top:4px}
 .chead .meta .up,.chead .meta .down{font-weight:600}
-#chart{flex:1;min-height:360px}
+#chart{flex:1;min-height:360px;display:flex;align-items:center;justify-content:stretch}
+/* Match the SVG viewBox aspect so axis text is not stretched/compressed. */
+#chart > svg{
+  width:100%;height:auto;aspect-ratio:900 / 400;max-height:100%;
+  display:block;overflow:visible
+}
 .idx-bar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 4px;border-top:1px solid var(--rule-2);margin-top:6px}
 .idx-chip{
   display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);
@@ -1231,14 +1240,18 @@ async function renderList(){
       return;
     }
     host.innerHTML = `<table>
-      <thead><tr><th>Symbol</th><th>Price</th><th>% Change</th></tr></thead>
+      <thead><tr>
+        <th class="idcol">Symbol</th>
+        <th class="col-num">Price</th>
+        <th class="col-num">% Change</th>
+      </tr></thead>
       <tbody>${items.map(r => `
         <tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
-          <td><a class="tsym" href="company.html?t=${esc(encodeURIComponent(r.symbol))}&src=portfolio">
+          <td class="idcol"><a class="tsym" href="company.html?t=${esc(encodeURIComponent(r.symbol))}&src=portfolio">
             <span class="tsym-t">${esc(r.symbol)}</span>
             <span class="tsym-n">${esc(r.name || "")}</span></a></td>
-          <td class="num">${esc(priceFmt(r.price))}</td>
-          <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
+          <td class="col-num num">${esc(priceFmt(r.price))}</td>
+          <td class="col-num"><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
         </tr>`).join("")}</tbody></table>`;
   } else {
     searchHost.innerHTML = `
@@ -1514,7 +1527,9 @@ function formatChartValue(v, unit){
 }
 
 function drawLineChart(host, lines, { unit }){
-  const W = 900, H = 380, pad = { l: 54, r: 64, t: 16, b: 36 };
+  // Extra left/bottom pad so axis labels stay readable; meet (not none) so
+  // text is not vertically/horizontally compressed when the pane resizes.
+  const W = 900, H = 400, pad = { l: 68, r: 62, t: 18, b: 44 };
   const all = lines.flatMap(l => l.points);
   if (!all.length) {
     host.innerHTML = `<div class="note">No price history yet — it will appear once daily bars are available.</div>`;
@@ -1540,8 +1555,9 @@ function drawLineChart(host, lines, { unit }){
     const label = formatChartValue(v, unit);
     grid.push(`<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}"
       stroke="var(--rule-2)" stroke-width="1"/>
-      <text x="${pad.l - 8}" y="${y + 4}" text-anchor="end" fill="var(--ink-3)"
-        font-size="11" font-family="IBM Plex Mono,monospace">${esc(label)}</text>`);
+      <text x="${pad.l - 10}" y="${y + 4}" text-anchor="end" fill="var(--ink-3)"
+        font-size="12" font-weight="500"
+        font-family="IBM Plex Mono,ui-monospace,monospace">${esc(label)}</text>`);
   }
 
   const paths = lines.map(l => {
@@ -1554,11 +1570,18 @@ function drawLineChart(host, lines, { unit }){
 
   const xLabels = [dates[0], dates[Math.floor(dates.length / 2)], dates[dates.length - 1]]
     .filter(Boolean)
-    .map(d => `<text x="${xAt(d)}" y="${H - 10}" text-anchor="middle" fill="var(--ink-3)"
-      font-size="11">${esc(formatChartDate(d))}</text>`).join("");
+    .map((d, idx, arr) => {
+      const x = xAt(d);
+      // Keep end labels from clipping off the plot edges.
+      const anchor = idx === 0 ? "start" : idx === arr.length - 1 ? "end" : "middle";
+      const tx = idx === 0 ? pad.l : idx === arr.length - 1 ? (W - pad.r) : x;
+      return `<text x="${tx}" y="${H - 12}" text-anchor="${anchor}" fill="var(--ink-3)"
+        font-size="12" font-weight="500"
+        font-family="IBM Plex Mono,ui-monospace,monospace">${esc(formatChartDate(d))}</text>`;
+    }).join("");
 
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%"
-    preserveAspectRatio="none" role="img" aria-label="Performance chart">
+    preserveAspectRatio="xMidYMid meet" role="img" aria-label="Performance chart">
     ${grid.join("")}
     ${unit === "pct" ? `<line x1="${pad.l}" y1="${yAt(0)}" x2="${W - pad.r}" y2="${yAt(0)}"
       stroke="var(--ink-3)" stroke-dasharray="4 4" stroke-width="1" opacity=".5"/>` : ""}
@@ -1576,7 +1599,7 @@ function drawLineChart(host, lines, { unit }){
       </g>
       <g id="pf-tlab">
         <rect height="18" rx="4" fill="var(--ink)"></rect>
-        <text text-anchor="middle" font-size="10.5"
+        <text text-anchor="middle" font-size="11"
               font-family="IBM Plex Mono,monospace" fill="var(--card)" font-weight="600"></text>
       </g>
     </g>
@@ -1609,9 +1632,16 @@ function wirePortfolioCrosshair({ host, lines, dates, xAt, yAt, W, H, pad, unit 
     return { id: l.id, colour: l.colour, map };
   });
 
+  // Map pointer → viewBox coords (works with preserveAspectRatio meet).
   const toLocalX = ev => {
-    const b = svg.getBoundingClientRect();
-    return (ev.clientX - b.left) * (W / Math.max(1, b.width));
+    const ctm = svg.getScreenCTM();
+    if (!ctm) {
+      const b = svg.getBoundingClientRect();
+      return (ev.clientX - b.left) * (W / Math.max(1, b.width));
+    }
+    const pt = svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    return pt.matrixTransform(ctm.inverse()).x;
   };
 
   const hide = () => {
@@ -1665,14 +1695,17 @@ function wirePortfolioCrosshair({ host, lines, dates, xAt, yAt, W, H, pad, unit 
           <span>${esc(formatChartValue(l.map.get(d), unit))}</span></div>`);
       tip.innerHTML = `<b>${esc(dateLabel)}</b>${rows.join("")}`;
       tip.classList.add("on");
-      const box = host.getBoundingClientRect();
+      const hostBox = host.getBoundingClientRect();
+      const svgBox = svg.getBoundingClientRect();
       const tipW = tip.offsetWidth || 140;
       const tipH = tip.offsetHeight || 60;
-      let left = (X / W) * box.width + 12;
-      let top = (Y / H) * box.height - tipH / 2;
-      if (left + tipW > box.width - 8) left = (X / W) * box.width - tipW - 12;
+      const ox = svgBox.left - hostBox.left;
+      const oy = svgBox.top - hostBox.top;
+      let left = ox + (X / W) * svgBox.width + 12;
+      let top = oy + (Y / H) * svgBox.height - tipH / 2;
+      if (left + tipW > hostBox.width - 8) left = ox + (X / W) * svgBox.width - tipW - 12;
       tip.style.left = Math.max(8, left) + "px";
-      tip.style.top = Math.max(8, Math.min(box.height - tipH - 8, top)) + "px";
+      tip.style.top = Math.max(8, Math.min(hostBox.height - tipH - 8, top)) + "px";
     } else if (tip) {
       tip.classList.remove("on");
     }
