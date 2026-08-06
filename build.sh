@@ -10,6 +10,7 @@
 #   news.html     market news
 #   earnings.html earnings calendar
 #   company.html  the filed-financials dashboard
+#   portfolio.html user holdings tracker
 #   privacy.html  privacy policy
 #   nav.js/.css   the top bar every page injects
 #   analytics.js  Google Analytics 4 (gtag.js) and the consent banner
@@ -32,6 +33,7 @@ cp landing.html   public/index.html
 cp dashboard.html public/company.html
 cp news.html      public/news.html
 cp earnings.html  public/earnings.html
+cp portfolio.html public/portfolio.html
 cp privacy.html   public/privacy.html
 cp nav.js nav.css public/
 cp analytics.js public/
