@@ -173,12 +173,25 @@ tr.on td{background:var(--accent-soft)}
 .pill{display:inline-block;padding:2px 7px;border-radius:99px;font-size:11.5px;font-weight:600}
 .pill.up{background:var(--up-soft);color:var(--up)}
 .pill.down{background:var(--down-soft);color:var(--down)}
-.row-actions{display:flex;gap:4px;flex-wrap:nowrap}
+.row-actions{display:flex;gap:4px;flex-wrap:nowrap;align-items:center}
 .row-actions button{
   border:1px solid var(--rule);background:var(--card);border-radius:6px;
-  padding:3px 8px;font:inherit;font-size:11px;cursor:pointer;color:var(--ink-2)
+  padding:3px 8px;font:inherit;font-size:11px;cursor:pointer;color:var(--ink-2);
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:26px
 }
 .row-actions button:hover{border-color:var(--accent);color:var(--accent)}
+.row-actions .icon-btn{padding:3px 6px;color:var(--ink-3)}
+.row-actions .icon-btn svg{width:13px;height:13px;display:block}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;align-items:center}
+.modal-actions .grow{flex:1;display:flex;justify-content:flex-start}
+.btn-danger{
+  border:1px solid var(--down);background:transparent;color:var(--down);
+  border-radius:10px;padding:0 12px;min-height:44px;font:inherit;font-size:13px;
+  font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px
+}
+.btn-danger:hover{background:var(--down-soft)}
+.btn-danger svg{width:15px;height:15px}
+.btn-danger[hidden]{display:none}
 .stack-cell{display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.25}
 .stack-cell.start{align-items:flex-start}
 .stack-cell .top{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
@@ -249,7 +262,6 @@ tr.on td{background:var(--accent-soft)}
 }
 .field input:focus{border-color:var(--accent);background:var(--card)}
 .field .hint{font-size:11.5px;color:var(--ink-3);margin-top:4px}
-.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .err{color:var(--down);font-size:12.5px;margin-top:8px;min-height:1.2em}
 
 .toast{
@@ -314,6 +326,16 @@ tr.on td{background:var(--accent-soft)}
       </div>
       <div class="err" id="add-err"></div>
       <div class="modal-actions">
+        <div class="grow">
+          <button type="button" class="btn-danger" id="add-delete" hidden
+                  aria-label="Delete holding">
+            <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m-5 0v9.5A1.5 1.5 0 0 0 8.5 17h3a1.5 1.5 0 0 0 1.5-1.5V6M9 9v5M11 9v5"/>
+            </svg>
+            Delete
+          </button>
+        </div>
         <button type="button" class="btn btn-ghost" id="add-cancel">Cancel</button>
         <button type="submit" class="btn btn-primary" id="add-save">Add holding</button>
       </div>
@@ -1073,9 +1095,12 @@ async function renderList(){
 
     const rows = S.positions.slice().sort((a, b) =>
       ((markPrice(b) || 0) * b.quantity) - ((markPrice(a) || 0) * a.quantity));
+    const penSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
+      stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
     host.innerHTML = `<table>
       <thead><tr>
-        <th>MV/Qty</th><th class="idcol">Symbol</th><th>Price</th>
+        <th class="idcol">Symbol</th><th>MV/Qty</th><th>Price</th>
         <th>Today's P/L</th><th>P/L</th><th>Unrealized P/L</th><th></th>
       </tr></thead>
       <tbody>
@@ -1085,24 +1110,23 @@ async function renderList(){
           <td></td>
         </tr>
         ${rows.map(r => {
-          const px = markPrice(r);
-          const val = px != null ? px * r.quantity : null;
-          const live = r.price != null;
+          const livePx = r.price != null ? r.price : null;
+          const avg = r.avgCost != null ? r.avgCost : null;
+          const val = markPrice(r) != null ? markPrice(r) * r.quantity : null;
           const day = todayPl(r);
           const unreal = unrealizedPl(r);
           const tot = totalPl(r);
           const qtyLabel = Number(r.quantity.toFixed(4));
           return `<tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
-            <td><div class="stack-cell start">
-              <span class="top">${esc(money(val))}</span>
-              <span class="bot">${esc(String(qtyLabel))} sh</span>
-            </div></td>
             <td class="idcol"><span class="tsym"><span class="tsym-t">${esc(r.symbol)}</span>
               <span class="tsym-n">${esc(r.name || "")}</span></span></td>
             <td><div class="stack-cell">
-              <span class="top">${esc(priceFmt(px))}</span>
-              <span class="bot ${live ? dir(r.changePct) : "mut"}">${
-                live ? esc(pct(r.changePct)) : "at cost"}</span>
+              <span class="top">${esc(money(val))}</span>
+              <span class="bot">${esc(String(qtyLabel))} sh</span>
+            </div></td>
+            <td><div class="stack-cell">
+              <span class="top">${esc(priceFmt(livePx != null ? livePx : markPrice(r)))}</span>
+              <span class="bot">${avg != null ? `avg ${esc(priceFmt(avg))}` : "—"}</span>
             </div></td>
             <td class="num ${dir(day)}">${esc(moneySigned(day))}</td>
             <td class="num ${dir(tot)}">${esc(moneySigned(tot))}</td>
@@ -1110,6 +1134,8 @@ async function renderList(){
             <td><div class="row-actions">
               <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
               <button type="button" data-act="sell" data-s="${esc(r.symbol)}">Sell</button>
+              <button type="button" class="icon-btn" data-act="edit" data-s="${esc(r.symbol)}"
+                      title="Edit holding" aria-label="Edit ${esc(r.symbol)}">${penSvg}</button>
             </div></td>
           </tr>`;
         }).join("")}
@@ -1118,7 +1144,9 @@ async function renderList(){
     host.querySelectorAll("[data-act]").forEach(btn => {
       btn.onclick = e => {
         e.stopPropagation();
-        openAddModal(btn.dataset.s, btn.dataset.act === "sell" ? "sell" : "buy");
+        const act = btn.dataset.act;
+        if (act === "edit") openEditModal(btn.dataset.s);
+        else openAddModal(btn.dataset.s, act === "sell" ? "sell" : "buy");
       };
     });
   }
@@ -1347,45 +1375,125 @@ function drawLineChart(host, lines, { unit }){
   </svg>`;
 }
 
-/* ---- add / sell modal ---------------------------------------------------- */
-let addKind = "buy";
+/* ---- add / sell / edit modal -------------------------------------------- */
+let addKind = "buy"; // buy | sell | edit
+let editSymbol = null;
 
-function openAddModal(symbol, kind){
-  addKind = kind === "sell" ? "sell" : "buy";
+function setModalMode(kind, symbol, prefill){
+  addKind = kind;
+  editSymbol = kind === "edit" ? symbol : null;
   const modal = document.getElementById("add-modal");
   const title = document.getElementById("add-title");
   const sub = document.getElementById("add-sub");
   const save = document.getElementById("add-save");
+  const del = document.getElementById("add-delete");
   const priceHint = document.getElementById("f-price-hint");
-  const plBuy = addKind === "buy";
-  title.textContent = addKind === "sell" ? "Sell shares" : "Add to portfolio";
-  sub.textContent = addKind === "sell"
-    ? "Record a sale. Quantity cannot exceed what you currently hold."
-    : "Enter your current holding as of today — quantity, average buy price, and P/L from your brokerage.";
-  save.textContent = addKind === "sell" ? "Record sale" : "Add holding";
+  const symEl = document.getElementById("f-symbol");
+
+  if (kind === "edit") {
+    title.textContent = "Edit holding";
+    sub.textContent = "Update this ticker’s quantity, average buy price, and P/L. Delete removes it from your portfolio.";
+    save.textContent = "Save changes";
+    del.hidden = false;
+    symEl.readOnly = true;
+  } else if (kind === "sell") {
+    title.textContent = "Sell shares";
+    sub.textContent = "Record a sale. Quantity cannot exceed what you currently hold.";
+    save.textContent = "Record sale";
+    del.hidden = true;
+    symEl.readOnly = false;
+  } else {
+    title.textContent = "Add to portfolio";
+    sub.textContent = "Enter your current holding as of today — quantity, average buy price, and P/L from your brokerage.";
+    save.textContent = "Add holding";
+    del.hidden = true;
+    symEl.readOnly = false;
+  }
+
   document.querySelector('label[for="f-price"]').textContent =
-    addKind === "sell" ? "Sale price per share" : "Average buy price per share";
-  priceHint.textContent = addKind === "sell"
+    kind === "sell" ? "Sale price per share" : "Average buy price per share";
+  priceHint.textContent = kind === "sell"
     ? "Price you sold at."
     : "Your cost basis per share from your brokerage.";
-  document.getElementById("f-unrealized-wrap").hidden = !plBuy;
+  document.getElementById("f-unrealized-wrap").hidden = kind === "sell";
   document.getElementById("f-realized-wrap").hidden = false;
 
-  document.getElementById("f-symbol").value = symbol || "";
-  document.getElementById("f-date").value = todayISO();
+  symEl.value = (prefill && prefill.symbol) || symbol || "";
+  document.getElementById("f-date").value = (prefill && prefill.tradeDate) || todayISO();
   document.getElementById("f-date").max = todayISO();
-  document.getElementById("f-qty").value = "";
-  document.getElementById("f-price").value = "";
-  document.getElementById("f-unrealized").value = "";
-  document.getElementById("f-realized").value = "";
+  document.getElementById("f-qty").value =
+    prefill && prefill.quantity != null ? String(prefill.quantity) : "";
+  document.getElementById("f-price").value =
+    prefill && prefill.price != null ? String(prefill.price) : "";
+  document.getElementById("f-unrealized").value =
+    prefill && prefill.unrealizedPl != null ? String(prefill.unrealizedPl) : "";
+  document.getElementById("f-realized").value =
+    prefill && prefill.realizedPl != null ? String(prefill.realizedPl) : "";
   document.getElementById("add-err").textContent = "";
   modal.hidden = false;
-  if (symbol) document.getElementById("f-qty").focus();
-  else document.getElementById("f-symbol").focus();
+  if (kind === "edit" || symbol) document.getElementById("f-qty").focus();
+  else symEl.focus();
+}
+
+function openAddModal(symbol, kind){
+  setModalMode(kind === "sell" ? "sell" : "buy", symbol, null);
+}
+
+function openEditModal(symbol){
+  const pos = S.positions.find(p => p.symbol === symbol);
+  if (!pos) return;
+  setModalMode("edit", symbol, {
+    symbol: pos.symbol,
+    tradeDate: todayISO(),
+    quantity: Number(pos.quantity.toFixed(4)),
+    price: pos.avgCost != null ? Number(Number(pos.avgCost).toFixed(4)) : null,
+    unrealizedPl: pos.unrealizedPl != null ? Number(Number(pos.unrealizedPl).toFixed(2))
+      : (unrealizedPl(pos) != null ? Number(unrealizedPl(pos).toFixed(2)) : null),
+    realizedPl: pos.realizedPl != null ? Number(Number(pos.realizedPl).toFixed(2)) : null,
+  });
 }
 
 function closeAddModal(){
   document.getElementById("add-modal").hidden = true;
+  editSymbol = null;
+}
+
+/** Remove every transaction for a ticker (local + remote). */
+async function deleteSymbolHoldings(symbol){
+  const sym = String(symbol || "").toUpperCase();
+  const txns = (S.transactions || []).filter(t => t.symbol === sym);
+  localPort.write(localPort.read().filter(t => t.symbol !== sym));
+  try { sessionStorage.removeItem(MERGED_KEY); } catch {}
+
+  if (signedIn()) {
+    for (const t of txns) {
+      const id = Number(t.id);
+      if (!Number.isFinite(id)) continue;
+      try {
+        const d = await rpc("delete_portfolio_transaction", { p_id: id });
+        if (d && d.error) console.warn("[portfolio] delete failed", d.error);
+      } catch (e) {
+        console.warn("[portfolio] delete failed", e);
+      }
+    }
+  }
+  GA.track("portfolio_delete", { ticker: sym });
+  await loadPortfolio();
+}
+
+/** Replace a ticker’s holdings with a single updated buy snapshot. */
+async function replaceHolding(fields){
+  await deleteSymbolHoldings(fields.symbol);
+  // deleteSymbolHoldings already reloaded; addTransaction appends the new row.
+  await addTransaction({
+    symbol: fields.symbol,
+    kind: "buy",
+    tradeDate: fields.tradeDate,
+    quantity: fields.quantity,
+    price: fields.price,
+    unrealizedPl: fields.unrealizedPl,
+    realizedPl: fields.realizedPl,
+  });
 }
 
 function wireModal(){
@@ -1396,6 +1504,24 @@ function wireModal(){
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && !modal.hidden) closeAddModal();
   });
+
+  document.getElementById("add-delete").onclick = async () => {
+    const symbol = editSymbol || document.getElementById("f-symbol").value.trim().toUpperCase();
+    if (!symbol) return;
+    if (!confirm(`Remove ${symbol} from your portfolio? This deletes its transactions.`)) return;
+    const btn = document.getElementById("add-delete");
+    btn.disabled = true;
+    try {
+      await deleteSymbolHoldings(symbol);
+      closeAddModal();
+      toast(`Removed ${symbol}`);
+      await boot(false);
+    } catch (ex) {
+      document.getElementById("add-err").textContent = ex.message || "Could not delete.";
+    } finally {
+      btn.disabled = false;
+    }
+  };
 
   document.getElementById("add-form").onsubmit = async e => {
     e.preventDefault();
@@ -1412,19 +1538,31 @@ function wireModal(){
       return;
     }
     if (!(quantity > 0) || !(price >= 0)) {
-      err.textContent = "Quantity and average buy price are required.";
+      err.textContent = addKind === "sell"
+        ? "Quantity and sale price are required."
+        : "Quantity and average buy price are required.";
       return;
     }
     const save = document.getElementById("add-save");
     save.disabled = true;
     try {
-      await addTransaction({
-        symbol, kind: addKind, tradeDate, quantity, price,
-        unrealizedPl: addKind === "buy" ? unrealizedRaw : null,
-        realizedPl: realizedRaw,
-      });
-      closeAddModal();
-      toast(addKind === "sell" ? `Sold ${quantity} ${symbol}` : `Added ${quantity} ${symbol}`);
+      if (addKind === "edit") {
+        await replaceHolding({
+          symbol, tradeDate, quantity, price,
+          unrealizedPl: unrealizedRaw,
+          realizedPl: realizedRaw,
+        });
+        closeAddModal();
+        toast(`Updated ${symbol}`);
+      } else {
+        await addTransaction({
+          symbol, kind: addKind, tradeDate, quantity, price,
+          unrealizedPl: addKind === "buy" ? unrealizedRaw : null,
+          realizedPl: realizedRaw,
+        });
+        closeAddModal();
+        toast(addKind === "sell" ? `Sold ${quantity} ${symbol}` : `Added ${quantity} ${symbol}`);
+      }
       await boot(false);
     } catch (ex) {
       err.textContent = ex.message || "Could not save.";
