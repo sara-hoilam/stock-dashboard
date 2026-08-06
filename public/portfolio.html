@@ -249,19 +249,19 @@ tr.on td{background:var(--accent-soft)}
 .wl-ac b{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--accent)}
 .wl-ac span{font-size:11.5px;color:var(--ink-3)}
 
-.chartwrap{display:flex;flex-direction:column;min-width:0;padding:14px 16px 10px}
-.chead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+.chartwrap{display:flex;flex-direction:column;min-width:0;padding:14px 16px 10px;height:100%;min-height:0}
+.chead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;flex-shrink:0}
 .chead .price{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .chead .price b{font-family:"IBM Plex Mono",monospace}
 .chead .meta{font-size:12.5px;color:var(--ink-3);margin-top:4px}
 .chead .meta .up,.chead .meta .down{font-weight:600}
-#chart{flex:1;min-height:360px;display:flex;align-items:center;justify-content:stretch}
-/* Match the SVG viewBox aspect so axis text is not stretched/compressed. */
+/* Fill the split pane; SVG stretches to the available box (pads keep labels readable). */
+#chart{flex:1;min-height:280px;position:relative;display:block}
 #chart > svg{
-  width:100%;height:auto;aspect-ratio:900 / 400;max-height:100%;
+  position:absolute;inset:0;width:100%;height:100%;
   display:block;overflow:visible
 }
-.idx-bar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 4px;border-top:1px solid var(--rule-2);margin-top:6px}
+.idx-bar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 4px;border-top:1px solid var(--rule-2);margin-top:6px;flex-shrink:0}
 .idx-chip{
   display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);
   border-radius:99px;padding:4px 10px;font-size:12px;cursor:pointer;background:transparent;color:var(--ink-2)
@@ -1417,7 +1417,7 @@ function renderDashboard(){
             <h3>Insider Transactions</h3>
             <button type="button" class="info-i" aria-label="About Insider Transactions">
               <span aria-hidden="true">i</span>
-              <span class="info-tip">Officers and directors buying or selling their own company's stock, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
+              <span class="info-tip">Officers and directors buying or selling stock in companies you hold, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
             </button>
           </div>
         </div>
@@ -1482,6 +1482,7 @@ function renderDashboard(){
   wireDiscover();
   loadPortfolioDiscover();
   bootTrades();
+  wireInfoTips(document.getElementById("pulse"));
 }
 
 async function renderList(){
@@ -1543,6 +1544,19 @@ async function renderList(){
       const px = markPrice(r);
       return s + ((px != null && r.quantity) ? px * r.quantity : 0);
     }, 0);
+    let totalQty = 0, totalDay = 0, dayN = 0, totalPl = 0, plN = 0;
+    let totalCost = 0, totalDiv = 0;
+    for (const r of rows) {
+      totalQty += Number(r.quantity) || 0;
+      const day = todayPl(r);
+      if (day != null && Number.isFinite(day)) { totalDay += day; dayN++; }
+      const pl = holdingPl(r);
+      if (pl != null && Number.isFinite(pl)) { totalPl += pl; plN++; }
+      if (r.avgCost != null && r.quantity) totalCost += r.avgCost * r.quantity;
+      totalDiv += holdingDiv(r);
+    }
+    const totalRet = totalCost > 0 && plN ? (totalPl / totalCost) * 100 : null;
+    const totalDivRet = totalMv > 0 && totalDiv > 0 ? (totalDiv / totalMv) * 100 : null;
     host.innerHTML = `<table>
       <thead><tr>
         <th class="idcol">Symbol</th>
@@ -1556,8 +1570,26 @@ async function renderList(){
       </tr></thead>
       <tbody>
         <tr data-sym="PORTFOLIO" class="${S.selected === "PORTFOLIO" ? "on" : ""}">
-          <td colspan="7"><b style="font-size:12.5px">Portfolio total</b>
-            <div style="font-size:11px;color:var(--ink-3)">vs indexes on the chart</div></td>
+          <td class="idcol"><span class="tsym"><span class="tsym-t">Portfolio total</span>
+            <span class="tsym-n">vs indexes on the chart</span></span></td>
+          <td class="col-num"><div class="stack-cell">
+            <span class="top">${esc(money(totalMv || null))}</span>
+            <span class="bot">${esc(String(Number(totalQty.toFixed(4))))}</span>
+          </div></td>
+          <td class="col-px"><div class="stack-cell">
+            <span class="top">—</span>
+            <span class="bot">—</span>
+          </div></td>
+          <td class="col-num num">${totalMv > 0 ? "100.0%" : "—"}</td>
+          <td class="col-num num ${dayN ? dir(totalDay) : ""}">${dayN ? esc(moneySigned(totalDay)) : "—"}</td>
+          <td class="col-num"><div class="stack-cell">
+            <span class="top ${plN ? dir(totalPl) : ""}">${plN ? esc(moneySigned(totalPl)) : "—"}</span>
+            <span class="bot ${dir(totalRet)}">${esc(retPct(totalRet))}</span>
+          </div></td>
+          <td class="col-num"><div class="stack-cell">
+            <span class="top ${totalDiv > 0 ? "up" : ""}">${totalDiv > 0 ? esc(moneySigned(totalDiv)) : "—"}</span>
+            <span class="bot ${dir(totalDivRet)}">${totalDiv > 0 ? esc(retPct(totalDivRet)) : ""}</span>
+          </div></td>
           <td class="col-act"></td>
         </tr>
         ${rows.map(r => {
@@ -1795,9 +1827,8 @@ function formatChartValue(v, unit){
 }
 
 function drawLineChart(host, lines, { unit }){
-  // Extra left/bottom pad so axis labels stay readable; meet (not none) so
-  // text is not vertically/horizontally compressed when the pane resizes.
-  const W = 900, H = 400, pad = { l: 68, r: 62, t: 18, b: 44 };
+  // Tall viewBox + none: chart fills the pane; generous pads keep axis text readable.
+  const W = 900, H = 520, pad = { l: 72, r: 64, t: 20, b: 48 };
   const all = lines.flatMap(l => l.points);
   if (!all.length) {
     host.innerHTML = `<div class="note">No price history yet — it will appear once daily bars are available.</div>`;
@@ -1849,7 +1880,7 @@ function drawLineChart(host, lines, { unit }){
     }).join("");
 
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%"
-    preserveAspectRatio="xMidYMid meet" role="img" aria-label="Performance chart">
+    preserveAspectRatio="none" role="img" aria-label="Performance chart">
     ${grid.join("")}
     ${unit === "pct" ? `<line x1="${pad.l}" y1="${yAt(0)}" x2="${W - pad.r}" y2="${yAt(0)}"
       stroke="var(--ink-3)" stroke-dasharray="4 4" stroke-width="1" opacity=".5"/>` : ""}
@@ -2474,6 +2505,15 @@ const TRADES = {
   congress: { days: 14, rows: [], total: 0, loading: false, done: false, wired: false },
 };
 
+/** Tickers the user currently holds (quantity > 0). */
+function heldSymbols(){
+  return [...new Set(
+    (S.positions || [])
+      .filter(p => p && p.symbol && Number(p.quantity) > 0)
+      .map(p => String(p.symbol).toUpperCase())
+  )];
+}
+
 const insiderRow = r =>
   `<tr><td>${esc(r.filed || "")}</td>
        <td class="idcol">${tradeSymLink(r.symbol, r.name)}</td>
@@ -2503,11 +2543,14 @@ function renderTradePanel(kind){
   if (!host) return;
 
   if (!bucket.rows.length) {
+    const held = heldSymbols();
     host.innerHTML = bucket.loading
       ? `<div class="note"><span class="load"></span></div>`
-      : `<div class="note">${isIns
-          ? "No insider filings in the last 7 days."
-          : "No congressional disclosures in the last 14 days."}</div>`;
+      : `<div class="note">${!held.length
+          ? "Add holdings to see filings for your tickers."
+          : isIns
+            ? "No insider filings for your holdings in the last 7 days."
+            : "No congressional disclosures for your holdings in the last 14 days."}</div>`;
     return;
   }
 
@@ -2545,15 +2588,43 @@ async function loadTrades(kind){
   const isIns = kind === "insider";
   const bucket = TRADES[isIns ? "insider" : "congress"];
   if (bucket.loading || bucket.done) return;
+  const held = heldSymbols();
+  if (!held.length) {
+    bucket.done = true;
+    bucket.rows = [];
+    bucket.total = 0;
+    renderTradePanel(kind);
+    return;
+  }
   bucket.loading = true;
   if (bucket.rows.length) renderTradePanel(kind);
   try {
-    const d = await rpc("get_trades", {
+    const args = {
       p_limit: TRADES.page,
       p_offset: bucket.rows.length,
       p_days: bucket.days,
       p_kind: isIns ? "insider" : "congress",
-    });
+      p_symbols: held,
+    };
+    let d;
+    try {
+      d = await rpc("get_trades", args);
+    } catch (e) {
+      // Migration 0044 not applied yet — fetch unfiltered and filter client-side.
+      d = await rpc("get_trades", {
+        p_limit: Math.min(100, TRADES.page * 5),
+        p_offset: 0,
+        p_days: bucket.days,
+        p_kind: isIns ? "insider" : "congress",
+      });
+      const key = isIns ? "insiders" : "congress";
+      const set = new Set(held);
+      const all = ((d && d[key]) || []).filter(r => r && set.has(String(r.symbol || "").toUpperCase()));
+      bucket.rows = all;
+      bucket.total = all.length;
+      bucket.done = true;
+      return;
+    }
     const key = isIns ? "insiders" : "congress";
     const totalKey = isIns ? "insidersTotal" : "congressTotal";
     const chunk = (d && d[key]) || [];
