@@ -569,14 +569,26 @@ async function loadPortfolio(){
   applyLocalPortfolio();
 }
 
+/** True for client-only drafts. Mirrored postgres ids must never be re-merged. */
+function isLocalDraftId(id){
+  if (id == null || id === "") return true;
+  return typeof id === "string" && String(id).startsWith("local-");
+}
+
 async function mergeLocalIfNeeded(){
   if (!signedIn()) return;
-  const local = localPort.read();
-  if (!local.length) return;
   if (sessionStorage.getItem(MERGED_KEY)) return;
+  const local = localPort.read();
+  // Only upload unsynced drafts. Re-uploading mirrored rows (numeric ids)
+  // duplicates every other ticker — e.g. after edit/delete cleared MERGED_KEY.
+  const drafts = local.filter(t => isLocalDraftId(t.id));
+  if (!drafts.length) {
+    try { sessionStorage.setItem(MERGED_KEY, "1"); } catch {}
+    return;
+  }
   try {
     const d = await rpc("merge_portfolio", {
-      p_transactions: local.map(t => ({
+      p_transactions: drafts.map(t => ({
         symbol: t.symbol,
         kind: t.kind,
         tradeDate: t.tradeDate,
@@ -659,7 +671,8 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee,
       if (d && d.error) throw new Error(d.error);
     } catch (e) {
       console.warn("[portfolio] remote save failed; kept local draft", e);
-      // Remote failed — allow a later merge to upload this local row.
+      // Remote failed — allow a later merge to upload this local-* draft only
+      // (mergeLocalIfNeeded ignores already-mirrored numeric ids).
       try { sessionStorage.removeItem(MERGED_KEY); } catch {}
     }
   } else if (window.TA?.showSignupModal) {
@@ -1463,7 +1476,11 @@ async function deleteSymbolHoldings(symbol){
   const sym = String(symbol || "").toUpperCase();
   const txns = (S.transactions || []).filter(t => t.symbol === sym);
   localPort.write(localPort.read().filter(t => t.symbol !== sym));
-  try { sessionStorage.removeItem(MERGED_KEY); } catch {}
+  // Signed-in deletes go through the API. Remaining local rows are mirrors of
+  // remote — clearing MERGED_KEY would re-upload them and double quantities.
+  if (!signedIn()) {
+    try { sessionStorage.removeItem(MERGED_KEY); } catch {}
+  }
 
   if (signedIn()) {
     for (const t of txns) {
