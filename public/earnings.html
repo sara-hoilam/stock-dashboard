@@ -76,17 +76,21 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:22px 28px 72px}
 .daycard .dow{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--ink-3);font-weight:600}
 .daycard .dom{font-size:18px;font-weight:600;letter-spacing:-.02em;margin:2px 0 8px}
-.daycard .foot{display:flex;align-items:center;gap:4px;min-height:18px}
+.daycard .foot{display:flex;align-items:center;gap:4px;min-height:20px}
 .daycard .avatars{display:flex}
 .daycard .avatars span{
-  width:16px;height:16px;border-radius:50%;font-size:7px;font-weight:700;color:#fff;
-  display:grid;place-items:center;margin-left:-4px;border:1.5px solid var(--card);
+  width:18px;height:18px;border-radius:50%;font-size:7px;font-weight:700;color:#fff;
+  display:grid;place-items:center;margin-left:-5px;border:1.5px solid var(--card);
   font-family:"IBM Plex Mono",monospace;
 }
 .daycard .avatars span:first-child{margin-left:0}
 .daycard .n{font-size:10.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap}
 
-.elist{display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 280px);
+.daymeta{display:flex;align-items:baseline;gap:8px;margin:0 2px 10px}
+.daymeta h2{font-size:14px;font-weight:600;letter-spacing:-.01em;margin:0}
+.daymeta span{font-size:12px;color:var(--ink-3)}
+
+.elist{display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 310px);
   overflow-y:auto;padding-right:2px;scrollbar-gutter:stable}
 .ecard{background:var(--card);border:1px solid var(--rule);border-radius:12px;
   padding:16px 18px;box-shadow:var(--shadow)}
@@ -175,6 +179,7 @@ tbody tr:hover td{background:var(--sunk)}
         </div>
       </div>
       <div class="week" id="week" role="tablist" aria-label="Earnings week"></div>
+      <div class="daymeta" id="daymeta" hidden><h2 id="daymeta-day"></h2><span id="daymeta-n"></span></div>
       <div class="elist" id="elist"><div class="note"><span class="load"></span></div></div>
     </div>
 
@@ -237,7 +242,11 @@ const price = v => v == null ? "—"
   : v >= 1000 ? Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})
   : Number(v).toFixed(2);
 const avatarColour = sym => AVATAR[Math.abs([...String(sym||"")].reduce((a,c)=>a+c.charCodeAt(0),0)) % AVATAR.length];
-const iso = d => d.toISOString().slice(0,10);
+// Local calendar date. toISOString() would shift the whole strip by a day for
+// anyone east of Greenwich, so Saturday's calls landed under Sunday's heading
+// and the rest of the week matched nothing at all.
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-`
+  + `${String(d.getDate()).padStart(2, "0")}`;
 const parseDay = s => {
   const [y,m,d] = String(s).split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -245,8 +254,10 @@ const parseDay = s => {
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const startOfWeek = d => addDays(d, -d.getDay()); // Sunday
 const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DOW_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const shortDay = d => `${MON[d.getMonth()]} ${d.getDate()}`;
+const longDay = d => `${DOW_LONG[d.getDay()]}, ${MON[d.getMonth()]} ${d.getDate()}`;
 const money = v => {
   if (v == null || v === "") return null;
   const n = Number(v);
@@ -318,6 +329,7 @@ const S = {
   view: "watchlist",
   rows: [],
   watched: new Set(),
+  dayLogos: null,
 };
 
 function weekLabel(){
@@ -330,14 +342,20 @@ function weekLabel(){
 
 function paintWeek(){
   document.getElementById("wk-label").textContent = weekLabel();
+  const host = document.getElementById("week");
   const byDate = Object.fromEntries((S.week || []).map(d => [d.date, d]));
-  document.getElementById("week").innerHTML = Array.from({length:7}, (_,i) => {
+  const shown = [];
+  host.innerHTML = Array.from({length:7}, (_,i) => {
     const d = addDays(S.anchor, i);
     const key = iso(d);
     const info = byDate[key] || { count: 0, sample: [] };
-    const sample = info.sample || [];
-    const avatars = sample.slice(0, 3).map(s =>
-      `<span style="background:${avatarColour(s)}">${esc(String(s).slice(0,2))}</span>`).join("");
+    // The four largest companies of the day, biggest first — the sample comes
+    // back from Postgres already ordered by market cap.
+    const sample = (info.sample || []).slice(0, 4);
+    sample.forEach(s => shown.push(s));
+    const avatars = sample.map(s =>
+      `<span class="av" data-logo="${esc(s)}" title="${esc(s)}"
+             style="background:${avatarColour(s)}">${esc(String(s).slice(0,2))}</span>`).join("");
     const n = info.count || 0;
     return `<button type="button" class="daycard" data-day="${esc(key)}"
               aria-pressed="${key === S.selected}" role="tab">
@@ -349,7 +367,8 @@ function paintWeek(){
       </div>
     </button>`;
   }).join("");
-  document.querySelectorAll(".daycard").forEach(btn => {
+  if (shown.length && window.TickerLogos) window.TickerLogos.hydrate(shown, host);
+  host.querySelectorAll(".daycard").forEach(btn => {
     btn.onclick = () => { S.selected = btn.dataset.day; loadDay(); paintWeek(); };
   });
 }
@@ -376,9 +395,46 @@ function highlights(r){
   return bullets.slice(0, 4);
 }
 
+// A busy day lists a few hundred companies and each cached logo is ~25 KB, so
+// they are fetched as their cards come into view rather than all at once.
+function hydrateOnScroll(host){
+  if (S.dayLogos) { S.dayLogos.disconnect(); S.dayLogos = null; }
+  if (!window.TickerLogos || !window.IntersectionObserver) return;
+  let pending = new Set(), timer = null;
+  const flush = () => {
+    timer = null;
+    const batch = [...pending];
+    pending.clear();
+    if (batch.length) window.TickerLogos.hydrate(batch, host);
+  };
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      io.unobserve(en.target);
+      const sym = en.target.querySelector("[data-logo]");
+      if (sym) pending.add(sym.getAttribute("data-logo"));
+    });
+    if (pending.size && !timer) timer = setTimeout(flush, 60);
+  }, { rootMargin: "400px 0px" });
+  host.querySelectorAll(".ecard").forEach(card => io.observe(card));
+  S.dayLogos = io;
+}
+
+function paintDayMeta(){
+  const meta = document.getElementById("daymeta");
+  const n = S.dayRows.length;
+  meta.hidden = false;
+  document.getElementById("daymeta-day").textContent = longDay(parseDay(S.selected));
+  document.getElementById("daymeta-n").textContent = n
+    ? `${n} compan${n === 1 ? "y" : "ies"} reporting`
+    : "no companies reporting";
+}
+
 function paintDay(){
   const host = document.getElementById("elist");
+  paintDayMeta();
   if (!S.dayRows.length) {
+    if (S.dayLogos) { S.dayLogos.disconnect(); S.dayLogos = null; }
     host.innerHTML = `<div class="note">No earnings calls listed for this day yet.</div>`;
     return;
   }
@@ -402,14 +458,24 @@ function paintDay(){
       <a class="more" href="company.html?t=${encodeURIComponent(r.symbol)}&src=earnings_page">Company report →</a>
     </article>`;
   }).join("");
-  if (window.TickerLogos) {
-    window.TickerLogos.hydrate(S.dayRows.map(r => r.symbol), host);
-  }
+  host.scrollTop = 0;
+  hydrateOnScroll(host);
+}
+
+// The calendar hides anything under $1B unless it is on the visitor's
+// watchlist, which is what p_symbols carries. A deployment where migration
+// 0048 has not been applied yet answers 404 for the new arguments, so fall
+// back to the old shape rather than blanking the page.
+async function earningsRpc(fn, args, legacy){
+  try { return await rpc(fn, args); }
+  catch { return await rpc(fn, legacy); }
 }
 
 async function loadWeek(){
   try {
-    S.week = await rpc("get_earnings_week", { p_date: iso(S.anchor) }) || [];
+    S.week = await earningsRpc("get_earnings_week",
+      { p_date: iso(S.anchor), p_symbols: [...S.watched] },
+      { p_date: iso(S.anchor) }) || [];
   } catch { S.week = []; }
   paintWeek();
 }
@@ -417,7 +483,9 @@ async function loadWeek(){
 async function loadDay(){
   document.getElementById("elist").innerHTML = `<div class="note"><span class="load"></span></div>`;
   try {
-    S.dayRows = await rpc("get_earnings_day", { p_date: S.selected, p_limit: 40 }) || [];
+    S.dayRows = await earningsRpc("get_earnings_day",
+      { p_date: S.selected, p_limit: 500, p_symbols: [...S.watched] },
+      { p_date: S.selected, p_limit: 40 }) || [];
   } catch { S.dayRows = []; }
   paintDay();
 }
@@ -467,6 +535,9 @@ function paintSidebar(){
       now ? S.watched.add(btn.dataset.star) : S.watched.delete(btn.dataset.star);
       if (S.view === "watchlist") loadSidebar();
       else paintSidebar();
+      // A watchlisted company is on the calendar whatever it is worth.
+      loadWeek();
+      loadDay();
     };
   });
   host.querySelectorAll("tr[data-s]").forEach(tr => {
@@ -517,13 +588,16 @@ function wireSearch(){
       ac.classList.add("open");
       ac.querySelectorAll("[data-s]").forEach(d => d.onmousedown = async e => {
         e.preventDefault();
-        await toggleWatch(d.dataset.s);
+        if (await toggleWatch(d.dataset.s)) S.watched.add(d.dataset.s);
+        else S.watched.delete(d.dataset.s);
         q.value = "";
         close();
         S.view = "watchlist";
         document.querySelectorAll("#views button").forEach(b =>
           b.setAttribute("aria-pressed", b.dataset.v === "watchlist"));
         loadSidebar();
+        loadWeek();
+        loadDay();
       });
     }, 140);
   });
@@ -560,7 +634,10 @@ wireSearch();
     window.TA.onAuthChange(async () => {
       if (signedIn()) await mergeLocalWatchlist();
       ready();
+      await refreshWatched();
       loadSidebar();
+      loadWeek();
+      loadDay();
     });
     if (signedIn()) await mergeLocalWatchlist();
   } else {
@@ -568,6 +645,9 @@ wireSearch();
     document.querySelectorAll("#views button").forEach(b =>
       b.setAttribute("aria-pressed", b.dataset.v === S.view));
   }
+  // The watchlist decides which small caps stay on the calendar, so it has to
+  // be known before the week and the day are asked for.
+  await refreshWatched();
   await Promise.all([loadWeek(), loadDay(), loadSidebar()]);
   try { GA.pageView(); } catch {}
 })();
