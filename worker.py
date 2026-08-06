@@ -411,6 +411,25 @@ def refresh_indexes(holdings: bool = True) -> bool:
                 if rows:
                     n = store.replace_index_holdings(alias, rows)
                     log(f"  index holdings {alias}: {n} rows")
+                    # Warm quotes so the holdings table can show today's % move.
+                    members = [r["symbol"] for r in rows if r.get("symbol")]
+                    for i in range(0, len(members), 50):
+                        try:
+                            batch = market.quotes(members[i:i + 50]) or []
+                            if batch:
+                                store.upsert_quotes([{
+                                    "symbol": x["symbol"],
+                                    "name": x.get("name"),
+                                    "price": x.get("price"),
+                                    "change": x.get("change"),
+                                    "change_pct": x.get("change_pct"),
+                                    "volume": x.get("volume"),
+                                    "market_cap": x.get("market_cap"),
+                                    "exchange": x.get("exchange"),
+                                } for x in batch if x.get("symbol")])
+                        except market.MarketError as exc:
+                            log(f"  index holding quotes {alias}: {exc}")
+                            break
             except Exception as exc:
                 log(f"  index holdings {alias}: {exc}")
 
@@ -420,10 +439,11 @@ def refresh_indexes(holdings: bool = True) -> bool:
 
 
 def fetch_index_prices(alias: str) -> bool:
-    """Daily bars + quote for one index alias (SPX / IXIC / DJI)."""
+    """Daily bars, quote, monthly closes, and PE history for one index alias."""
     sym = (alias or "").upper()
     if sym not in market.INDEXES:
         return False
+    meta = market.INDEXES[sym]
     q = market.index_quote(sym)
     bars = market.index_history(sym, 420)
     quote_detail = None
@@ -440,6 +460,25 @@ def fetch_index_prices(alias: str) -> bool:
             "exchange": q.get("exchange"),
         }
     store.upsert_prices(sym, bars, quote_detail, bars[-1]["d"] if bars else None)
+
+    # Seasonality + PE comparison chart on the index ticker page.
+    try:
+        monthly = market.monthly_closes(meta["fmp"], 11)
+    except Exception as exc:
+        log(f"  index monthly {sym}: {exc}")
+        monthly = []
+    try:
+        pe_hist = market.index_forward_pe_history(sym, years=10)
+    except Exception as exc:
+        log(f"  index pe {sym}: {exc}")
+        pe_hist = []
+    if monthly or pe_hist:
+        try:
+            store.upsert_company_extras(
+                sym, monthly or None, None, None, pe_hist or None)
+        except store.StoreError as exc:
+            log(f"  index extras {sym}: {exc}")
+
     return bool(bars)
 
 
