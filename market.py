@@ -193,6 +193,189 @@ def quote(symbol: str) -> dict | None:
     }
 
 
+# Major indexes. FMP quotes use caret symbols; we store searchable aliases.
+INDEXES = {
+    "SPX": {
+        "fmp": "^GSPC",
+        "name": "S&P 500",
+        "exchange": "INDEX",
+        "constituents": "sp500",
+    },
+    "IXIC": {
+        "fmp": "^IXIC",
+        "name": "NASDAQ Composite",
+        "exchange": "INDEX",
+        # Composite has thousands of members; Nasdaq-100 is the useful holdings set.
+        "constituents": "nasdaq100",
+    },
+    "DJI": {
+        "fmp": "^DJI",
+        "name": "Dow Jones Industrial Average",
+        "exchange": "INDEX",
+        "constituents": "dowjones",
+    },
+}
+
+_INDEX_CSV = {
+    "sp500": (
+        "https://raw.githubusercontent.com/datasets/s-and-p-500-companies"
+        "/master/data/constituents.csv"),
+    "nasdaq100": (
+        "https://yfiua.github.io/index-constituents/constituents-nasdaq100.csv"),
+    "dowjones": (
+        "https://yfiua.github.io/index-constituents/constituents-dowjones.csv"),
+}
+
+
+def index_quote(alias: str) -> dict | None:
+    """Quote one major index, returned under its searchable alias (SPX/…)."""
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return None
+    q = quote(meta["fmp"])
+    if not q:
+        return None
+    q["symbol"] = alias.upper()
+    q["name"] = meta["name"]
+    q["exchange"] = meta["exchange"]
+    return q
+
+
+def index_quotes() -> list[dict]:
+    out = []
+    for alias in INDEXES:
+        try:
+            q = index_quote(alias)
+        except MarketError:
+            q = None
+        if q:
+            out.append(q)
+    return out
+
+
+def index_history(alias: str, limit: int = 420) -> list[dict]:
+    """Daily OHLCV for an index alias, as ``{d, o, h, l, c, v}`` bars."""
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return []
+    try:
+        rows = _get("historical-price-eod/full", symbol=meta["fmp"]) or []
+    except MarketError:
+        return []
+    bars = []
+    for r in rows[: max(1, int(limit or 420))]:
+        d = r.get("date")
+        c = r.get("close") if r.get("close") is not None else r.get("price")
+        if not d or c is None:
+            continue
+        bars.append({
+            "d": d,
+            "o": r.get("open"),
+            "h": r.get("high"),
+            "l": r.get("low"),
+            "c": c,
+            "v": r.get("volume"),
+        })
+    bars.sort(key=lambda b: b["d"])
+    return bars
+
+
+def _index_constituent_symbols(kind: str) -> list[str]:
+    """Public CSV constituents when FMP index endpoints are gated."""
+    url = _INDEX_CSV.get(kind)
+    if not url:
+        return []
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "TickerAlpha/1.0 (index-holdings)"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            text = resp.read().decode("utf-8", "replace")
+    except Exception:
+        return []
+    out, seen = [], set()
+    for i, line in enumerate(text.splitlines()):
+        if i == 0 or not line.strip():
+            continue
+        sym = line.split(",", 1)[0].strip().strip('"').upper().replace("-", ".")
+        if not sym or sym in seen:
+            continue
+        if not re.match(r"^[A-Z][A-Z0-9.\-]{0,9}$", sym):
+            continue
+        seen.add(sym)
+        out.append(sym)
+    return out
+
+
+def index_holdings(alias: str) -> list[dict]:
+    """Market-cap-weighted holdings for an index (constituents we can price)."""
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return []
+    members = _index_constituent_symbols(meta["constituents"])
+    if not members:
+        return []
+    member_set = set(members)
+
+    caps: dict[str, float] = {}
+    names: dict[str, str] = {}
+    industries: dict[str, str] = {}
+
+    # Screener is one call for thousands of caps/industries — prefer it.
+    try:
+        for r in _screener(1e8, ttl=3600) or []:
+            sym = (r.get("symbol") or "").upper()
+            if sym not in member_set:
+                continue
+            try:
+                cap = float(r.get("marketCap") or 0)
+            except (TypeError, ValueError):
+                cap = 0.0
+            if cap > 0:
+                caps[sym] = cap
+            if r.get("companyName"):
+                names[sym] = r["companyName"]
+            if r.get("industry"):
+                industries[sym] = r["industry"]
+    except MarketError:
+        pass
+
+    # Fill small gaps (e.g. Dow names below the screener floor) with quotes.
+    missing = [s for s in members if s not in caps][:40]
+    if missing:
+        try:
+            for q in quotes(missing) or []:
+                sym = (q.get("symbol") or "").upper()
+                if not sym:
+                    continue
+                try:
+                    cap = float(q.get("market_cap") or 0)
+                except (TypeError, ValueError):
+                    cap = 0.0
+                if cap > 0:
+                    caps[sym] = cap
+                if q.get("name"):
+                    names[sym] = q["name"]
+        except MarketError:
+            pass
+
+    total = sum(caps.get(s, 0) for s in members) or 0.0
+    rows = []
+    for sym in members:
+        cap = caps.get(sym, 0.0)
+        weight = (100.0 * cap / total) if total and cap else None
+        rows.append({
+            "symbol": sym,
+            "name": names.get(sym),
+            "industry": industries.get(sym),
+            "weightPct": round(weight, 4) if weight is not None else None,
+            "marketCap": cap or None,
+        })
+    rows.sort(key=lambda r: (r["weightPct"] is None, -(r["weightPct"] or 0), r["symbol"]))
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i
+    return rows
+
+
 def quote_detail(symbol: str) -> dict | None:
     """Everything the company page's price panel shows, in one call.
 
