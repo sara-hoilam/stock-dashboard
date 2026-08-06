@@ -39,7 +39,7 @@
     </div>
     <nav class="nav"><div class="nav-in">
       <a class="nav-brand" href="index.html" aria-label="Ticker Alpha home">
-        <img class="nav-mark" id="nav-mark" src="brand-logo-light.svg" width="26" height="26" alt="">
+        <img class="nav-mark" id="nav-mark" src="brand-logo-light.svg" width="30" height="30" alt="">
         <b>Ticker&nbsp;Alpha</b>
       </a>
 
