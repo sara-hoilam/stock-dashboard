@@ -39,7 +39,8 @@
     </div>
     <nav class="nav"><div class="nav-in">
       <a class="nav-brand" href="index.html" aria-label="Ticker Alpha home">
-        <span class="nav-mark">TA</span><b>Ticker&nbsp;Alpha</b>
+        <img class="nav-mark" id="nav-mark" src="brand-logo-light.svg" width="26" height="26" alt="">
+        <b>Ticker&nbsp;Alpha</b>
       </a>
 
       <div class="nav-links">
@@ -79,10 +80,25 @@
   /* ---- theme ------------------------------------------------------------ */
   const themeBtn = document.getElementById("nav-theme");
   const ICON = { dark: "☾", light: "☀" };
+  const markImg = document.getElementById("nav-mark");
+  function setFavicon(t) {
+    const href = t === "dark" ? "brand-logo-dark.svg" : "brand-logo-light.svg";
+    let link = document.querySelector('link[data-ta-favicon]');
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      link.type = "image/svg+xml";
+      link.setAttribute("data-ta-favicon", "1");
+      document.head.appendChild(link);
+    }
+    link.href = href;
+  }
   function setTheme(t) {
     document.documentElement.setAttribute("data-theme", t);
     themeBtn.textContent = t === "dark" ? ICON.light : ICON.dark;
     themeBtn.title = t === "dark" ? "Switch to light" : "Switch to dark";
+    if (markImg) markImg.src = t === "dark" ? "brand-logo-dark.svg" : "brand-logo-light.svg";
+    setFavicon(t);
     try { localStorage.setItem("alphaticker-theme", t); } catch {}
     window.dispatchEvent(new CustomEvent("themechange", { detail: t }));
   }
