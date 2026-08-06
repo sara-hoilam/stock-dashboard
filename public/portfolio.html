@@ -839,15 +839,7 @@ function positionsFromTxns(txns){
   // Remote get_portfolio returns newest-first; average-cost accounting needs
   // chronological order so sells reduce basis at the prior avg (avg unchanged)
   // and only subsequent buys reweight it.
-  const ordered = (txns || []).map((t, i) => ({ t, i })).sort((a, b) => {
-    const da = String(a.t.tradeDate || "");
-    const db = String(b.t.tradeDate || "");
-    if (da !== db) return da < db ? -1 : 1;
-    const ia = Number(a.t.id);
-    const ib = Number(b.t.id);
-    if (Number.isFinite(ia) && Number.isFinite(ib) && ia !== ib) return ia - ib;
-    return a.i - b.i;
-  }).map(x => x.t);
+  const ordered = sortTxnsChrono(txns);
 
   const map = {};
   for (const t of ordered) {
@@ -877,16 +869,17 @@ function positionsFromTxns(txns){
       }
       p.quantity -= q;
       p.proceeds += q * px - fee;
+      const realized = Number(t.realizedPl);
+      if (Number.isFinite(realized)) {
+        p.realizedPl = (p._hasRealized ? p.realizedPl : 0) + realized;
+        p._hasRealized = true;
+      }
     } else if (t.kind === "dividend") {
       p.dividends += px || 0;
     }
-    // Latest non-null unrealized snapshot; sum realized across entries.
+    // Latest non-null unrealized snapshot (legacy rows).
     if (t.unrealizedPl != null && t.unrealizedPl !== "") {
       p.unrealizedPl = Number(t.unrealizedPl);
-    }
-    if (t.realizedPl != null && t.realizedPl !== "") {
-      p.realizedPl = (p._hasRealized ? p.realizedPl : 0) + Number(t.realizedPl);
-      p._hasRealized = true;
     }
     if (t.tradeDate < p.firstTrade) p.firstTrade = t.tradeDate;
     if (t.tradeDate > p.lastTrade) p.lastTrade = t.tradeDate;
@@ -901,6 +894,109 @@ function positionsFromTxns(txns){
         realizedPl: _hasRealized ? p.realizedPl : null,
       };
     });
+}
+
+/** Oldest → newest (stable). Needed for average-cost / realized P/L replay. */
+function sortTxnsChrono(txns){
+  return (txns || []).map((t, i) => ({ t, i })).sort((a, b) => {
+    const da = String(a.t.tradeDate || "");
+    const db = String(b.t.tradeDate || "");
+    if (da !== db) return da < db ? -1 : 1;
+    const ia = Number(a.t.id);
+    const ib = Number(b.t.id);
+    if (Number.isFinite(ia) && Number.isFinite(ib) && ia !== ib) return ia - ib;
+    return a.i - b.i;
+  }).map(x => x.t);
+}
+
+/**
+ * Fill missing sell realizedPl by replaying average cost. Keeps stored values.
+ * Realized = (sale price − avg buy) × qty, attributed to the sell's tradeDate.
+ */
+function withRealizedPl(txns){
+  const ordered = sortTxnsChrono(txns);
+  const lots = Object.create(null); // symbol -> { costIn, qty }
+  const realizedByKey = Object.create(null);
+
+  for (let i = 0; i < ordered.length; i++) {
+    const t = ordered[i];
+    const sym = String(t.symbol || "").toUpperCase();
+    if (!sym || sym === "CASH") continue;
+    const q = Number(t.quantity) || 0;
+    const px = Number(t.price) || 0;
+    const fee = Number(t.fee) || 0;
+    const key = t.id != null ? `id:${t.id}` : `i:${i}:${sym}:${t.tradeDate}:${t.kind}`;
+
+    if (t.kind === "buy") {
+      if (!lots[sym]) lots[sym] = { costIn: 0, qty: 0 };
+      lots[sym].qty += q;
+      lots[sym].costIn += q * px + fee;
+    } else if (t.kind === "sell") {
+      let realized = t.realizedPl != null && t.realizedPl !== ""
+        ? Number(t.realizedPl) : NaN;
+      const lot = lots[sym];
+      if (!Number.isFinite(realized) && lot && lot.qty > 1e-9 && q > 0) {
+        const avg = lot.costIn / lot.qty;
+        realized = (px - avg) * q - fee;
+      }
+      if (Number.isFinite(realized)) realizedByKey[key] = realized;
+      if (lot && lot.qty > 1e-9 && q > 0) {
+        const sold = Math.min(q, lot.qty);
+        const avg = lot.costIn / lot.qty;
+        lot.costIn = Math.max(0, lot.costIn - avg * sold);
+        lot.qty -= q;
+      } else if (lot) {
+        lot.qty -= q;
+      }
+    }
+  }
+
+  return (txns || []).map((t, i) => {
+    if (t.kind !== "sell") return t;
+    if (t.realizedPl != null && t.realizedPl !== "" && Number.isFinite(Number(t.realizedPl))) {
+      return t;
+    }
+    const key = t.id != null ? `id:${t.id}` : null;
+    // Fall back to chrono index lookup when id is missing.
+    let realized = key && realizedByKey[key] != null ? realizedByKey[key] : null;
+    if (realized == null) {
+      // Match by scanning ordered position for this object identity / fields.
+      const ordIdx = ordered.indexOf(t);
+      const fallbackKey = ordIdx >= 0
+        ? `i:${ordIdx}:${String(t.symbol || "").toUpperCase()}:${t.tradeDate}:sell`
+        : `i:${i}:${String(t.symbol || "").toUpperCase()}:${t.tradeDate}:sell`;
+      if (realizedByKey[fallbackKey] != null) realized = realizedByKey[fallbackKey];
+    }
+    return Number.isFinite(realized) ? { ...t, realizedPl: realized } : t;
+  });
+}
+
+/** Realized gains/losses whose sell date falls in [fromISO, toISO] (inclusive). */
+function realizedPlInRange(fromISO, toISO){
+  const today = todayISO();
+  const to = toISO || today;
+  let realized = 0;
+  let soldCost = 0;
+  for (const t of withRealizedPl(S.transactions)) {
+    if (t.kind !== "sell") continue;
+    const d = t.tradeDate || "";
+    if (fromISO && d < fromISO) continue;
+    if (to && d > to) continue;
+    const r = Number(t.realizedPl);
+    if (!Number.isFinite(r)) continue;
+    realized += r;
+    const proceeds = (Number(t.quantity) || 0) * (Number(t.price) || 0);
+    soldCost += Math.max(0, proceeds - r);
+  }
+  return { realized, soldCost };
+}
+
+/** Avg buy for a symbol from current open position (before a new sell). */
+function openAvgCost(symbol){
+  const pos = (S.positions || []).find(
+    p => p.symbol === String(symbol || "").toUpperCase());
+  return pos && pos.avgCost != null && Number.isFinite(pos.avgCost)
+    ? pos.avgCost : null;
 }
 
 /** Spendable cash from deposits and withdrawals (buys/sells write these). */
@@ -957,7 +1053,7 @@ function mapRemotePositions(list){
 }
 
 function applyLocalPortfolio(){
-  S.transactions = localPort.read();
+  S.transactions = withRealizedPl(localPort.read());
   S.positions = positionsFromTxns(S.transactions);
 }
 
@@ -1000,11 +1096,11 @@ async function loadPortfolio(){
         applyLocalPortfolio();
         return;
       }
-      S.transactions = remoteTx;
-      // Derive holdings (and correct avg cost after sells) from transactions;
-      // layer live quotes / names from the remote position payload.
+      S.transactions = withRealizedPl(remoteTx);
+      // Derive holdings from transactions in chronological order so sells keep
+      // the prior average buy price; layer live quotes / names from remote.
       const quotes = Object.fromEntries((remotePos || []).map(p => [p.symbol, p]));
-      S.positions = positionsFromTxns(remoteTx).map(p => {
+      S.positions = positionsFromTxns(S.transactions).map(p => {
         const q = quotes[p.symbol];
         if (!q) return p;
         return {
@@ -1066,9 +1162,8 @@ async function mergeLocalIfNeeded(){
         price: t.price,
         fee: t.fee || 0,
         note: t.note || null,
-        // P/L snapshots are no longer collected; leave null for older drafts.
-        unrealizedPl: null,
-        realizedPl: null,
+        unrealizedPl: t.unrealizedPl != null ? Number(t.unrealizedPl) : null,
+        realizedPl: t.realizedPl != null ? Number(t.realizedPl) : null,
       })),
     });
     if (d && !d.error) {
@@ -1097,6 +1192,7 @@ function writeLocalTxn(row, { allowMerge = true } = {}){
 }
 
 async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, note,
+                                unrealizedPl = null, realizedPl = null,
                                 quiet = false, reload = true }){
   if (!signedIn()) {
     if (!quiet) promptSignIn();
@@ -1111,15 +1207,16 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, n
     price: Number(price),
     fee: Number(fee) || 0,
     note: note || null,
-    unrealizedPl: null,
-    realizedPl: null,
+    unrealizedPl: unrealizedPl != null && Number.isFinite(Number(unrealizedPl))
+      ? Number(unrealizedPl) : null,
+    realizedPl: realizedPl != null && Number.isFinite(Number(realizedPl))
+      ? Number(realizedPl) : null,
   };
 
   // Keep a local mirror for fast reloads while signed in; remote is source of truth.
   writeLocalTxn(row, { allowMerge: false });
 
   try {
-    // P/L is computed client-side from live price − avg cost; do not store snapshots.
     const d = await rpc("add_portfolio_transaction", {
       p_symbol: row.symbol,
       p_kind: row.kind,
@@ -1128,6 +1225,8 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, n
       p_price: row.price,
       p_fee: row.fee,
       p_note: row.note,
+      p_unrealized_pl: row.unrealizedPl,
+      p_realized_pl: row.realizedPl,
     });
     if (d && d.error) throw new Error(d.error);
   } catch (e) {
@@ -1469,13 +1568,17 @@ function dailyReturn(positions){
     if (p.changePct != null) dayPl += v * (p.changePct / (100 + p.changePct));
     else if (p.previousClose != null) dayPl += (p.price - p.previousClose) * p.quantity;
   }
-  const hasLive = positions.some(p => p.price != null && p.quantity);
+  // Realized gains from sells booked today count toward today's return.
+  const { realized: realizedToday } = realizedPlInRange(todayISO(), todayISO());
+  dayPl += realizedToday;
+  const hasLive = positions.some(p => p.price != null && p.quantity)
+    || Math.abs(realizedToday) > 1e-9;
   const pctDay = hasLive && value - dayPl !== 0 ? (dayPl / (value - dayPl)) * 100 : null;
-  return { amount: hasLive ? dayPl : null, pct: pctDay, value };
+  return { amount: hasLive ? dayPl : null, pct: pctDay, value, realized: realizedToday };
 }
 
-/** Book return vs average buy cost for the current holdings (includes dividends). */
-function bookReturn(positions){
+/** Book return: unrealized on open holdings + dividends + all realized sells. */
+function bookReturn(positions, { fromISO = null, toISO = null } = {}){
   let cost = 0, current = 0, div = 0;
   for (const p of positions) {
     const px = markPrice(p);
@@ -1484,9 +1587,17 @@ function bookReturn(positions){
     current += px * p.quantity;
     div += holdingDiv(p);
   }
-  const amount = current - cost + div;
-  const pctRet = cost ? (amount / cost) * 100 : null;
-  return { amount, pct: pctRet, cost, current, dividends: div };
+  // Period filter applies to realized gains by sell date (e.g. YTD vs 1M).
+  // Unrealized + dividends stay as of now for the open book.
+  const { realized, soldCost } = realizedPlInRange(fromISO, toISO);
+  const unrealized = current - cost;
+  const amount = unrealized + div + realized;
+  const basis = cost + soldCost;
+  const pctRet = basis > 0 ? (amount / basis) * 100 : null;
+  return {
+    amount, pct: pctRet, cost, current, dividends: div,
+    realized, soldCost, unrealized,
+  };
 }
 
 /** Volatility score 0–100 (higher = more volatile / concentrated).
@@ -1647,9 +1758,13 @@ function renderDashboard(){
         <div class="chg ${dir(day.pct)}">${day.pct == null ? "" : esc(arrow(day.pct) + Math.abs(day.pct).toFixed(2) + "%")}</div>
       </div>
       <div class="cell">
-        <div class="k">Total Return</div>
+        <div class="k">Total Return ${infoTip(
+          "Unrealized P/L on open holdings, dividends received, and realized gains/losses from sells (booked on the sell date)."
+        )}</div>
         <div class="v num ${dir(book.amount)}">${esc(moneySigned(book.amount))}</div>
         <div class="chg ${dir(book.pct)}">${book.pct == null ? "" : esc(arrow(book.pct) + Math.abs(book.pct).toFixed(2) + "%")}</div>
+        ${Math.abs(book.realized || 0) > 1e-9
+          ? `<div class="chg mut">Realized ${esc(moneySigned(book.realized))}</div>` : ""}
       </div>
       <div class="cell">
         <div class="k">Volatility Score ${infoTip(
@@ -1880,7 +1995,7 @@ async function renderList(){
       stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3.5 10a6.5 6.5 0 0 1 11.2-4.5M16.5 10a6.5 6.5 0 0 1-11.2 4.5"/>
       <path d="M14.2 2.8v4.2h-4.2M5.8 17.2v-4.2h4.2"/></svg>`;
-    const plTip = "Includes both stock return and total dividend received, in USD.";
+    const plTip = "Open holdings vs avg buy, plus dividends and realized gains from sells (by sell date).";
     const divTip = "Dividend received (credited on the ex-dividend date if the stock was logged by then), in USD before tax.";
     const holdingsMv = rows.reduce((s, r) => {
       const px = markPrice(r);
@@ -1899,7 +2014,12 @@ async function renderList(){
       if (r.avgCost != null && r.quantity) totalCost += r.avgCost * r.quantity;
       totalDiv += holdingDiv(r);
     }
-    const totalRet = totalCost > 0 && plN ? (totalPl / totalCost) * 100 : null;
+    const { realized: realizedAll, soldCost } = realizedPlInRange(null, todayISO());
+    const { realized: realizedToday } = realizedPlInRange(todayISO(), todayISO());
+    if (Math.abs(realizedAll) > 1e-9) { totalPl += realizedAll; plN++; }
+    if (Math.abs(realizedToday) > 1e-9) { totalDay += realizedToday; dayN++; }
+    const totalBasis = totalCost + soldCost;
+    const totalRet = totalBasis > 0 && plN ? (totalPl / totalBasis) * 100 : null;
     const totalDivRet = holdingsMv > 0 && totalDiv > 0 ? (totalDiv / holdingsMv) * 100 : null;
     const cashWeight = totalMv > 0 ? (Math.max(0, cash) / totalMv) * 100 : null;
     const dash = `<div class="stack-cell"><span class="top">—</span><span class="bot">—</span></div>`;
@@ -2159,8 +2279,11 @@ async function drawRightChart(){
     symEl.textContent = "Portfolio";
     priceEl.textContent = money(alloc.sum).replace("$", "");
     const book = bookReturn(S.positions);
+    const rangeBook = bookReturn(S.positions, { fromISO: from });
+    const rangeLabel = S.range === "YTD" ? "YTD" : S.range;
     metaEl.innerHTML =
-      `Book <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span>` +
+      `Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span>` +
+      ` · ${esc(rangeLabel)} realized <span class="${dir(rangeBook.realized)}">${esc(moneySigned(rangeBook.realized))}</span>` +
       ` · chart = current mix (simulated) vs indexes`;
   }
 
@@ -2721,8 +2844,12 @@ function wireModal(){
         toast(`Updated ${symbol}`);
       } else if (addKind === "sell") {
         const proceeds = quantity * price;
+        const avg = openAvgCost(symbol);
+        const realized = avg != null ? (price - avg) * quantity : null;
         await addTransaction({
-          symbol, kind: "sell", tradeDate, quantity, price, reload: false,
+          symbol, kind: "sell", tradeDate, quantity, price,
+          realizedPl: realized,
+          reload: false,
         });
         // Sale proceeds become spendable cash.
         if (proceeds > 0) {
@@ -2732,14 +2859,19 @@ function wireModal(){
             tradeDate,
             quantity: 1,
             price: proceeds,
-            note: `proceeds:${symbol}`,
+            note: realized != null
+              ? `proceeds:${symbol};realized:${Number(realized.toFixed(4))}`
+              : `proceeds:${symbol}`,
             quiet: true,
             reload: false,
           });
         }
         await loadPortfolio();
         closeAddModal();
-        toast(`Sold ${quantity} ${symbol} · ${money(proceeds)} to Cash`);
+        const realizedNote = realized != null
+          ? ` · realized ${moneySigned(realized)}`
+          : "";
+        toast(`Sold ${quantity} ${symbol} · ${money(proceeds)} to Cash${realizedNote}`);
       } else {
         const deduct = !!(document.getElementById("f-deduct-cash")
           && document.getElementById("f-deduct-cash").checked);
