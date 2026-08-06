@@ -836,8 +836,21 @@ const localPort = {
 };
 
 function positionsFromTxns(txns){
+  // Remote get_portfolio returns newest-first; average-cost accounting needs
+  // chronological order so sells reduce basis at the prior avg (avg unchanged)
+  // and only subsequent buys reweight it.
+  const ordered = (txns || []).map((t, i) => ({ t, i })).sort((a, b) => {
+    const da = String(a.t.tradeDate || "");
+    const db = String(b.t.tradeDate || "");
+    if (da !== db) return da < db ? -1 : 1;
+    const ia = Number(a.t.id);
+    const ib = Number(b.t.id);
+    if (Number.isFinite(ia) && Number.isFinite(ib) && ia !== ib) return ia - ib;
+    return a.i - b.i;
+  }).map(x => x.t);
+
   const map = {};
-  for (const t of txns) {
+  for (const t of ordered) {
     // Cash ledger rows (deposit/withdrawal) are not holdings.
     if (t.kind === "deposit" || t.kind === "withdrawal") continue;
     const sym = String(t.symbol || "").toUpperCase();
@@ -855,7 +868,8 @@ function positionsFromTxns(txns){
       p.quantity += q;
       p.costIn += q * px + fee;
     } else if (t.kind === "sell") {
-      // Reduce cost basis for shares sold so avg cost stays meaningful.
+      // Average-cost method: remove sold shares at the current avg so the
+      // remaining avg buy price is unchanged. Only a later buy rebalances it.
       if (p.quantity > 1e-9 && q > 0) {
         const sold = Math.min(q, p.quantity);
         const avg = p.costIn / p.quantity;
@@ -987,8 +1001,8 @@ async function loadPortfolio(){
         return;
       }
       S.transactions = remoteTx;
-      // Derive holdings (and correct avg cost after sells) from transactions;
-      // layer live quotes / names from the remote position payload.
+      // Derive holdings from transactions in chronological order so sells keep
+      // the prior average buy price; layer live quotes / names from remote.
       const quotes = Object.fromEntries((remotePos || []).map(p => [p.symbol, p]));
       S.positions = positionsFromTxns(remoteTx).map(p => {
         const q = quotes[p.symbol];
