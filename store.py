@@ -192,6 +192,13 @@ def replace_earnings(rows: list[dict]) -> int:
     return rpc("replace_earnings", {"p_rows": rows}) or 0
 
 
+def replace_symbol_dividends(symbol: str, rows: list[dict]) -> int:
+    return rpc("replace_symbol_dividends", {
+        "p_symbol": symbol,
+        "p_rows": rows,
+    }) or 0
+
+
 def upsert_news(rows: list[dict], keywords: list[dict]) -> int:
     return rpc("upsert_news", {"p_rows": rows, "p_keywords": keywords}) or 0
 

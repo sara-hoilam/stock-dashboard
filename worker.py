@@ -426,6 +426,17 @@ def fetch_prices(symbol: str) -> bool:
     if fetch_analyst(sym):
         extras += ", analysts"
 
+    # Dividend history for the portfolio Dividend column (ex-date + amount).
+    try:
+        divs = market.dividends(sym)
+        n_div = store.replace_symbol_dividends(sym, divs)
+        if divs:
+            extras += f", {n_div} dividends"
+    except market.MarketError as exc:
+        log(f"  dividends {sym}: {exc}")
+    except store.StoreError as exc:
+        log(f"  dividends {sym}: {exc}")
+
     log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
     return True
 
