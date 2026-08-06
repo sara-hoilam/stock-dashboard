@@ -161,9 +161,11 @@
         items = (await rpc("search_companies", { q: term })) || [];
         idx = -1;
         if (!items.length) return close();
-        ac.innerHTML = items.map((x, i) =>
-          `<div role="option" data-i="${i}" aria-selected="false">` +
-          `<b>${esc(x.ticker)}</b><span>${esc(x.name)}</span></div>`).join("");
+        ac.innerHTML = items.map((x, i) => {
+          const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
+          return `<div role="option" data-i="${i}" aria-selected="false">` +
+            `<b>${esc(x.ticker)}</b><span>${esc(x.name)}${esc(kind)}</span></div>`;
+        }).join("");
         ac.classList.add("open");
         q.setAttribute("aria-expanded", "true");
       } catch { close(); }

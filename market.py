@@ -248,6 +248,58 @@ def daily(symbol: str, days: int = 300) -> list[dict]:
     return bars
 
 
+_SYMBOL_RE = re.compile(r"^[A-Z][A-Z.\-]{0,9}$")
+
+
+def _clean_market_symbol(raw: str) -> str | None:
+    sym = (raw or "").upper().strip()
+    if not _SYMBOL_RE.match(sym):
+        return None
+    return sym
+
+
+def etf_list() -> list[dict]:
+    """All ETFs from FMP ``/etf-list`` (symbol + name)."""
+    rows = _get("etf-list") or []
+    out = []
+    seen = set()
+    for r in rows:
+        sym = _clean_market_symbol(r.get("symbol") or "")
+        name = (r.get("name") or "").strip()
+        if not sym or not name or sym in seen:
+            continue
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": name,
+            "kind": "etf",
+            "exchange": (r.get("exchange") or r.get("exchangeShortName") or "") or None,
+        })
+    out.sort(key=lambda x: x["symbol"])
+    return out
+
+
+def crypto_list() -> list[dict]:
+    """Cryptocurrencies from FMP ``/cryptocurrency-list`` (e.g. BTCUSD)."""
+    rows = _get("cryptocurrency-list") or []
+    out = []
+    seen = set()
+    for r in rows:
+        sym = _clean_market_symbol(r.get("symbol") or "")
+        name = (r.get("name") or "").strip()
+        if not sym or not name or sym in seen:
+            continue
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": name,
+            "kind": "crypto",
+            "exchange": (r.get("exchange") or r.get("exchangeShortName") or "CRYPTO") or None,
+        })
+    out.sort(key=lambda x: x["symbol"])
+    return out
+
+
 def dividends(symbol: str) -> list[dict]:
     """Per-share dividend history for one ticker (ex-date + amount).
 

@@ -84,6 +84,15 @@ def upsert_directory(rows: list[dict], chunk: int = 2000) -> int:
     return total
 
 
+def upsert_market_symbols(rows: list[dict], chunk: int = 2000) -> int:
+    """Upsert FMP ETF / crypto symbols into ledger.market_symbol."""
+    total = 0
+    for i in range(0, len(rows), chunk):
+        part = rows[i:i + chunk]
+        total += rpc("upsert_market_symbols", {"p_rows": part}) or 0
+    return total
+
+
 def ingest_company(company: dict, breakdowns: list[dict]) -> dict:
     """Write one company's quarters and revenue breakdowns in one transaction."""
     payload = {
