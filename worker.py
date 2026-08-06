@@ -9,6 +9,8 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py market             refresh prices, movers and sectors
     python worker.py sections           refresh heatmap, rotation and trades
     python worker.py news               refresh market news
+    python worker.py earnings           refresh earnings calendar
+    python worker.py economics          refresh US economic calendar
     python worker.py prices [TICKER...] fill price requests, or named symbols
     python worker.py analyst [TICKER...] fill coverage requests, or named symbols
     python worker.py intraday TICKER    refresh one chart series
