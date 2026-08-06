@@ -461,49 +461,90 @@ function positionsFromTxns(txns){
     });
 }
 
+function mapRemoteTxns(list){
+  return (list || []).map(t => ({
+    id: t.id,
+    symbol: t.symbol,
+    kind: t.kind,
+    tradeDate: t.tradeDate,
+    quantity: Number(t.quantity),
+    price: Number(t.price),
+    fee: Number(t.fee) || 0,
+    note: t.note,
+    unrealizedPl: t.unrealizedPl != null ? Number(t.unrealizedPl) : null,
+    realizedPl: t.realizedPl != null ? Number(t.realizedPl) : null,
+  }));
+}
+
+function mapRemotePositions(list){
+  return (list || []).map(p => ({
+    symbol: p.symbol,
+    name: p.name,
+    quantity: Number(p.quantity),
+    costIn: Number(p.costIn),
+    proceeds: Number(p.proceeds),
+    dividends: Number(p.dividends),
+    avgCost: p.avgCost != null ? Number(p.avgCost) : null,
+    firstTrade: p.firstTrade,
+    lastTrade: p.lastTrade,
+    price: p.price != null ? Number(p.price) : null,
+    changePct: p.changePct != null ? Number(p.changePct) : null,
+    previousClose: p.previousClose != null ? Number(p.previousClose) : null,
+    marketCap: p.marketCap,
+    unrealizedPl: p.unrealizedPl != null ? Number(p.unrealizedPl) : null,
+    realizedPl: p.realizedPl != null ? Number(p.realizedPl) : null,
+  }));
+}
+
+function applyLocalPortfolio(){
+  S.transactions = localPort.read();
+  S.positions = positionsFromTxns(S.transactions);
+}
+
+function mirrorRemoteToLocal(remoteTx){
+  localPort.write((remoteTx || []).map(t => ({
+    id: t.id || uid(),
+    symbol: t.symbol,
+    kind: t.kind,
+    tradeDate: t.tradeDate,
+    quantity: t.quantity,
+    price: t.price,
+    fee: t.fee || 0,
+    note: t.note || null,
+    unrealizedPl: t.unrealizedPl,
+    realizedPl: t.realizedPl,
+  })));
+  // Local now matches remote — do not upload these rows again on the next visit.
+  try { sessionStorage.setItem(MERGED_KEY, "1"); } catch {}
+}
+
 async function loadPortfolio(){
+  const local = localPort.read();
+
   if (signedIn()) {
     try {
       await mergeLocalIfNeeded();
       const d = await rpc("get_portfolio");
       if (d && !d.error) {
-        S.transactions = (d.transactions || []).map(t => ({
-          id: t.id,
-          symbol: t.symbol,
-          kind: t.kind,
-          tradeDate: t.tradeDate,
-          quantity: Number(t.quantity),
-          price: Number(t.price),
-          fee: Number(t.fee) || 0,
-          note: t.note,
-          unrealizedPl: t.unrealizedPl != null ? Number(t.unrealizedPl) : null,
-          realizedPl: t.realizedPl != null ? Number(t.realizedPl) : null,
-        }));
-        S.positions = (d.positions || []).map(p => ({
-          symbol: p.symbol,
-          name: p.name,
-          quantity: Number(p.quantity),
-          costIn: Number(p.costIn),
-          proceeds: Number(p.proceeds),
-          dividends: Number(p.dividends),
-          avgCost: p.avgCost != null ? Number(p.avgCost) : null,
-          firstTrade: p.firstTrade,
-          lastTrade: p.lastTrade,
-          price: p.price != null ? Number(p.price) : null,
-          changePct: p.changePct != null ? Number(p.changePct) : null,
-          previousClose: p.previousClose != null ? Number(p.previousClose) : null,
-          marketCap: p.marketCap,
-          unrealizedPl: p.unrealizedPl != null ? Number(p.unrealizedPl) : null,
-          realizedPl: p.realizedPl != null ? Number(p.realizedPl) : null,
-        }));
+        const remoteTx = mapRemoteTxns(d.transactions);
+        const remotePos = mapRemotePositions(d.positions);
+        // Remote empty but local still has drafts — keep showing local and
+        // retry merge next time rather than bouncing to the empty state.
+        if (!remotePos.length && local.length) {
+          applyLocalPortfolio();
+          return;
+        }
+        S.transactions = remoteTx;
+        S.positions = remotePos;
+        // Mirror remote into local so a reload before auth is ready still works.
+        if (remoteTx.length) mirrorRemoteToLocal(remoteTx);
         return;
       }
     } catch (e) {
       console.warn("[portfolio] remote load failed, using local", e);
     }
   }
-  S.transactions = localPort.read();
-  S.positions = positionsFromTxns(S.transactions);
+  applyLocalPortfolio();
 }
 
 async function mergeLocalIfNeeded(){
@@ -525,12 +566,28 @@ async function mergeLocalIfNeeded(){
         realizedPl: t.realizedPl != null ? t.realizedPl : null,
       })),
     });
-    if (d && d.merged >= 0) {
-      localPort.clear();
-      sessionStorage.setItem(MERGED_KEY, "1");
+    if (d && !d.error) {
+      try { sessionStorage.setItem(MERGED_KEY, "1"); } catch {}
     }
   } catch (e) {
     console.warn("[portfolio] merge failed", e);
+  }
+}
+
+function writeLocalTxn(row, { allowMerge = true } = {}){
+  if (row.kind === "sell") {
+    const held = positionsFromTxns(localPort.read())
+      .find(p => p.symbol === row.symbol);
+    const q = held ? held.quantity : 0;
+    if (row.quantity > q + 1e-9) throw new Error("sell exceeds holdings");
+  }
+  const list = localPort.read();
+  list.push({ id: uid(), ...row });
+  localPort.write(list);
+  // Signed-out drafts must merge after sign-in. Signed-in saves also write
+  // remotely — do not clear MERGED_KEY or mergeLocal would duplicate them.
+  if (allowMerge) {
+    try { sessionStorage.removeItem(MERGED_KEY); } catch {}
   }
 }
 
@@ -546,32 +603,47 @@ async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee,
     unrealizedPl: unrealizedPl === "" || unrealizedPl == null ? null : Number(unrealizedPl),
     realizedPl: realizedPl === "" || realizedPl == null ? null : Number(realizedPl),
   };
-  if (signedIn()) {
-    const d = await rpc("add_portfolio_transaction", {
-      p_symbol: row.symbol,
-      p_kind: row.kind,
-      p_trade_date: row.tradeDate,
-      p_quantity: row.quantity,
-      p_price: row.price,
-      p_fee: row.fee,
-      p_unrealized_pl: row.unrealizedPl,
-      p_realized_pl: row.realizedPl,
-    });
-    if (d && d.error) throw new Error(d.error);
-  } else {
-    if (row.kind === "sell") {
-      const held = positionsFromTxns(localPort.read())
-        .find(p => p.symbol === row.symbol);
-      const q = held ? held.quantity : 0;
-      if (row.quantity > q + 1e-9) throw new Error("sell exceeds holdings");
+
+  const isIn = signedIn();
+  // Always persist locally first so a reload never drops the holding, even if
+  // auth is not ready yet or the remote RPC is missing a migration.
+  writeLocalTxn(row, { allowMerge: !isIn });
+
+  if (isIn) {
+    try {
+      let d;
+      try {
+        d = await rpc("add_portfolio_transaction", {
+          p_symbol: row.symbol,
+          p_kind: row.kind,
+          p_trade_date: row.tradeDate,
+          p_quantity: row.quantity,
+          p_price: row.price,
+          p_fee: row.fee,
+          p_unrealized_pl: row.unrealizedPl,
+          p_realized_pl: row.realizedPl,
+        });
+      } catch (e) {
+        // 0034-only deployments reject the extra P/L args — retry without them.
+        d = await rpc("add_portfolio_transaction", {
+          p_symbol: row.symbol,
+          p_kind: row.kind,
+          p_trade_date: row.tradeDate,
+          p_quantity: row.quantity,
+          p_price: row.price,
+          p_fee: row.fee,
+        });
+      }
+      if (d && d.error) throw new Error(d.error);
+    } catch (e) {
+      console.warn("[portfolio] remote save failed; kept local draft", e);
+      // Remote failed — allow a later merge to upload this local row.
+      try { sessionStorage.removeItem(MERGED_KEY); } catch {}
     }
-    const list = localPort.read();
-    list.push({ id: uid(), ...row });
-    localPort.write(list);
-    if (window.TA?.showSignupModal) {
-      window.TA.showSignupModal({ reason: "portfolio" });
-    }
+  } else if (window.TA?.showSignupModal) {
+    window.TA.showSignupModal({ reason: "portfolio" });
   }
+
   GA.track(row.kind === "sell" ? "portfolio_sell" : "portfolio_buy", {
     ticker: row.symbol,
   });
@@ -1437,11 +1509,20 @@ async function boot(showLoading = true){
 }
 
 wireModal();
-boot();
-if (window.TA && window.TA.onAuthChange) {
-  window.TA.onAuthChange(() => boot(false));
-}
 </script>
+<!-- nav.js must load before boot so window.TA / session exist. Previously boot
+     ran first, skipped onAuthChange registration, and signed-in holdings never
+     reloaded — the empty state came back on every visit. -->
 <script src="nav.js"></script>
+<script>
+(async function start(){
+  if (window.TA && window.TA.onAuthChange) {
+    window.TA.onAuthChange(() => boot(false));
+  } else {
+    addEventListener("ta-auth", () => boot(false));
+  }
+  await boot(true);
+})();
+</script>
 </body>
 </html>
