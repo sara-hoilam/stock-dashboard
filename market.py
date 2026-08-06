@@ -280,7 +280,12 @@ def etf_list() -> list[dict]:
 
 
 def crypto_list() -> list[dict]:
-    """Cryptocurrencies from FMP ``/cryptocurrency-list`` (e.g. BTCUSD)."""
+    """Cryptocurrencies from FMP ``/cryptocurrency-list`` (e.g. BTCUSD).
+
+    FMP sometimes attaches garbage names to long *USD tickers — e.g.
+    ``BITCOINUSD`` → "HarryPotterObamaSonic10Inu…". Real Bitcoin is
+    ``BTCUSD``. Drop pairs whose long stem does not appear in the name.
+    """
     rows = _get("cryptocurrency-list") or []
     out = []
     seen = set()
@@ -289,6 +294,14 @@ def crypto_list() -> list[dict]:
         name = (r.get("name") or "").strip()
         if not sym or not name or sym in seen:
             continue
+        if sym.endswith("USD") and len(sym) > 3:
+            stem = sym[:-3]
+            # Long stems like BITCOIN must appear in the name; short ones
+            # (BTC, ETH, SOL) are allowed without that check.
+            if len(stem) >= 6:
+                compact = re.sub(r"[^A-Z0-9]", "", name.upper())
+                if stem not in compact:
+                    continue
         seen.add(sym)
         out.append({
             "symbol": sym,
