@@ -438,16 +438,29 @@ MIN_INSIDER_SHARES_PCT = 0.01        # or ≥1% of shares outstanding
 MIN_CONGRESS_AMOUNT = 500_000        # $0.5M high end of disclosure range
 
 
-def _congress_amount_high(raw) -> float:
-    """Largest dollar figure mentioned in a disclosure amount band."""
-    nums = re.findall(r"[\d,]+", str(raw or ""))
+def _congress_amount_vals(raw) -> list[float]:
+    """Dollar figures mentioned in a disclosure amount band."""
     vals: list[float] = []
-    for n in nums:
+    for n in re.findall(r"[\d,]+", str(raw or "")):
         try:
             vals.append(float(n.replace(",", "")))
         except ValueError:
             continue
+    return vals
+
+
+def _congress_amount_high(raw) -> float:
+    """Largest dollar figure mentioned in a disclosure amount band."""
+    vals = _congress_amount_vals(raw)
     return max(vals) if vals else 0.0
+
+
+def _congress_amount_mid(raw) -> float:
+    """Midpoint of a disclosure band (or the sole figure when there is one)."""
+    vals = _congress_amount_vals(raw)
+    if not vals:
+        return 0.0
+    return (min(vals) + max(vals)) / 2.0
 
 
 def _shares_outstanding_map(symbols: list[str], cap: int = 100) -> dict[str, float]:
@@ -472,14 +485,15 @@ def _shares_outstanding_map(symbols: list[str], cap: int = 100) -> dict[str, flo
     return out
 
 
-def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
-    """Form 4 filings from the last `days`, one line per company.
+def insider_trades(days: int = 7, store_cap: int = 400,
+                   collapse: bool = True) -> list[dict]:
+    """Form 4 filings from the last `days`.
 
     A single company often files a dozen Form 4s on the same day -- each
-    officer separately, or one sale split across several lots. Left as-is the
-    panel fills with one ticker repeated, so only the largest transaction per
-    company (within the window) is kept. Pages are walked until filings fall
-    outside the window so the Markets Today list can scroll through a week.
+    officer separately, or one sale split across several lots. For the
+    Markets Today table (`collapse=True`) only the largest transaction per
+    company in the window is kept. For the 60-day inflow/outflow chart
+    (`collapse=False`) every material filing is kept so daily sums are honest.
 
     A row is kept when abs(dollar amount) > $1M, or when shares transacted are
     at least 1% of estimated shares outstanding (market cap / price).
@@ -487,7 +501,8 @@ def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     raw_rows: list[dict] = []
     page_size = 100
-    for page in range(12):
+    max_pages = 30 if days > 14 else 12
+    for page in range(max_pages):
         rows = _get("insider-trading/latest", page=page, limit=page_size) or []
         if not rows:
             break
@@ -544,6 +559,12 @@ def insider_trades(days: int = 7, store_cap: int = 400) -> list[dict]:
         if big_dollars or big_float:
             out.append(r)
 
+    if not collapse:
+        ranked = sorted(out,
+                        key=lambda r: (r["filed"] or "", abs(r["amount"] or 0)),
+                        reverse=True)
+        return ranked[:max(1, store_cap)]
+
     best: dict[str, dict] = {}
     for r in out:
         prev = best.get(r["symbol"])
@@ -576,9 +597,10 @@ def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     rows: list[dict] = []
     page_size = 100
+    max_pages = 30 if days > 14 else 12
     for path, chamber in (("senate-latest", "Senate"), ("house-latest", "House")):
         try:
-            for page in range(12):
+            for page in range(max_pages):
                 batch = _get(path, page=page, limit=page_size) or []
                 if not batch:
                     break
@@ -610,6 +632,59 @@ def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
     rows = [r for r in rows if r["symbol"]]
     rows.sort(key=lambda r: r["disclosed"] or "", reverse=True)
     return rows[:max(1, store_cap)]
+
+
+def trade_flow_daily(insiders: list[dict], congress: list[dict],
+                     days: int = 60) -> list[dict]:
+    """Sum buy (inflow) and sell (outflow) dollars per calendar day.
+
+    Insider amounts are already signed (+ buy / − sell). Congress disclosures
+    are bands; the midpoint of the band is used so a $1M–$5M sale does not
+    count as a $5M day.
+    """
+    from collections import defaultdict
+
+    window = max(1, days)
+    start = dt.date.today() - dt.timedelta(days=window - 1)
+    buckets: dict[tuple[str, str], list[float]] = defaultdict(lambda: [0.0, 0.0])
+
+    for r in insiders or []:
+        day = (r.get("filed") or "")[:10]
+        if not day or day < start.isoformat():
+            continue
+        amt = float(r.get("amount") or 0)
+        if amt > 0:
+            buckets[("insider", day)][0] += amt
+        elif amt < 0:
+            buckets[("insider", day)][1] += abs(amt)
+
+    for r in congress or []:
+        day = (r.get("disclosed") or "")[:10]
+        if not day or day < start.isoformat():
+            continue
+        mid = _congress_amount_mid(r.get("amount"))
+        if mid <= 0:
+            continue
+        side = str(r.get("side") or "").lower()
+        if side.startswith("buy") or "purchase" in side or "receive" in side:
+            buckets[("congress", day)][0] += mid
+        elif side.startswith("sell") or "sale" in side or "sell" in side:
+            buckets[("congress", day)][1] += mid
+
+    # Emit every calendar day in the window so the chart has a bar slot even
+    # on quiet days (drawn as zero-height).
+    out: list[dict] = []
+    for i in range(window):
+        day = (start + dt.timedelta(days=i)).isoformat()
+        for kind in ("insider", "congress"):
+            inflow, outflow = buckets.get((kind, day), [0.0, 0.0])
+            out.append({
+                "kind": kind,
+                "day": day,
+                "inflow": inflow,
+                "outflow": outflow,
+            })
+    return out
 
 
 # ---------------------------------------------------------------------------
