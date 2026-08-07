@@ -2796,24 +2796,25 @@ function drawIndexDrawdown(){
   let pts = full.filter(p => p.d >= from);
   if (pts.length < 2) pts = full.slice();
   pts = bucketAthDrawdown(pts, interval);
-  if (pts.length > 220) {
-    const step = Math.ceil(pts.length / 180);
-    pts = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
-  }
   if (pts.length < 2) {
     host.innerHTML = `<div class="note">Not enough history in this window.</div>`;
     return;
   }
+  // Average over the filtered window (before display thinning).
+  const avgDd = pts.reduce((a, p) => a + p.dd, 0) / pts.length;
+  if (pts.length > 220) {
+    const step = Math.ceil(pts.length / 180);
+    pts = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+  }
 
   const low = Math.min(...pts.map(p => p.dd));
-  const last = pts[pts.length - 1];
   const W = 620;
   const H = MOBILE_MQ.matches ? 280 : 240;
   // Extra right margin so drawdown % labels sit outside the plot (no overlap).
   const ml = 40, mr = 58, mt = 16, mb = 34;
   const pw = W - ml - mr, ph = H - mt - mb;
   // Always pin 0% at the top; deepen the floor for probability bands in view.
-  const floor = Math.min(low, ...probs.map(l => l.dd), -5);
+  const floor = Math.min(low, avgDd, ...probs.map(l => l.dd), -5);
   const y0 = floor * 1.08 - 0.5;
   const y1 = 0;
   const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
@@ -2858,21 +2859,15 @@ function drawIndexDrawdown(){
     + pts.map((p, i) => `L${x(i).toFixed(1)},${y(p.dd).toFixed(1)}`).join(" ")
     + ` L${x(pts.length - 1).toFixed(1)},${y(0).toFixed(1)} Z`;
 
-  const lowY = y(low);
-  const lowSvg = Number.isFinite(low) && low < -0.05 ? `
-    <line x1="${ml}" x2="${W - mr}" y1="${lowY.toFixed(1)}" y2="${lowY.toFixed(1)}"
-      stroke="var(--dd)" stroke-width="1.2" stroke-dasharray="4 3" opacity=".85"/>
-    <text x="${(ml + pw / 2).toFixed(1)}" y="${Math.min(H - mb - 4, lowY + 14).toFixed(1)}"
-      class="ax" text-anchor="middle" fill="var(--dd)">Low: ${low.toFixed(2)}%</text>` : "";
-
-  const endY = y(last.dd);
-  const badgeW = 46;
-  const badge = `
-    <rect x="${(W - mr - badgeW - 2).toFixed(1)}" y="${(endY - 9).toFixed(1)}" width="${badgeW}" height="18" rx="3"
-      fill="var(--dd)"/>
-    <text x="${(W - mr - badgeW / 2 - 2).toFixed(1)}" y="${(endY + 4).toFixed(1)}" text-anchor="middle"
-      font-size="10" font-weight="600" fill="#fff" font-family="IBM Plex Mono,monospace">${
-        last.dd.toFixed(2)}%</text>`;
+  // Pink dotted average for the active date + time filter window.
+  const avgY = y(avgDd);
+  const avgLabel = `Avg. drawdown ${avgDd.toFixed(1)}%`;
+  const avgSvg = Number.isFinite(avgDd) ? `
+    <line x1="${ml}" x2="${W - mr}" y1="${avgY.toFixed(1)}" y2="${avgY.toFixed(1)}"
+      stroke="var(--dd)" stroke-width="1.2" stroke-dasharray="4 3" opacity=".9"/>
+    <text x="${(ml + pw / 2).toFixed(1)}" y="${
+      (avgY < mt + 16 ? avgY + 14 : avgY - 6).toFixed(1)}"
+      class="ax" text-anchor="middle" fill="var(--dd)">${esc(avgLabel)}</text>` : "";
 
   const labelEvery = Math.max(1, Math.ceil((pts.length - 1) / 5));
   const dates = pts.map((p, i) => {
@@ -2894,7 +2889,7 @@ function drawIndexDrawdown(){
       <path d="${fillD}" fill="var(--dd-fill)"/>
       <polyline points="${linePts}" fill="none" stroke="var(--dd)"
         stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-      ${lowSvg}${badge}${dates}
+      ${avgSvg}${dates}
       <g id="idxdd-cross" style="display:none">
         <line class="xh" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
           stroke-width="1" stroke-dasharray="3 3"/>
