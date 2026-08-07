@@ -197,6 +197,15 @@ def replace_sector_history(rows: list[dict]) -> int:
     return rpc("replace_sector_history", {"p_rows": rows}) or 0
 
 
+def pending_long_closes(limit: int = 5) -> list[str]:
+    return rpc("pending_long_closes", {"p_limit": limit}) or []
+
+
+def upsert_long_closes(symbol: str, closes: list[dict]) -> int:
+    return rpc("upsert_long_closes",
+               {"p_symbol": symbol, "p_closes": closes}) or 0
+
+
 def replace_sector_risk(rows: list[dict]) -> int:
     return rpc("replace_sector_risk", {"p_rows": rows}) or 0
 

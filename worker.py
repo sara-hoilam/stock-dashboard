@@ -755,6 +755,38 @@ def drain_prices(max_items: int = 5) -> int:
     return done
 
 
+def drain_long_closes(max_items: int = 3) -> int:
+    """Fetch a decade of daily closes for symbols the portfolio wants.
+
+    One request each, and the payload is large, so this drains fewer per pass
+    than the other queues. `closes` uses FMP's light series -- date and close
+    only -- which is all the correlation heatmap reads and a third the size of
+    the OHLCV the candlestick chart needs.
+    """
+    if not market.configured():
+        return 0
+    try:
+        pending = store.pending_long_closes(max_items)
+    except store.StoreError as exc:
+        log(f"  long-close queue unavailable (apply 0054_long_closes.sql): {exc}")
+        return 0
+    done = 0
+    for sym in pending:
+        try:
+            rows = market.closes(sym, years=10)
+        except market.MarketError as exc:
+            log(f"  long closes {sym}: {exc}")
+            rows = []
+        try:
+            n = store.upsert_long_closes(sym, rows)
+            if n:
+                log(f"  long closes {sym}: {n} closes")
+                done += 1
+        except store.StoreError as exc:
+            log(f"  long closes {sym} write: {exc}")
+    return done
+
+
 def drain_analyst(max_items: int = 5) -> int:
     """Fetch coverage for the companies whose report pages have asked for it.
 
@@ -1114,6 +1146,8 @@ def run() -> None:
             if drain_employee_history():
                 continue
             if drain_intraday():
+                continue
+            if drain_long_closes():
                 continue
             if drain_analyst():
                 continue
