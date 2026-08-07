@@ -409,13 +409,18 @@ tbody tr:hover td{background:var(--sunk)}
 }
 .idx-hold{min-width:0;margin:0;display:flex;flex-direction:column}
 .idx-hold .htab{
-  width:100%;border-collapse:collapse;font-size:12.5px;
+  /* separate + spacing 0 keeps sticky th backgrounds opaque while scrolling
+     (collapse lets body rows paint through the header in Chromium). */
+  width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px;
 }
 .idx-hold .htab th{
   text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--ink-3);font-weight:600;padding:9px 10px;border-bottom:1px solid var(--rule);
-  position:sticky;top:0;background:var(--card);white-space:nowrap;z-index:1;
+  position:sticky;top:0;z-index:2;white-space:nowrap;
+  background-color:var(--card);background-clip:padding-box;
+  box-shadow:0 1px 0 var(--rule);
 }
+.idx-hold .htab thead{position:relative;z-index:2}
 .idx-hold .htab td{padding:8px 10px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
 .idx-hold .htab tr:hover td{background:var(--sunk)}
 .idx-hold .htab a{color:var(--accent);text-decoration:none;font-family:"IBM Plex Mono",monospace;font-weight:600}
