@@ -418,11 +418,16 @@ tbody tr:hover td{background:var(--sunk)}
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap
 }
 .idx-hold .htab .ret.up{color:var(--up)} .idx-hold .htab .ret.down{color:var(--down)}
-/* Show ~10 body rows; scroll for the rest. */
+/* Show ~14 body rows; scroll for the rest. */
 .idx-hold .scroll{
   overflow:auto;border:1px solid var(--rule);border-radius:var(--r);background:var(--card);
-  max-height:calc(38px + 10 * 37px);
+  max-height:calc(38px + 14 * 37px);
 }
+.idx-chart-tools{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;
+}
+.idx-chart-tools .ranges button{padding:5px 8px;font-size:11px}
+.idx-chart-tools .ptools{flex-shrink:0}
 .idx-hold > .note{flex-shrink:0}
 .idx-pie-col{min-width:0}
 .idx-pie-card{
@@ -2114,18 +2119,56 @@ const INDEX_PE = {
   series: [],
   on: { SPX: true, IXIC: true, DJI: true, RUT: false },
   range: "1Y",
+  interval: "daily",
 };
-const INDEX_RANGES = ["1W", "1M", "YTD", "1Y"];
-const INDEX_DD = { range: "10Y" };
-const INDEX_DD_RANGES = ["5Y", "10Y", "All"];
+const INDEX_DD = { range: "10Y", interval: "annual" };
+const INDEX_CHART_RANGES = ["1W", "1M", "YTD", "1Y", "5Y", "10Y", "ALL"];
+const INDEX_INTERVALS = [
+  ["Daily", "daily"], ["Weekly", "weekly"], ["Monthly", "monthly"], ["Annual", "annual"],
+];
 
 function indexRangeStartISO(range){
   const d = new Date();
   if (range === "1W") d.setDate(d.getDate() - 7);
   else if (range === "1M") d.setMonth(d.getMonth() - 1);
   else if (range === "1Y") d.setFullYear(d.getFullYear() - 1);
+  else if (range === "5Y") d.setFullYear(d.getFullYear() - 5);
+  else if (range === "10Y") d.setFullYear(d.getFullYear() - 10);
+  else if (range === "ALL") return "1900-01-01";
   else d.setMonth(0, 1); // YTD
   return d.toISOString().slice(0, 10);
+}
+
+/** ≤1Y → daily; 5Y/10Y/ALL → annual. */
+function indexDefaultInterval(range){
+  return (range === "5Y" || range === "10Y" || range === "ALL") ? "annual" : "daily";
+}
+
+function indexIntervalKey(d, interval){
+  if (interval === "annual") return String(d).slice(0, 4);
+  if (interval === "monthly") return String(d).slice(0, 7);
+  if (interval === "weekly") {
+    const dt = new Date(String(d).slice(0, 10) + "T00:00:00Z");
+    dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
+    return dt.toISOString().slice(0, 10);
+  }
+  return String(d).slice(0, 10);
+}
+
+function indexAxisLabel(d, interval){
+  if (!d) return "";
+  if (interval === "annual") return String(d).slice(0, 4);
+  const [y, m, day] = String(d).split("-").map(Number);
+  if (interval === "monthly") return `${MONTHS[m - 1].slice(0, 3)} ${y}`;
+  return `${day} ${MONTHS[m - 1].slice(0, 3)}`;
+}
+
+/** Keep the last date in each interval bucket (sorted ascending). */
+function bucketDatesByInterval(dates, interval){
+  if (interval === "daily" || dates.length < 2) return dates.slice();
+  const last = new Map();
+  for (const d of dates) last.set(indexIntervalKey(d, interval), d);
+  return [...last.values()].sort();
 }
 
 const signedPct = (v, d = 2) => {
@@ -2149,7 +2192,9 @@ function openIndexSymbol(ticker, meta){
   INDEX_PE.series = [];
   INDEX_PE.on = { SPX: true, IXIC: true, DJI: true, RUT: false };
   INDEX_PE.range = "1Y";
+  INDEX_PE.interval = indexDefaultInterval("1Y");
   INDEX_DD.range = "10Y";
+  INDEX_DD.interval = indexDefaultInterval("10Y");
 
   const holdTitle = c.ticker === "IXIC" ? "Holdings & industry (Nasdaq-100)" : "Holdings & industry";
 
@@ -2196,10 +2241,13 @@ function openIndexSymbol(ticker, meta){
         <div class="phead">
           <div><h2>Forward PE Ratio</h2>
             <p>vs other market indexes</p></div>
-          <div class="ranges" id="idx-pe-range" role="group" aria-label="PE chart range">
-            ${INDEX_RANGES.map(r =>
-              `<button type="button" data-r="${r}" aria-pressed="${r === "1Y"}">${r}</button>`
-            ).join("")}
+          <div class="idx-chart-tools">
+            <div class="ranges" id="idx-pe-range" role="group" aria-label="PE chart range">
+              ${INDEX_CHART_RANGES.map(r =>
+                `<button type="button" data-r="${r}" aria-pressed="${r === "1Y"}">${r}</button>`
+              ).join("")}
+            </div>
+            <div class="ptools" id="idx-pe-time"></div>
           </div>
         </div>
         <div class="lwrap" id="idx-pe-chart"><div class="note"><span class="load"></span> &nbsp;Loading P/E…</div></div>
@@ -2211,16 +2259,19 @@ function openIndexSymbol(ticker, meta){
       <section class="card panel">
         <div class="phead">
           <div><h2>Returns vs drawdowns</h2>
-            <p>Annual price return and max drawdown</p></div>
-          <div class="ranges" id="idx-dd-range" role="group" aria-label="Returns vs drawdowns range">
-            ${INDEX_DD_RANGES.map(r =>
-              `<button type="button" data-r="${r}" aria-pressed="${r === "10Y"}">${r}</button>`
-            ).join("")}
+            <p>Price return and max drawdown</p></div>
+          <div class="idx-chart-tools">
+            <div class="ranges" id="idx-dd-range" role="group" aria-label="Returns vs drawdowns range">
+              ${INDEX_CHART_RANGES.map(r =>
+                `<button type="button" data-r="${r}" aria-pressed="${r === "10Y"}">${r}</button>`
+              ).join("")}
+            </div>
+            <div class="ptools" id="idx-dd-time"></div>
           </div>
         </div>
         <div class="lwrap idx-dd-chart" id="idx-dd-chart"><div class="note"><span class="load"></span> &nbsp;Loading returns…</div></div>
         <p class="note" style="text-align:left;padding:4px 14px 14px;margin:0">
-          Calendar-year price return and peak-to-trough max drawdown, with average return and average max drawdown as reference lines.
+          Period price return and peak-to-trough max drawdown, with average return and average max drawdown as reference lines.
         </p>
       </section>
     </div>
@@ -2246,18 +2297,20 @@ function openIndexSymbol(ticker, meta){
   loadIndexPE(c.ticker);
   hydratePageLogos();
   addEventListener("resize", () => {
-    clearTimeout(fitHoldingsTenRows._t);
-    fitHoldingsTenRows._t = setTimeout(fitHoldingsTenRows, 120);
+    clearTimeout(fitHoldingsRows._t);
+    fitHoldingsRows._t = setTimeout(fitHoldingsRows, 120);
   }, { passive: true });
 }
 
-/** Cap the holdings scrollport to about 10 visible body rows. */
-function fitHoldingsTenRows(){
+const HOLDINGS_VISIBLE_ROWS = 14;
+
+/** Cap the holdings scrollport to about 14 visible body rows. */
+function fitHoldingsRows(){
   const scroll = document.querySelector("#idx-holdings .scroll");
   const table = scroll && scroll.querySelector("table");
   if (!scroll || !table) return;
   const head = table.querySelector("thead");
-  const rows = [...table.querySelectorAll("tbody tr")].slice(0, 10);
+  const rows = [...table.querySelectorAll("tbody tr")].slice(0, HOLDINGS_VISIBLE_ROWS);
   if (!rows.length) return;
   const headH = head ? head.getBoundingClientRect().height : 0;
   const bodyH = rows.reduce((a, r) => a + r.getBoundingClientRect().height, 0);
@@ -2312,7 +2365,7 @@ async function loadIndexHoldings(symbol){
     }).join("")}</tbody></table></div>
     <p class="note" style="text-align:left;padding:10px 2px 0;flex-shrink:0">Today from the latest quote close.
       YTD from cached daily bars when available. Scroll for full holdings.</p>`;
-  requestAnimationFrame(() => fitHoldingsTenRows());
+  requestAnimationFrame(() => fitHoldingsRows());
 
   const byInd = new Map();
   rows.forEach(r => {
@@ -2343,7 +2396,7 @@ async function loadIndexHoldings(symbol){
       }).join("")}</div>
     </section>`;
   drawIndexPie(document.getElementById("idx-pie"), top, total);
-  requestAnimationFrame(() => fitHoldingsTenRows());
+  requestAnimationFrame(() => fitHoldingsRows());
 }
 
 function drawIndexPie(host, slices, total){
@@ -2419,6 +2472,8 @@ async function loadIndexSeasonality(symbol){
     host.innerHTML = `<div class="note">Seasonality unavailable.</div>`;
     return;
   }
+  // Monthly closes also feed the returns/drawdown chart.
+  if (document.getElementById("idx-dd-chart")) drawIndexDrawdown();
   if (!EXTRA.data || !(EXTRA.data.monthly || []).length) {
     try { await API.requestPrices(symbol); } catch {}
     host.innerHTML = `<div class="note">Seasonality will appear after the next index refresh
@@ -2439,6 +2494,52 @@ function wireIndexRange(hostId, getRange, setRange, onChange){
       onChange();
     };
   });
+}
+
+/** Time interval dropdown matching the price-chart toolbar. */
+function renderIndexTimeMenu(hostId, getInterval, setInterval, onChange){
+  const host = document.getElementById(hostId);
+  if (!host) return;
+  const cur = getInterval();
+  const body = INDEX_INTERVALS.map(([lab, v]) =>
+    `<button type="button" data-interval="${v}" class="${cur === v ? "on" : ""}">${lab}</button>`
+  ).join("");
+  host.innerHTML = `
+    <div class="tmenu" data-menu="interval">
+      <button type="button" class="tbtn" aria-expanded="false">Time
+        <svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none"
+          stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <div class="tpop"><div class="tpop-h">Interval</div>${body}</div>
+    </div>`;
+  const menu = host.querySelector(".tmenu");
+  const btn = host.querySelector(".tbtn");
+  btn.onclick = e => {
+    e.stopPropagation();
+    const open = menu.classList.contains("open");
+    document.querySelectorAll(".idx-chart-tools .tmenu").forEach(m => m.classList.remove("open"));
+    menu.classList.toggle("open", !open);
+    btn.setAttribute("aria-expanded", String(!open));
+  };
+  host.querySelectorAll("[data-interval]").forEach(b => {
+    b.onclick = e => {
+      e.stopPropagation();
+      setInterval(b.dataset.interval);
+      menu.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+      renderIndexTimeMenu(hostId, getInterval, setInterval, onChange);
+      onChange();
+    };
+  });
+  if (!renderIndexTimeMenu._docClose) {
+    renderIndexTimeMenu._docClose = true;
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".idx-chart-tools .tmenu").forEach(m => {
+        m.classList.remove("open");
+        const t = m.querySelector(".tbtn");
+        if (t) t.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
 }
 
 async function loadIndexPE(focusSymbol){
@@ -2503,10 +2604,26 @@ async function loadIndexPE(focusSymbol){
     }
   }
 
+  const peRangeChange = () => {
+    INDEX_PE.interval = indexDefaultInterval(INDEX_PE.range);
+    renderIndexTimeMenu("idx-pe-time",
+      () => INDEX_PE.interval, v => { INDEX_PE.interval = v; }, drawIndexPE);
+    drawIndexPE();
+  };
+  const ddRangeChange = () => {
+    INDEX_DD.interval = indexDefaultInterval(INDEX_DD.range);
+    renderIndexTimeMenu("idx-dd-time",
+      () => INDEX_DD.interval, v => { INDEX_DD.interval = v; }, drawIndexDrawdown);
+    drawIndexDrawdown();
+  };
   wireIndexRange("idx-pe-range",
-    () => INDEX_PE.range, r => { INDEX_PE.range = r; }, drawIndexPE);
+    () => INDEX_PE.range, r => { INDEX_PE.range = r; }, peRangeChange);
   wireIndexRange("idx-dd-range",
-    () => INDEX_DD.range, r => { INDEX_DD.range = r; }, drawIndexDrawdown);
+    () => INDEX_DD.range, r => { INDEX_DD.range = r; }, ddRangeChange);
+  renderIndexTimeMenu("idx-pe-time",
+    () => INDEX_PE.interval, v => { INDEX_PE.interval = v; }, drawIndexPE);
+  renderIndexTimeMenu("idx-dd-time",
+    () => INDEX_DD.interval, v => { INDEX_DD.interval = v; }, drawIndexDrawdown);
   drawIndexPE();
   drawIndexDrawdown();
 }
@@ -2522,21 +2639,22 @@ function drawIndexPE(){
   }
 
   const from = indexRangeStartISO(INDEX_PE.range);
+  const interval = INDEX_PE.interval || "daily";
   // Align all series onto a shared date axis (union of dates), carrying
   // each line's last known PE forward between prints.
   let dates = [...new Set(active.flatMap(s => s.points.map(p => p.d)))]
     .filter(d => d >= from)
     .sort();
   if (dates.length < 2) {
-    // Fall back to whatever history exists if the window is too short.
     dates = [...new Set(active.flatMap(s => s.points.map(p => p.d)))].sort();
   }
+  dates = bucketDatesByInterval(dates, interval);
+  // Keep the polyline readable on long daily windows.
   const step = dates.length > 180 ? Math.ceil(dates.length / 140) : 1;
   const axis = dates.filter((_, i) => i % step === 0 || i === dates.length - 1);
 
   const series = active.map(s => {
     let j = 0, last = null;
-    // Seed with the last print at or before the window so the line is continuous.
     while (j < s.points.length && s.points[j].d < axis[0]) {
       last = s.points[j].pe;
       j++;
@@ -2548,7 +2666,7 @@ function drawIndexPE(){
       }
       return {
         v: last,
-        label: shortDate(d),
+        label: indexAxisLabel(d, interval),
         full: longDate(d),
       };
     });
@@ -2558,7 +2676,7 @@ function drawIndexPE(){
   linePlot(host, series, {
     id: "idxpe", zero: false,
     H: MOBILE_MQ.matches ? 240 : 200,
-    mb: 34, mr: 44, insideY: true, xLabels: 4,
+    mb: 36, mr: 44, insideY: true, xLabels: 4,
     fmtY: v => v.toFixed(0),
     fmtV: v => v.toFixed(2) + "x",
     alt: "Forward P/E across market indexes",
@@ -2568,60 +2686,82 @@ function drawIndexPE(){
   if (key) key.remove();
 }
 
-/** Build calendar-year return + max drawdown points from daily/monthly closes. */
-function indexAnnualReturnDrawdown(){
-  const byYear = new Map();
-  const push = (d, c, preferDaily) => {
-    if (!d || c == null || !(+c > 0)) return;
-    const y = String(d).slice(0, 4);
-    if (!/^\d{4}$/.test(y)) return;
-    let row = byYear.get(y);
-    if (!row) { row = { daily: [], monthly: [] }; byYear.set(y, row); }
-    (preferDaily ? row.daily : row.monthly).push({ d: String(d).slice(0, 10), c: +c });
-  };
-  ((EXTRA.data && EXTRA.data.monthly) || []).forEach(b => push(b.d, b.c, false));
-  (PRICE.bars || []).forEach(b => push(b.d, b.c, true));
+/** Merged close series: monthly history plus daily bars (daily wins on overlap). */
+function indexCloseSeries(){
+  const map = new Map();
+  ((EXTRA.data && EXTRA.data.monthly) || []).forEach(b => {
+    if (b && b.d && b.c != null && +b.c > 0) map.set(String(b.d).slice(0, 10), +b.c);
+  });
+  (PRICE.bars || []).forEach(b => {
+    if (b && b.d && b.c != null && +b.c > 0) map.set(String(b.d).slice(0, 10), +b.c);
+  });
+  return [...map.entries()]
+    .map(([d, c]) => ({ d, c }))
+    .sort((a, b) => a.d < b.d ? -1 : 1);
+}
 
-  const years = [...byYear.keys()].sort();
+/** Period return + max drawdown for the selected range and x-axis interval. */
+function indexPeriodReturnDrawdown(range, interval){
+  const from = indexRangeStartISO(range);
+  let closes = indexCloseSeries();
+  if (closes.length < 2) return [];
+  let win = closes.filter(b => b.d >= from);
+  if (win.length < 2) win = closes.slice();
+
+  const buckets = new Map();
+  for (const b of win) {
+    const k = indexIntervalKey(b.d, interval);
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(b);
+  }
+  const keys = [...buckets.keys()].sort();
   const out = [];
-  for (const year of years) {
-    const row = byYear.get(year);
-    // Prefer daily closes when the year has a usable sample; else month-ends.
-    const series = (row.daily.length >= 20 ? row.daily : row.monthly)
-      .slice()
-      .sort((a, b) => a.d < b.d ? -1 : 1);
-    if (series.length < 2) continue;
-    const first = series[0].c, last = series[series.length - 1].c;
-    if (!(first > 0)) continue;
-    const ret = ((last / first) - 1) * 100;
-    let peak = series[0].c, mdd = 0;
+  let prevClose = null;
+  // Seed with the last close before the window so the first period return is meaningful.
+  for (let i = closes.length - 1; i >= 0; i--) {
+    if (closes[i].d < win[0].d) { prevClose = closes[i].c; break; }
+  }
+  for (const k of keys) {
+    const series = buckets.get(k);
+    if (!series.length) continue;
+    const first = series[0].c;
+    const last = series[series.length - 1].c;
+    const base = prevClose != null ? prevClose : first;
+    if (!(base > 0)) continue;
+    const ret = ((last / base) - 1) * 100;
+    let peak = base, mdd = 0;
     for (const p of series) {
       if (p.c > peak) peak = p.c;
       if (peak > 0) mdd = Math.min(mdd, ((p.c / peak) - 1) * 100);
     }
-    out.push({ year, ret, mdd });
+    out.push({
+      key: k,
+      label: indexAxisLabel(series[series.length - 1].d, interval),
+      full: longDate(series[series.length - 1].d),
+      ret, mdd,
+    });
+    prevClose = last;
   }
   return out;
 }
 
-/** LPL-style annual price return vs max drawdown with average reference lines. */
+/** LPL-style price return vs max drawdown bars with average reference lines. */
 function drawIndexDrawdown(){
   const host = document.getElementById("idx-dd-chart");
   if (!host) return;
 
-  let rows = indexAnnualReturnDrawdown();
+  const interval = INDEX_DD.interval || "annual";
+  let rows = indexPeriodReturnDrawdown(INDEX_DD.range, interval);
   if (rows.length < 2) {
     host.innerHTML = `<div class="note">Returns vs drawdowns appear once price history is loaded.</div>`;
     return;
   }
 
-  const keep = INDEX_DD.range === "5Y" ? 5
-    : INDEX_DD.range === "10Y" ? 10
-    : rows.length;
-  rows = rows.slice(-keep);
-  if (rows.length < 2) {
-    host.innerHTML = `<div class="note">Not enough years in this window.</div>`;
-    return;
+  // Keep bar charts readable on long daily/weekly windows.
+  const maxBars = 96;
+  if (rows.length > maxBars) {
+    const step = Math.ceil(rows.length / maxBars);
+    rows = rows.filter((_, i) => i % step === 0 || i === rows.length - 1);
   }
 
   const avgRet = rows.reduce((a, r) => a + r.ret, 0) / rows.length;
@@ -2647,6 +2787,7 @@ function drawIndexDrawdown(){
     <text x="${W - mr - 4}" y="${(y(t) + 3.5).toFixed(1)}" class="ax" text-anchor="end">${
       `${t.toFixed(0)}%`}</text>`).join("");
 
+  const labelEvery = Math.max(1, Math.ceil(rows.length / 6));
   const bars = rows.map((r, i) => {
     const cx = ml + step * (i + 0.5);
     const retTop = y(Math.max(r.ret, 0));
@@ -2655,6 +2796,8 @@ function drawIndexDrawdown(){
     const mddBot = y(Math.min(r.mdd, 0));
     const retH = Math.max(1, Math.abs(retBot - retTop));
     const mddH = Math.max(1, Math.abs(mddBot - mddTop));
+    const showLab = i === 0 || i === rows.length - 1 || i % labelEvery === 0;
+    const anchor = i === 0 ? "start" : i === rows.length - 1 ? "end" : "middle";
     return `
       <rect class="dd-hit" data-i="${i}" x="${(cx - step * 0.42).toFixed(1)}" y="${mt}"
         width="${(step * 0.84).toFixed(1)}" height="${ph}" fill="transparent"/>
@@ -2664,8 +2807,8 @@ function drawIndexDrawdown(){
       <rect x="${(cx + 1).toFixed(1)}" y="${Math.min(mddTop, mddBot).toFixed(1)}"
         width="${bw.toFixed(1)}" height="${mddH.toFixed(1)}" fill="var(--down)" opacity=".9"
         data-i="${i}"></rect>
-      <text x="${cx.toFixed(1)}" y="${H - 10}" class="ax" text-anchor="middle">${
-        rows.length > 8 ? String(r.year).slice(2) : r.year}</text>`;
+      ${showLab ? `<text x="${cx.toFixed(1)}" y="${H - 10}" class="ax" text-anchor="${anchor}">${
+        esc(r.label)}</text>` : ""}`;
   }).join("");
 
   const refs = `
@@ -2678,29 +2821,29 @@ function drawIndexDrawdown(){
 
   host.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
-      aria-label="Annual price returns versus max drawdowns">
+      aria-label="Price returns versus max drawdowns">
       ${grid}${refs}${bars}
     </svg>
     <div class="lkey">
       <span><i style="background:var(--up)"></i>Price return</span>
       <span><i style="background:var(--down)"></i>Max drawdown</span>
-      <span><i class="dash" style="background:var(--up)"></i>Avg return ${avgRet.toFixed(1)}%</span>
-      <span><i class="dash" style="background:var(--down)"></i>Avg max drawdown ${avgMdd.toFixed(1)}%</span>
+      <span><i class="dash" style="color:var(--up)"></i>Avg return ${avgRet.toFixed(1)}%</span>
+      <span><i class="dash" style="color:var(--down)"></i>Avg max drawdown ${avgMdd.toFixed(1)}%</span>
     </div>
-    <div class="lread" id="idxdd-read">Hover a year to compare return and max drawdown.</div>`;
+    <div class="lread" id="idxdd-read">Hover a period to compare return and max drawdown.</div>`;
 
   const read = host.querySelector("#idxdd-read");
   const show = i => {
     const r = rows[i];
     if (!r || !read) return;
-    read.innerHTML = `<b>${esc(r.year)}</b>
+    read.innerHTML = `<b>${esc(r.full || r.label)}</b>
       <span><i style="background:var(--up)"></i>Return ${esc(signedPct(r.ret))}</span>
       <span><i style="background:var(--down)"></i>Max DD ${esc(signedPct(r.mdd))}</span>`;
   };
   host.querySelectorAll("[data-i]").forEach(el => {
     el.addEventListener("pointermove", () => show(+el.dataset.i));
     el.addEventListener("pointerleave", () => {
-      if (read) read.textContent = "Hover a year to compare return and max drawdown.";
+      if (read) read.textContent = "Hover a period to compare return and max drawdown.";
     });
   });
 }
@@ -4492,10 +4635,11 @@ function baseWindow(){
 function resample(bars, interval){
   if (interval === "daily" || !bars.length) return bars;
   const key = b => interval === "weekly"
-    // ISO-ish week key: the Thursday of the week keeps years from splitting.
+    // ISO-ish week key: the Monday of the week keeps years from splitting.
     ? (() => { const d = new Date(b.d + "T00:00:00Z");
                d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
                return d.toISOString().slice(0, 10); })()
+    : interval === "annual" ? b.d.slice(0, 4)
     : b.d.slice(0, 7);
   const out = [];
   let cur = null, k = null;
