@@ -2415,11 +2415,12 @@ const FLOW_DAYS = 60;
 const FLOW_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun",
                      "Jul","Aug","Sep","Oct","Nov","Dec"];
 
-function flowDayLabel(iso){
+function flowDayLabel(iso, { withYear = true } = {}){
   if (!iso) return "";
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return iso;
-  return `${d} ${FLOW_MONTHS[m - 1]} ${y}`;
+  const base = `${d} ${FLOW_MONTHS[m - 1]}`;
+  return withYear ? `${base} ${y}` : base;
 }
 
 function flowDayKey(raw){
@@ -2458,6 +2459,23 @@ function fillFlowDays(rows, days){
 
 function flowHasVolume(rows){
   return (rows || []).some(r => (Number(r.inflow) || 0) > 0 || (Number(r.outflow) || 0) > 0);
+}
+
+function flowActiveDays(rows){
+  return (rows || []).filter(
+    r => (Number(r.inflow) || 0) > 0 || (Number(r.outflow) || 0) > 0).length;
+}
+
+/** True when the daily series only covers a thin slice of the 60-day window. */
+function flowLooksSparse(rows){
+  return flowActiveDays(rows) < Math.max(8, Math.floor(FLOW_DAYS / 4));
+}
+
+/** Prefer the denser non-empty series (stale shallow pulls vs table rebuild). */
+function preferFlowSeries(current, derived){
+  if (!flowHasVolume(derived)) return current || [];
+  if (!flowHasVolume(current)) return derived;
+  return flowActiveDays(derived) > flowActiveDays(current) ? derived : current;
 }
 
 /** Midpoint of a congress amount band for client-side flow fallback. */
@@ -2504,14 +2522,18 @@ function drawFlowChart(host, rows){
   if (!host) return;
   const series = fillFlowDays(rows, FLOW_DAYS);
   const max = Math.max(1, ...series.map(r => Math.max(r.inflow, r.outflow)));
+  // Side padding keeps end labels inside the viewBox; meet (not none) stops
+  // the SVG stretch from clipping "7 Aug" into "7 Aug 2".
   const W = 640, H = 120;
-  const pad = { l: 2, r: 2, t: 8, b: 22 };
+  const pad = { l: 36, r: 36, t: 8, b: 22 };
   const innerW = W - pad.l - pad.r;
   const innerH = H - pad.t - pad.b;
   const n = series.length;
   const slot = innerW / n;
   const barW = Math.max(1.2, Math.min(4.5, slot * 0.38));
   const gap = Math.max(0.4, barW * 0.15);
+  const spanYears = series.length > 1
+    && series[0].day.slice(0, 4) !== series[n - 1].day.slice(0, 4);
 
   const bars = series.map((r, i) => {
     const x0 = pad.l + i * slot + (slot - (barW * 2 + gap)) / 2;
@@ -2534,9 +2556,11 @@ function drawFlowChart(host, rows){
   for (let i = step; i < n - 1; i += step) labelIdx.add(i);
   const labels = [...labelIdx].sort((a, b) => a - b).map(i => {
     const x = pad.l + i * slot + slot / 2;
-    return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle"
+    const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+    const showYear = spanYears || i === 0 || i === n - 1;
+    return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="${anchor}"
       fill="var(--ink-3)" font-size="9.5" font-family="IBM Plex Sans,sans-serif">${
-        esc(flowDayLabel(series[i].day))}</text>`;
+        esc(flowDayLabel(series[i].day, { withYear: showYear }))}</text>`;
   }).join("");
 
   const hasAny = series.some(r => r.inflow > 0 || r.outflow > 0);
@@ -2545,7 +2569,7 @@ function drawFlowChart(host, rows){
     return;
   }
 
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
     role="img" aria-label="Daily inflow and outflow over ${FLOW_DAYS} days">
     ${bars}${labels}
   </svg>`;
@@ -2559,12 +2583,17 @@ async function loadTradeFlow(){
     const d = await rpc("get_trade_flow", { p_days: FLOW_DAYS });
     let insRows = (d && d.insider) || [];
     let conRows = (d && d.congress) || [];
-    // If the daily series was never written (or is all zeros), build bars from
-    // recent trade rows so the chart matches the tables above.
-    if (!flowHasVolume(insRows) || !flowHasVolume(conRows)) {
+    // Rebuild from stored trade rows when the daily series is empty/zero or
+    // only covers the last few days (stale shallow FMP pulls).
+    if (!flowHasVolume(insRows) || !flowHasVolume(conRows)
+        || flowLooksSparse(insRows) || flowLooksSparse(conRows)) {
       const derived = await deriveFlowFromTrades();
-      if (!flowHasVolume(insRows)) insRows = derived.insider;
-      if (!flowHasVolume(conRows)) conRows = derived.congress;
+      if (!flowHasVolume(insRows) || flowLooksSparse(insRows)) {
+        insRows = preferFlowSeries(insRows, derived.insider);
+      }
+      if (!flowHasVolume(conRows) || flowLooksSparse(conRows)) {
+        conRows = preferFlowSeries(conRows, derived.congress);
+      }
     }
     drawFlowChart(insHost, insRows);
     drawFlowChart(conHost, conRows);

@@ -804,17 +804,18 @@ def refresh_sections() -> bool:
         hist = []
 
     try:
-        # Pull sixty days once. Page deep enough on FMP that daily flow bars
-        # cover the whole window (a short page budget only reached ~1 week).
+        # Pull sixty days once. FMP caps page at 100, so the worker uses
+        # limit=1000 (see market._trade_list_page_size) — limit=100 only
+        # reached ~10 days and left the inflow/outflow charts nearly empty.
         flow_days = 60
         ins_all = market.insider_trades(
-            days=flow_days, store_cap=5000, collapse=False)
+            days=flow_days, store_cap=10000, collapse=False)
         con_all = market.congress_trades(days=flow_days, store_cap=5000)
 
         # Persist the full 60-day material pulls. Tables still request 7 / 14
         # days via get_trades; flow charts and fallbacks need the longer set.
         # No congress amount floor (MIN_CONGRESS_AMOUNT = 0).
-        ins_store = ins_all[:3000]
+        ins_store = ins_all[:5000]
         con_store = con_all[:2000]
         store.replace_trades(ins_store, con_store)
         log(f"  trades pulled: {len(ins_all)} insider / {len(con_all)} congress "

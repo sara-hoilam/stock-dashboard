@@ -66,6 +66,13 @@ def _get(path: str, **params):
         raise MarketError(f"{path}: {exc}") from exc
 
 
+def _is_page_limit_error(exc: BaseException) -> bool:
+    """True when FMP rejected a page past its hard maximum (currently 100)."""
+    msg = str(exc).lower()
+    # FMP's own message misspells "Maximum" as "Maxmium".
+    return "maximum page" in msg or "maxmium" in msg
+
+
 # ---------------------------------------------------------------------------
 # The day's movers
 # ---------------------------------------------------------------------------
@@ -1168,20 +1175,30 @@ def _shares_outstanding_map(symbols: list[str], cap: int = 100) -> dict[str, flo
     return out
 
 
+def _trade_list_page_size(days: int) -> int:
+    """Rows per FMP page for trade feeds.
+
+    FMP hard-caps ``page`` at 100. With ``limit=100`` the Form 4 feed only
+    reaches ~10 calendar days, which left the 60-day inflow/outflow chart
+    empty for most of its window. ``limit=1000`` covers 60+ days inside that
+    page cap.
+    """
+    d = max(1, int(days or 1))
+    return 1000 if d > 14 else 100
+
+
 def _trade_list_max_pages(days: int) -> int:
     """How far to page FMP 'latest' trade feeds to cover ``days``.
 
-    These endpoints are high-volume (especially Form 4). A short page budget
-    only reaches the last few calendar days, which left the 60-day inflow /
-    outflow charts nearly empty.
+    Never ask past page 100 — FMP returns HTTP 400 beyond that, which used to
+    abort the whole trades refresh and leave stale sparse charts.
     """
     d = max(1, int(days or 1))
     if d <= 7:
         return 24
     if d <= 14:
         return 48
-    # ~4 pages/day, capped so a single worker tick stays bounded.
-    return min(220, max(90, d * 4))
+    return 100
 
 
 def insider_trades(days: int = 7, store_cap: int = 400,
@@ -1199,10 +1216,15 @@ def insider_trades(days: int = 7, store_cap: int = 400,
     """
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     raw_rows: list[dict] = []
-    page_size = 100
+    page_size = _trade_list_page_size(days)
     max_pages = _trade_list_max_pages(days)
     for page in range(max_pages):
-        rows = _get("insider-trading/latest", page=page, limit=page_size) or []
+        try:
+            rows = _get("insider-trading/latest", page=page, limit=page_size) or []
+        except MarketError as exc:
+            if page > 0 and _is_page_limit_error(exc):
+                break
+            raise
         if not rows:
             break
         page_days = [_as_day(r.get("filingDate")) for r in rows]
@@ -1296,13 +1318,18 @@ def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
     """
     cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
     rows: list[dict] = []
-    page_size = 100
+    page_size = _trade_list_page_size(days)
     max_pages = _trade_list_max_pages(days)
     min_amt = float(MIN_CONGRESS_AMOUNT or 0)
     for path, chamber in (("senate-latest", "Senate"), ("house-latest", "House")):
         try:
             for page in range(max_pages):
-                batch = _get(path, page=page, limit=page_size) or []
+                try:
+                    batch = _get(path, page=page, limit=page_size) or []
+                except MarketError as exc:
+                    if page > 0 and _is_page_limit_error(exc):
+                        break
+                    raise
                 if not batch:
                     break
                 page_days = [_as_day(r.get("disclosureDate")) for r in batch]
