@@ -197,6 +197,10 @@ def replace_sector_history(rows: list[dict]) -> int:
     return rpc("replace_sector_history", {"p_rows": rows}) or 0
 
 
+def replace_sector_risk(rows: list[dict]) -> int:
+    return rpc("replace_sector_risk", {"p_rows": rows}) or 0
+
+
 def replace_trades(insiders: list[dict], congress: list[dict]) -> int:
     return rpc("replace_trades",
                {"p_insiders": insiders, "p_congress": congress}) or 0

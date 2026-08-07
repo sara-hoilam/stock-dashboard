@@ -803,6 +803,22 @@ def refresh_sections() -> bool:
         log(f"  sector history: {exc}")
         hist = []
 
+    # Risk and return per sector. Twenty-two requests -- eleven price
+    # histories and eleven screener pages -- so it belongs on the slow
+    # sections cadence rather than the fifteen-minute market one. The
+    # underlying numbers are years of closes; they do not move hourly.
+    try:
+        risk = market.sector_risk_return()
+        if risk:
+            store.replace_sector_risk(risk)
+            log(f"  sector risk: {len(risk)} sectors")
+    except market.MarketError as exc:
+        log(f"  sector risk: {exc}")
+    except store.StoreError as exc:
+        # 0053 not applied yet. The panel shows its empty state; nothing else
+        # in this refresh should be lost over it.
+        log(f"  sector risk write (apply 0053_sector_risk.sql): {exc}")
+
     try:
         # Pull sixty days once. FMP caps page at 100, so the worker uses
         # limit=1000 (see market._trade_list_page_size) — limit=100 only

@@ -111,6 +111,30 @@ h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin-bottom:12px}
   cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule);white-space:nowrap}
 .seg button:last-child{border-right:0}
 .seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
+.seg button[disabled]{opacity:.34;cursor:not-allowed}
+
+/* Risk & Return controls: the period buttons and the interval dropdown. */
+.riskctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.drop{position:relative}
+.dropbtn{display:inline-flex;align-items:center;gap:6px;background:transparent;
+  border:1px solid var(--rule);border-radius:7px;padding:6px 11px;font:inherit;
+  font-size:12px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.dropbtn:hover{border-color:var(--accent);color:var(--ink)}
+.dropbtn[aria-expanded=true]{border-color:var(--accent);color:var(--accent)}
+.dropbtn .caret{font-size:9px;line-height:1}
+.dropmenu{position:absolute;top:calc(100% + 6px);right:0;z-index:60;min-width:172px;
+  background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  box-shadow:var(--shadow);overflow:hidden;padding:5px}
+.dropcap{padding:7px 11px 5px;font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-3)}
+.dropmenu button{display:block;width:100%;text-align:left;background:transparent;
+  border:0;border-radius:7px;padding:8px 11px;font:inherit;font-size:13px;
+  color:var(--ink-2);cursor:pointer}
+.dropmenu button:hover{background:var(--sunk);color:var(--ink)}
+.dropmenu button[aria-selected=true]{color:var(--accent);font-weight:600}
+.dropmenu button[aria-selected=true]::before{content:"✓ "}
+.dropmenu button[disabled]{opacity:.34;cursor:not-allowed}
+.dropmenu button[disabled]:hover{background:transparent;color:var(--ink-2)}
 
 /* Eight rows, then scroll -- enough to see the shape of the list without the
    panel growing taller than the chart beside it. */
@@ -625,25 +649,44 @@ svg{display:block;max-width:100%}
 
   <h2 style="margin-top:26px">Sectors Movement</h2>
   <div class="grid2 wide">
-    <section class="panel">
+    <section class="panel" id="riskpanel">
       <div class="hmhead">
         <div class="htitle">
-          <h3>Sector Rotations</h3>
-          <button type="button" class="info-i" aria-label="About Sector Rotations">
+          <h3>Risk &amp; Return</h3>
+          <button type="button" class="info-i" aria-label="About Risk and Return">
             <span aria-hidden="true">i</span>
-            <span class="info-bubble" id="rot-sub">Cumulative performance per sector.</span>
+            <span class="info-bubble" id="risk-sub">Each bubble is a sector, tracked by its
+              SPDR fund and sized by the combined market capitalisation of its US-listed
+              companies. Up is more return; right is more volatility. The diagonal is the
+              line a sector sits on when its return matches the risk taken for it.</span>
           </button>
         </div>
-        <div class="seg" id="rot-range">
-          <button data-d="7"   aria-pressed="false">7d</button>
-          <button data-d="15"  aria-pressed="false">15d</button>
-          <button data-d="30"  aria-pressed="true">30d</button>
-          <button data-d="60"  aria-pressed="false">60d</button>
-          <button data-d="120" aria-pressed="false">120d</button>
+        <div class="riskctl">
+          <div class="seg" id="risk-range">
+            <button data-p="1W"  aria-pressed="false">1W</button>
+            <button data-p="1M"  aria-pressed="false">1M</button>
+            <button data-p="YTD" aria-pressed="false">YTD</button>
+            <button data-p="1Y"  aria-pressed="false">1Y</button>
+            <button data-p="5Y"  aria-pressed="false">5Y</button>
+            <button data-p="10Y" aria-pressed="true">10Y</button>
+            <button data-p="ALL" aria-pressed="false">ALL</button>
+          </div>
+          <div class="drop" id="risk-interval-wrap">
+            <button type="button" class="dropbtn" id="risk-interval-btn"
+                    aria-haspopup="listbox" aria-expanded="false">
+              Time <span class="caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="dropmenu" id="risk-interval-menu" role="listbox" hidden>
+              <div class="dropcap">Interval</div>
+              <button type="button" role="option" data-i="daily">Daily</button>
+              <button type="button" role="option" data-i="weekly">Weekly</button>
+              <button type="button" role="option" data-i="monthly">Monthly</button>
+              <button type="button" role="option" data-i="annual" aria-selected="true">Annual</button>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="scroll" id="rotation"><div class="note"><span class="load"></span></div></div>
-      <div class="legend" id="rot-legend"></div>
+      <div class="scroll" id="riskchart"><div class="note"><span class="load"></span></div></div>
     </section>
     <section class="panel">
       <div class="hmhead">
@@ -2013,112 +2056,259 @@ const SECTOR_COLOURS = ["--k1","--k2","--k3","--k4","--k5","--k6",
 const sectorColour = i => `var(${SECTOR_COLOURS[i % SECTOR_COLOURS.length]})`;
 
 // The chart holds 120 days; the filter decides how much of it to show.
-const ROT = { days: 30, history: null };
 const PERF = { days: 7, history: null };
 
-function renderRotation(history){
-  if (history) ROT.history = history;
-  const host = document.getElementById("rotation");
-  if (!ROT.history || !ROT.history.length){
-    host.innerHTML = `<div class="note">No sector history yet.</div>`; return;
+/* ---- Risk & Return ---------------------------------------------------------
+   Every period/interval pair is precomputed by the worker, so switching a
+   filter is a redraw of numbers already in hand rather than a fetch. */
+const RISK = { period: "10Y", interval: "annual", sectors: null };
+
+const RISK_PERIOD_LABEL = {
+  "1W": "the last week", "1M": "the last month", "YTD": "the year so far",
+  "1Y": "the last year", "5Y": "the last 5 years", "10Y": "the last 10 years",
+  "ALL": "each fund's whole history",
+};
+const RISK_INTERVAL_ADJ = {
+  daily: "daily", weekly: "weekly", monthly: "monthly", annual: "annual",
+};
+
+/** The cell for the current selection, or null where the window is too short
+    to hold enough whole intervals to measure. */
+const riskCell = s =>
+  ((s.stats || {})[RISK.period] || {})[RISK.interval] || null;
+
+function renderRisk(payload){
+  if (payload) RISK.sectors = payload.sectors || [];
+  const host = document.getElementById("riskchart");
+  if (!host) return;
+  syncRiskControls();
+
+  if (!RISK.sectors || !RISK.sectors.length){
+    host.innerHTML = `<div class="note">Sector risk data is not available yet.</div>`;
+    return;
   }
 
-  // Cumulative from the start of the window: the question is which sectors
-  // have led over the period, not what each did on a single day. Re-based on
-  // every filter change so the window always starts at zero.
-  const series = ROT.history.map((s, i) => {
-    const pts = s.series.slice(-ROT.days);
-    let acc = 0;
-    return {sector: s.sector, colour: sectorColour(i),
-            pts: pts.map(p => ({d: p.d, v: (acc += p.v)}))};
-  }).filter(s => s.pts.length);
+  // XLRE launched in 2015 and XLC in 2018, so a "10Y" or "ALL" reading of
+  // those covers less ground than the same reading of XLK. Flag it rather
+  // than letting an eight-year record sit unmarked beside a twenty-year one.
+  const want = riskWindowStart(RISK.period);
+  const pts = RISK.sectors
+    .map((s, i) => ({ s, i, c: riskCell(s) }))
+    .filter(p => p.c)
+    // Compare the fund's inception, not the cell's first date: an annual
+    // bucket's first point always lands months after the window opens, so
+    // testing that would flag every sector on every period.
+    .map(p => ({ ...p, c: { ...p.c,
+      partial: !!(want && p.s.inception && p.s.inception > want) } }));
 
-  const days = series[0].pts.map(p => p.d);
-  const all = series.flatMap(s => s.pts.map(p => p.v));
-  const lo = Math.min(...all, 0), hi = Math.max(...all, 0);
-  const pad = (hi - lo) * 0.08 || 1;
+  if (!pts.length){
+    // 1W holds no whole year, so "1W + Annual" is not a short answer -- it is
+    // not a question. Say which pair failed rather than showing an empty box.
+    host.innerHTML =
+      `<div class="note">${RISK_INTERVAL_ADJ[RISK.interval][0].toUpperCase()
+        + RISK_INTERVAL_ADJ[RISK.interval].slice(1)} returns need a longer window than
+       ${esc(RISK_PERIOD_LABEL[RISK.period])}.<br>Pick a longer period, or a shorter interval.</div>`;
+    return;
+  }
 
-  const W = 900, H = 310, ml = 62, mr = 14, mt = 14, mb = 54;
+  const W = 570, H = 380, ml = 52, mr = 16, mt = 14, mb = 44;
   const pw = W - ml - mr, ph = H - mt - mb;
-  const x = i => ml + pw * i / Math.max(1, days.length - 1);
-  const y = v => mt + ph - ((v - (lo - pad)) / (((hi + pad) - (lo - pad)) || 1)) * ph;
+
+  // Pad the extents so no bubble is clipped by the frame, and always include
+  // zero on the return axis -- a scatter that hides the break-even line makes
+  // a losing sector look merely low.
+  const xs = pts.map(p => p.c.vol), ys = pts.map(p => p.c.ret);
+  const x1 = Math.max(...xs) * 1.12, x0 = 0;
+  let y0 = Math.min(0, ...ys), y1 = Math.max(...ys);
+  const ypad = (y1 - y0) * 0.16 || 0.01;
+  y0 -= ypad; y1 += ypad;
+
+  const X = v => ml + ((v - x0) / (x1 - x0 || 1)) * pw;
+  const Y = v => mt + ph - ((v - y0) / (y1 - y0 || 1)) * ph;
+
+  // Area, not radius, tracks market cap -- a radius scale exaggerates the
+  // biggest sector by the square of its lead.
+  const caps = pts.map(p => p.s.cap || 0);
+  const capMax = Math.max(...caps, 1);
+  const R = c => 7 + 20 * Math.sqrt((c || 0) / capMax);
 
   const parts = [];
-  const span = (hi + pad) - (lo - pad);
-  const step = span > 40 ? 10 : span > 16 ? 5 : span > 8 ? 2 : 1;
-  for (let v = Math.ceil((lo - pad) / step) * step; v <= hi + pad; v += step)
-    parts.push(`<line x1="${ml}" y1="${y(v)}" x2="${W-mr}" y2="${y(v)}"
-        stroke="${Math.abs(v) < 1e-9 ? "var(--rule)" : "var(--rule-2)"}"></line>
-      <text x="${ml-9}" y="${y(v)+4}" text-anchor="end" font-size="10.5" class="tnum"
-        fill="var(--ink-3)">${v}</text>`);
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++){
+    const v = y0 + (y1 - y0) * i / ticks;
+    parts.push(`<line x1="${ml}" y1="${Y(v)}" x2="${W-mr}" y2="${Y(v)}"
+      stroke="var(--rule-2)" ${Math.abs(v) < 1e-9 ? '' : 'stroke-dasharray="3 4"'}></line>
+      <text x="${ml-8}" y="${Y(v)+3.5}" text-anchor="end" font-size="10" class="tnum"
+        fill="var(--ink-3)">${(v*100).toFixed(v === 0 ? 0 : 1)}%</text>`);
+  }
+  for (let i = 0; i <= ticks; i++){
+    const v = x0 + (x1 - x0) * i / ticks;
+    parts.push(`<text x="${X(v)}" y="${H-mb+16}" text-anchor="middle" font-size="10"
+      class="tnum" fill="var(--ink-3)">${(v*100).toFixed(1)}%</text>`);
+  }
 
-  parts.push(`<text transform="translate(15,${mt + ph/2}) rotate(-90)"
-      text-anchor="middle" font-size="11.5" fill="var(--ink-3)">Stock Change (%)</text>`);
+  // Break-even, drawn solid so it reads as the reference the dashes are not.
+  if (y0 < 0 && y1 > 0)
+    parts.push(`<line x1="${ml}" y1="${Y(0)}" x2="${W-mr}" y2="${Y(0)}" stroke="var(--rule)"></line>`);
 
-  series.forEach(s => {
-    const d = s.pts.map((p,i) => `${i?"L":"M"}${x(i)},${y(p.v)}`).join(" ");
-    parts.push(`<path d="${d}" fill="none" stroke="${s.colour}" stroke-width="1.9"
-      stroke-linejoin="round" stroke-linecap="round"></path>`);
+  // The risk/return line: least squares through the bubbles, which is the
+  // grey diagonal in the reference. Two points cannot describe a trend.
+  if (pts.length > 2){
+    const n = pts.length;
+    const mx = xs.reduce((a,b)=>a+b,0)/n, my = ys.reduce((a,b)=>a+b,0)/n;
+    let num = 0, den = 0;
+    pts.forEach(p => { num += (p.c.vol-mx)*(p.c.ret-my); den += (p.c.vol-mx)**2; });
+    if (den){
+      const m = num/den, b = my - m*mx;
+      const ya = m*x0 + b, yb = m*x1 + b;
+      parts.push(`<line x1="${X(x0)}" y1="${Y(ya)}" x2="${X(x1)}" y2="${Y(yb)}"
+        stroke="var(--ink-3)" stroke-width="1.4" opacity=".55"></line>`);
+    }
+  }
+
+  // Largest first, so a big bubble cannot bury a small one.
+  pts.sort((a, b) => (b.s.cap || 0) - (a.s.cap || 0)).forEach(p => {
+    const cx = X(p.c.vol), cy = Y(p.c.ret), r = R(p.s.cap);
+    parts.push(`<circle class="rbub" data-k="${esc(p.s.sector)}" cx="${cx}" cy="${cy}" r="${r}"
+      fill="${sectorColour(p.i)}" fill-opacity=".82" stroke="var(--card)" stroke-width="1.5"
+      style="cursor:pointer"></circle>`);
   });
 
-  // Dates: a handful of evenly spaced labels, angled so they never collide.
-  const every = Math.max(1, Math.ceil(days.length / 9));
-  days.forEach((d, i) => {
-    if (i % every && i !== days.length - 1) return;
-    parts.push(`<text transform="translate(${x(i)},${H-mb+14}) rotate(-40)"
-      text-anchor="end" font-size="10" class="tnum" fill="var(--ink-3)">${d.slice(5)}</text>`);
-  });
+  parts.push(`<text x="${ml + pw/2}" y="${H-6}" text-anchor="middle" font-size="10.5"
+      fill="var(--ink-2)">${esc(riskAxisLabel("x"))}</text>
+    <text transform="translate(13,${mt + ph/2}) rotate(-90)" text-anchor="middle"
+      font-size="10.5" fill="var(--ink-2)">${esc(riskAxisLabel("y"))}</text>`);
 
-  parts.push(`<g id="rcross" style="display:none;pointer-events:none">
-      <line id="rcx" y1="${mt}" y2="${mt+ph}" stroke="var(--ink-3)"
-            stroke-width="1" stroke-dasharray="4 4"></line>
-      <circle id="rdot" r="4.5" fill="none" stroke-width="2.5"></circle>
-    </g>`);
-  parts.push(`<rect id="rhit" x="${ml}" y="${mt}" width="${pw}" height="${ph}"
-      fill="transparent" style="cursor:crosshair"></rect>`);
+  host.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
+       aria-label="${esc(riskAxisLabel("y"))} against ${esc(riskAxisLabel("x"))} by sector">
+       ${parts.join("")}</svg>
+     <div class="legend" id="risk-legend">${
+       pts.map(p => `<span class="lg" data-k="${esc(p.s.sector)}"><i style="background:${
+         sectorColour(p.i)}"></i>${esc(p.s.sector)}${
+         p.c.partial ? " *" : ""}</span>`).join("")}${
+       pts.some(p => p.c.partial)
+         ? `<span style="color:var(--ink-3);font-size:12px">* fund launched after this
+            window opens, so it covers less than the full period</span>` : ""}</div>`;
 
-  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="fullchart" role="img"
-    aria-label="Cumulative sector performance">${parts.join("")}</svg>`;
-
-  document.getElementById("rot-legend").innerHTML = series.map(s =>
-    `<span><i style="background:${s.colour}"></i>${esc(s.sector)}</span>`).join("");
-  document.getElementById("rot-sub").textContent =
-    `Cumulative performance per sector over the last ${ROT.days} days.`;
-
-  wireRotationHover({series, days, x, y, W, ml, mr, mt, ph});
+  wireRiskHover(pts);
 }
 
-/** Nearest date, then nearest line at that date. */
-function wireRotationHover(g){
-  const svg = document.querySelector("#rotation svg");
-  const hit = svg.querySelector("#rhit"), cross = svg.querySelector("#rcross");
-  const cx = svg.querySelector("#rcx"), dot = svg.querySelector("#rdot");
+/** The date a period nominally reaches back to. ALL has no fixed start -- it
+    is whatever each fund has -- so nothing is "partial" under it by
+    definition, and a month of slack keeps a fund that listed a few days late
+    from being flagged. */
+function riskWindowStart(period){
+  if (period === "ALL") return null;
+  const now = new Date();
+  if (period === "YTD") return `${now.getFullYear()}-01-01`;
+  const days = { "1W": 7, "1M": 30, "1Y": 365, "5Y": 1826, "10Y": 3653 }[period];
+  if (!days) return null;
+  const d = new Date(now.getTime() - (days - 31) * 864e5);
+  return d.toISOString().slice(0, 10);
+}
 
-  hit.addEventListener("mousemove", ev => {
-    const b = svg.getBoundingClientRect();
-    const px = (ev.clientX - b.left) * (g.W / b.width);
-    const py = (ev.clientY - b.top) * (g.W / b.width);
-    const stepX = (g.W - g.ml - g.mr) / Math.max(1, g.days.length - 1);
-    const i = Math.max(0, Math.min(g.days.length - 1, Math.round((px - g.ml) / stepX)));
+/** Axis titles follow the interval, because "average return" means something
+    different for a day than for a year. */
+function riskAxisLabel(axis){
+  const adj = RISK_INTERVAL_ADJ[RISK.interval];
+  return axis === "y" ? `Average ${adj} return` : `${adj[0].toUpperCase()}${adj.slice(1)} volatility`;
+}
 
-    let best = null, bestD = Infinity;
-    g.series.forEach(s => {
-      const p = s.pts[i];
-      if (!p) return;
-      const d = Math.abs(g.y(p.v) - py);
-      if (d < bestD) { bestD = d; best = {s, p}; }
-    });
-    if (!best) return;
+function wireRiskHover(pts){
+  const host = document.getElementById("riskchart");
+  const svg = host.querySelector("svg");
+  if (!svg) return;
+  const byKey = {};
+  pts.forEach(p => byKey[p.s.sector] = p);
 
-    cross.style.display = "";
-    cx.setAttribute("x1", g.x(i)); cx.setAttribute("x2", g.x(i));
-    dot.setAttribute("cx", g.x(i)); dot.setAttribute("cy", g.y(best.p.v));
-    dot.setAttribute("stroke", best.s.colour);
-    dot.setAttribute("fill", "var(--card)");
+  const show = (ev, key) => {
+    const p = byKey[key];
+    if (!p) return;
+    const c = p.c, adj = RISK_INTERVAL_ADJ[RISK.interval];
+    const rows = [
+      [`Average ${adj} return`, `${c.ret >= 0 ? "+" : ""}${(c.ret*100).toFixed(2)}%`],
+      [`${adj[0].toUpperCase()}${adj.slice(1)} volatility`, `${(c.vol*100).toFixed(2)}%`],
+      ["Annualised volatility", `${(c.annVol*100).toFixed(1)}%`],
+      ["Market cap", p.s.cap ? `$${(p.s.cap/1e12).toFixed(2)}T` : "—"],
+      [`${adj[0].toUpperCase()}${adj.slice(1)} periods`, String(c.n)],
+      ["Measured from", c.from || "—"],
+      ["Tracked by", p.s.etf],
+    ];
+    showTip(ev, p.s.sector, rows.map(r => [r[0], r[1], null]));
+  };
 
-    showTip(ev, g.days[i], [[best.s.sector, `${best.p.v >= 0 ? "+" : ""}${best.p.v.toFixed(2)}%`, best.s.colour]]);
+  svg.querySelectorAll(".rbub").forEach(el => {
+    el.addEventListener("mousemove", ev => show(ev, el.dataset.k));
+    el.addEventListener("mouseleave", hideTip);
   });
-  hit.addEventListener("mouseleave", () => { cross.style.display = "none"; hideTip(); });
+  host.querySelectorAll("#risk-legend .lg").forEach(el => {
+    el.addEventListener("mousemove", ev => show(ev, el.dataset.k));
+    el.addEventListener("mouseleave", hideTip);
+  });
+}
+
+/** Grey out the pairs that cannot be computed, so the controls tell the truth
+    about what is available before it is clicked rather than after. */
+function syncRiskControls(){
+  const has = (period, interval) => (RISK.sectors || []).some(
+    s => ((s.stats || {})[period] || {})[interval]);
+
+  document.querySelectorAll("#risk-range button").forEach(b => {
+    const p = b.dataset.p;
+    b.setAttribute("aria-pressed", String(p === RISK.period));
+    b.disabled = !!RISK.sectors && !RISK_INTERVALS_ANY(p);
+  });
+  document.querySelectorAll("#risk-interval-menu button[data-i]").forEach(b => {
+    const i = b.dataset.i;
+    b.setAttribute("aria-selected", String(i === RISK.interval));
+    b.disabled = !!RISK.sectors && !has(RISK.period, i);
+  });
+  const btn = document.getElementById("risk-interval-btn");
+  if (btn) btn.firstChild.nodeValue =
+    RISK_INTERVAL_ADJ[RISK.interval][0].toUpperCase() + RISK_INTERVAL_ADJ[RISK.interval].slice(1) + " ";
+}
+
+const RISK_INTERVALS_ANY = period => ["daily","weekly","monthly","annual"].some(
+  i => (RISK.sectors || []).some(s => ((s.stats || {})[period] || {})[i]));
+
+function wireRiskControls(){
+  document.querySelectorAll("#risk-range button").forEach(b => b.onclick = () => {
+    if (b.disabled) return;
+    RISK.period = b.dataset.p;
+    // Keep the chart populated when the new period cannot serve the current
+    // interval: step down to the finest one it can, rather than showing the
+    // "needs a longer window" note for a period that has perfectly good data.
+    if (!((RISK.sectors || []).some(s => ((s.stats || {})[RISK.period] || {})[RISK.interval]))) {
+      const fallback = ["annual","monthly","weekly","daily"].find(i =>
+        (RISK.sectors || []).some(s => ((s.stats || {})[RISK.period] || {})[i]));
+      if (fallback) RISK.interval = fallback;
+    }
+    GA.track("change_chart_range", { range: RISK.period, source: "sector_risk" });
+    renderRisk();
+  });
+
+  const btn = document.getElementById("risk-interval-btn");
+  const menu = document.getElementById("risk-interval-menu");
+  if (!btn || !menu) return;
+  const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+  btn.onclick = ev => {
+    ev.stopPropagation();
+    const open = menu.hidden;
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+  };
+  menu.querySelectorAll("button[data-i]").forEach(b => b.onclick = () => {
+    if (b.disabled) return;
+    RISK.interval = b.dataset.i;
+    GA.track("change_chart_interval", { interval: RISK.interval, source: "sector_risk" });
+    close();
+    renderRisk();
+  });
+  document.addEventListener("click", ev => {
+    if (!menu.hidden && !menu.contains(ev.target) && ev.target !== btn) close();
+  });
+  document.addEventListener("keydown", ev => { if (ev.key === "Escape") close(); });
 }
 
 function sectorPerfRows(days){
@@ -2691,17 +2881,17 @@ async function loadTradeFlow(){
   rpc("get_heatmap").then(renderHeatmap).catch(() =>
     document.getElementById("heatmap").innerHTML = `<div class="note">Heatmap unavailable.</div>`);
 
+  // Risk & Return stands on its own table, so it loads independently of the
+  // sector movement payload the panel beside it uses.
+  rpc("get_sector_risk").then(renderRisk).catch(() => {
+    document.getElementById("riskchart").innerHTML =
+      `<div class="note">Risk and return data is unavailable.</div>`;
+  });
+  wireRiskControls();
+
   rpc("get_sector_movement").then(d => {
     S.movement = d;
-    renderRotation(d && d.history);
     renderSectorPerf(d && d.history);
-    document.querySelectorAll("#rot-range button").forEach(b => b.onclick = () => {
-      ROT.days = +b.dataset.d;
-      GA.track("change_chart_range", { range: `${ROT.days}d`, source: "market_page" });
-      document.querySelectorAll("#rot-range button").forEach(x =>
-        x.setAttribute("aria-pressed", x === b));
-      renderRotation();
-    });
     document.querySelectorAll("#perf-range button").forEach(b => b.onclick = () => {
       PERF.days = +b.dataset.d;
       GA.track("change_chart_range", { range: `${PERF.days}d`, source: "sector_performance" });

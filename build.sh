@@ -13,7 +13,9 @@
 #   portfolio.html user holdings tracker
 #   privacy.html  privacy policy
 #   nav.js/.css   the top bar every page injects
-#   brand-logo-*  light/dark brand mark (nav + favicon)
+#   brand-logo-*  light/dark brand mark for the nav
+#   favicon-*     the same mark at tab size; nav.js picks one by the
+#                 browser's colour scheme, favicon.ico is the fallback
 #   analytics.js  Google Analytics 4 (gtag.js) and the consent banner
 #   clarity-init.js + vendor/clarity  Microsoft Clarity (@microsoft/clarity)
 #   logo.js       cached Logo.dev company logos (via Supabase)
@@ -38,9 +40,8 @@ cp earnings.html  public/earnings.html
 cp portfolio.html public/portfolio.html
 cp privacy.html   public/privacy.html
 cp nav.js nav.css public/
-cp brand-logo-light.svg brand-logo-dark.svg public/
 cp brand-logo-light.png brand-logo-dark.png public/
-cp favicon.ico public/
+cp favicon.ico favicon-light.png favicon-dark.png public/
 cp analytics.js public/
 cp logo.js public/
 cp clarity-init.js public/

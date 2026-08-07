@@ -1070,6 +1070,146 @@ def sector_history(days: int = 45) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Risk and return per sector, for the bubble chart
+# ---------------------------------------------------------------------------
+# Every combination the page offers is computed here rather than in the
+# browser. There are only twenty-eight of them per sector and each is three
+# numbers, so the whole matrix is a few kilobytes -- far less than the twenty
+# years of daily closes it is derived from, and it means changing a filter is
+# a redraw rather than a round trip.
+
+RISK_PERIODS = {                      # label -> days back, or None for special
+    "1W": 7, "1M": 30, "YTD": None, "1Y": 365,
+    "5Y": 1826, "10Y": 3653, "ALL": None,
+}
+RISK_INTERVALS = ("daily", "weekly", "monthly", "annual")
+PERIODS_PER_YEAR = {"daily": 252, "weekly": 52, "monthly": 12, "annual": 1}
+
+# Below this many returns a standard deviation is noise dressed as a number.
+MIN_RETURNS = 3
+
+
+def _resample(series: list[tuple[str, float]], interval: str) -> list[tuple[str, float]]:
+    """Last close of each bucket, oldest first."""
+    if interval == "daily":
+        return series
+    if interval == "weekly":
+        key = lambda d: dt.date.fromisoformat(d).isocalendar()[:2]   # noqa: E731
+    elif interval == "monthly":
+        key = lambda d: d[:7]                                        # noqa: E731
+    else:
+        key = lambda d: d[:4]                                        # noqa: E731
+    out: list[tuple[str, float]] = []
+    cur = last = None
+    for d, c in series:
+        k = key(d)
+        if cur is not None and k != cur:
+            out.append(last)
+        cur, last = k, (d, c)
+    if last:
+        out.append(last)
+    return out
+
+
+def _risk_stats(series: list[tuple[str, float]], interval: str) -> dict | None:
+    """Average return and volatility over one interval, or None if too short."""
+    pts = _resample(series, interval)
+    if len(pts) < MIN_RETURNS + 1:
+        return None
+    rets = [pts[i][1] / pts[i - 1][1] - 1
+            for i in range(1, len(pts)) if pts[i - 1][1]]
+    if len(rets) < MIN_RETURNS:
+        return None
+    n = len(rets)
+    mean = sum(rets) / n
+    var = sum((r - mean) ** 2 for r in rets) / (n - 1)      # sample, not population
+    vol = var ** 0.5
+    return {
+        "ret": mean,
+        "vol": vol,
+        # The annualised figure is the one people compare across intervals, so
+        # it rides along even though the axes show the raw interval.
+        "annVol": vol * (PERIODS_PER_YEAR[interval] ** 0.5),
+        "n": n,
+        "from": pts[0][0],
+        "to": pts[-1][0],
+    }
+
+
+def _sector_caps() -> dict[str, float]:
+    """Combined market capitalisation of each sector's US-listed companies.
+
+    Used only to size the bubbles, which is why the billion-dollar floor is
+    acceptable: it drops thousands of rows and about 0.3% of the total. The
+    figure counts ADRs at their whole global capitalisation and both classes
+    of dual-class names, so it overstates the US market and is labelled for
+    what it is rather than as "the sector's market cap".
+    """
+    caps: dict[str, float] = {}
+    for sector in SECTOR_NAMES:
+        try:
+            rows = _get("company-screener", sector=sector,
+                        marketCapMoreThan=1_000_000_000,
+                        isEtf="false", isFund="false",
+                        exchange="NASDAQ,NYSE,AMEX", limit=1000) or []
+        except MarketError:
+            continue
+        caps[sector] = sum(float(r.get("marketCap") or 0) for r in rows)
+    return caps
+
+
+def sector_risk_return() -> list[dict]:
+    """Return, volatility and size per sector, for every period and interval.
+
+    Prices come from the sector SPDRs, the same eleven funds the company
+    report already benchmarks against. Two of them are younger than the
+    longest window on offer -- XLRE launched in 2015 and XLC in 2018 -- so a
+    ten-year view of those is really their whole life. Each carries the first
+    date it actually has, and the page says so rather than quietly comparing
+    an eight-year record with a twenty-year one.
+    """
+    caps = _sector_caps()
+    today = dt.date.today()
+    out = []
+
+    for sector, etf in SECTOR_ETF.items():
+        try:
+            rows = _get("historical-price-eod/light", symbol=etf,
+                        **{"from": "1990-01-01", "to": today.isoformat()}) or []
+        except MarketError:
+            continue
+        series = sorted(((r["date"], float(r["price"])) for r in rows
+                         if r.get("date") and r.get("price")), key=lambda x: x[0])
+        if len(series) < 30:
+            continue
+
+        stats: dict[str, dict] = {}
+        for period, days in RISK_PERIODS.items():
+            if period == "ALL":
+                window = series
+            elif period == "YTD":
+                cut = f"{today.year}-01-01"
+                window = [p for p in series if p[0] >= cut]
+            else:
+                cut = (today - dt.timedelta(days=days)).isoformat()
+                window = [p for p in series if p[0] >= cut]
+            if len(window) < 2:
+                continue
+            by_interval = {i: _risk_stats(window, i) for i in RISK_INTERVALS}
+            if any(by_interval.values()):
+                stats[period] = by_interval
+
+        out.append({
+            "sector": sector,
+            "etf": etf,
+            "cap": caps.get(sector),
+            "inception": series[0][0],
+            "stats": stats,
+        })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Insider and congressional trades
 # ---------------------------------------------------------------------------
 
