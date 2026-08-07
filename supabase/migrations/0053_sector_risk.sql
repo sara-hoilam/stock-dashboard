@@ -62,7 +62,9 @@ begin
     return 0;                          -- a failed fetch must not empty the panel
   end if;
 
-  delete from ledger.sector_risk;
+  -- Predicate stated on purpose: Supabase rejects an unqualified DELETE, and
+  -- this genuinely does replace the whole table. See 0006_safe_delete.sql.
+  delete from ledger.sector_risk where sector is not null;
   insert into ledger.sector_risk (sector, etf, cap, inception, stats, updated_at)
   select r->>'sector', r->>'etf',
          nullif(r->>'cap', '')::double precision,
