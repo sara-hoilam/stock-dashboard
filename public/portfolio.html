@@ -284,23 +284,6 @@ tr.on td{background:var(--accent-soft)}
 .wl-ac span{font-size:11.5px;color:var(--ink-3)}
 
 .chartwrap{display:flex;flex-direction:column;min-width:0;padding:14px 16px 10px;height:100%;min-height:0}
-/* ---- correlation heatmap ------------------------------------------------- */
-.cormap{margin-top:10px;border-top:1px solid var(--rule-2);padding-top:10px;flex-shrink:0}
-.cormap-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
-  flex-wrap:wrap;margin-bottom:8px}
-.cormap-head h3{margin:0;font-size:13.5px;font-weight:600;letter-spacing:-.005em}
-.cormap-head p{margin:2px 0 0;font-size:11.5px;color:var(--ink-3)}
-.cormap-grid{width:100%;border-collapse:separate;border-spacing:2px;font-size:11px}
-.cormap-grid th{font-weight:600;color:var(--ink-3);font-size:10px;padding:2px 3px;
-  text-transform:uppercase;letter-spacing:.04em}
-.cormap-grid th.sym{text-align:left;color:var(--ink-2);font-size:11px;text-transform:none;
-  letter-spacing:0;white-space:nowrap}
-.cormap-grid td{text-align:center;padding:0;border-radius:3px;height:22px;
-  font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink)}
-.cormap-grid td.thin{color:var(--ink-3);background:var(--sunk)}
-.cormap-scale{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:10.5px;
-  color:var(--ink-3);flex-wrap:wrap}
-.cormap-scale .bar{width:120px;height:8px;border-radius:99px;flex-shrink:0}
 
 .chead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;flex-shrink:0}
 .chead .price{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -309,9 +292,13 @@ tr.on td{background:var(--accent-soft)}
 .chead .meta{font-size:12.5px;color:var(--ink-3);margin-top:4px}
 .chead .meta .up,.chead .meta .down{font-weight:600}
 /* Fill the split pane; SVG stretches to the available box (pads keep labels readable). */
-/* Was min-height:280px and all of the free space. The correlation panel
-   below takes a third of it. */
-#chart{flex:1;min-height:187px;position:relative;display:block}
+/* Average pairwise correlation, under the range buttons it follows. */
+.rangecol{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+.corscore{text-align:right;line-height:1.25}
+.corscore b{font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600;
+  display:block;letter-spacing:-.01em}
+.corscore span{font-size:10.5px;color:var(--ink-3);display:block;white-space:nowrap}
+#chart{flex:1;min-height:280px;position:relative;display:block}
 #chart > svg{
   position:absolute;inset:0;width:100%;height:100%;
   display:block;overflow:visible
@@ -1898,31 +1885,22 @@ function renderDashboard(){
               <div class="price"><span class="c-sym-line"><span class="tick-logo tick-logo-lg" id="c-logo" hidden aria-hidden="true"></span><b id="c-sym">Portfolio</b></span><span id="c-price" class="num"></span></div>
               <div class="meta" id="c-meta"></div>
             </div>
-            <div class="range" id="range">
-              <button data-r="1W" aria-pressed="${S.range==="1W"}">1W</button>
-              <button data-r="1M" aria-pressed="${S.range==="1M"}">1M</button>
-              <button data-r="YTD" aria-pressed="${S.range==="YTD"}">YTD</button>
-              <button data-r="1Y" aria-pressed="${S.range==="1Y"}">1Y</button>
+            <div class="rangecol">
+              <div class="range" id="range">
+                <button data-r="1W" aria-pressed="${S.range==="1W"}">1W</button>
+                <button data-r="1M" aria-pressed="${S.range==="1M"}">1M</button>
+                <button data-r="YTD" aria-pressed="${S.range==="YTD"}">YTD</button>
+                <button data-r="1Y" aria-pressed="${S.range==="1Y"}">1Y</button>
+              </div>
+              <div class="corscore" id="corscore" hidden>
+                <b id="corscore-v">—</b>
+                <span id="corscore-d"></span>
+              </div>
             </div>
           </div>
           <div id="chart"><div class="note"><span class="load"></span></div></div>
           <div class="idx-bar" id="idx-bar" hidden></div>
 
-          <div class="cormap" id="cormap-panel">
-            <div class="cormap-head">
-              <div>
-                <h3>Correlation by month</h3>
-                <p id="cormap-sub">Each holding against the rest of the portfolio</p>
-              </div>
-              <div class="range" id="cormap-range">
-                <button data-y="1"  aria-pressed="false">1Y</button>
-                <button data-y="3"  aria-pressed="true">3Y</button>
-                <button data-y="5"  aria-pressed="false">5Y</button>
-                <button data-y="10" aria-pressed="false">10Y</button>
-              </div>
-            </div>
-            <div id="cormap"><div class="note"><span class="load"></span></div></div>
-          </div>
         </div>
       </div>
     </section>
@@ -2381,33 +2359,66 @@ function toPctSeries(bars){
   return bars.map(b => ({ d: b.d, c: ((b.c / base) - 1) * 100 }));
 }
 
-/* ---- correlation heatmap ---------------------------------------------------
-   One row per holding, one column per calendar month. A cell is how closely
-   that holding moved with the REST of the portfolio during that month, across
-   every instance of the month in the lookback.
+/* ---- portfolio correlation score ------------------------------------------
+   One number for how much the holdings move as one thing. It is the average
+   correlation between every pair of holdings over the selected window, each
+   pair weighted by what the two positions are actually worth -- so a pair of
+   large holdings counts for more than two rounding errors, which is what
+   makes it a statement about this portfolio rather than about its ticker list.
 
-   Daily returns, because that is the only way a single calendar month holds
-   enough observations to measure: one January is ~21 trading days, so ten
-   years of Januaries is ~210. Below MIN_N the cell is left blank rather than
-   painted a confident colour over noise -- with 21 points the standard error
-   on r is about 0.22, so anything under |r| 0.43 is indistinguishable from
-   zero and colouring it would assert something the data cannot support. */
-const CORMAP = { years: 3, closes: null, state: "idle" };
-const CORMAP_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const CORMAP_MIN_N = 30;
+   High means the holdings rise and fall together and the diversification is
+   nominal; low or negative means they genuinely offset. */
+const CORSCORE_DAYS = { "1W": 7, "1M": 31, "YTD": null, "1Y": 365 };
 
-/** Returns keyed by ISO date, from a closes array. */
-function cormapReturns(closes){
-  const a = (closes || [])
-    .filter(x => x && x.d && x.c != null && +x.c > 0)
-    .map(x => ({ d: String(x.d).slice(0, 10), c: +x.c }))
-    .sort((p, q) => p.d < q.d ? -1 : 1);
-  const out = new Map();
-  for (let i = 1; i < a.length; i++) out.set(a[i].d, a[i].c / a[i - 1].c - 1);
-  return out;
+function corScoreReturns(bars){
+  const a = (bars || [])
+    .filter(b => b && b.d && b.c != null && +b.c > 0)
+    .map(b => ({ d: String(b.d).slice(0, 10), c: +b.c }))
+    .sort((x, y) => x.d < y.d ? -1 : 1);
+  const m = new Map();
+  for (let i = 1; i < a.length; i++) m.set(a[i].d, a[i].c / a[i - 1].c - 1);
+  return m;
 }
 
-function cormapWeights(){
+function corScorePairR(ra, rb, from){
+  const xs = [], ys = [];
+  ra.forEach((v, d) => { if (d >= from && rb.has(d)) { xs.push(v); ys.push(rb.get(d)); } });
+  const n = xs.length;
+  if (n < 5) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx, dy = ys[i] - my;
+    sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
+  }
+  if (sxx <= 0 || syy <= 0) return null;
+  return { r: sxy / Math.sqrt(sxx * syy), n };
+}
+
+/** The words for a score, on the five bands a reader distinguishes. */
+function corScoreWords(r){
+  if (r >= 0.6) return "strong positive correlation";
+  if (r >= 0.2) return "slight positive correlation";
+  if (r > -0.2) return "no correlation";
+  if (r > -0.6) return "slight negative correlation";
+  return "strong negative correlation";
+}
+
+function corScoreFrom(range){
+  if (range === "YTD") return new Date().getFullYear() + "-01-01";
+  const days = CORSCORE_DAYS[range] || 365;
+  const d = new Date(); d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function drawCorScore(){
+  const box = document.getElementById("corscore");
+  const vEl = document.getElementById("corscore-v");
+  const dEl = document.getElementById("corscore-d");
+  if (!box || !vEl || !dEl) return;
+
+  // Market value per holding: the weights, and the reason cash is excluded --
+  // it has no returns to correlate.
   const w = {};
   (S.positions || []).forEach(p => {
     const sym = String(p.symbol || "").toUpperCase();
@@ -2418,176 +2429,48 @@ function cormapWeights(){
     const px = (cached && cached.quote && (cached.quote.price ?? cached.quote.close))
             ?? (bars.length ? Number(bars[bars.length - 1].c) : 0);
     const mv = (Number(px) || 0) * qty;
-    if (mv > 0) w[sym] = mv;
+    if (mv > 0 && bars.length) w[sym] = mv;
   });
-  return w;
-}
 
-/** Fetch a decade of closes for the holdings, queueing any we do not hold. */
-async function loadCormap(){
-  const weights = cormapWeights();
-  const syms = Object.keys(weights);
-  if (syms.length < 2) { CORMAP.state = "thin"; return drawCormap(); }
+  const syms = Object.keys(w);
+  if (syms.length < 2) { box.hidden = true; return; }
 
-  CORMAP.state = "loading"; drawCormap();
-  let got = {};
-  try { got = (await rpc("get_long_closes", { p_symbols: syms })) || {}; }
-  catch { CORMAP.state = "error"; return drawCormap(); }
-
-  const missing = syms.filter(s => !((got[s] && got[s].closes || []).length));
-  if (missing.length) {
-    try { await rpc("request_long_closes", { p_symbols: missing }); } catch {}
-  }
-  CORMAP.closes = got;
-  CORMAP.missing = missing;
-  CORMAP.state = Object.keys(got).length ? "ok" : "fetching";
-  drawCormap();
-}
-
-/** Green for positive, red for negative, panel background at zero. */
-function cormapColour(r){
-  const a = Math.min(1, Math.abs(r) / 0.9);          // 0.9 saturates the ramp
-  return r >= 0 ? `color-mix(in srgb, var(--up) ${(a*100).toFixed(0)}%, transparent)`
-                : `color-mix(in srgb, var(--down) ${(a*100).toFixed(0)}%, transparent)`;
-}
-
-function drawCormap(){
-  const host = document.getElementById("cormap");
-  if (!host) return;
-  const sub = document.getElementById("cormap-sub");
-  if (sub) sub.textContent =
-    `Each holding against the rest of the portfolio · last ${CORMAP.years} year${
-      CORMAP.years === 1 ? "" : "s"} of daily returns`;
-
-  const note = m => { host.innerHTML = `<div class="note">${m}</div>`; };
-  if (CORMAP.state === "thin")
-    return note("Two or more holdings are needed to correlate one against the others.");
-  if (CORMAP.state === "loading")
-    return note(`<span class="load"></span> &nbsp;Loading price history…`);
-  if (CORMAP.state === "error")
-    return note("Correlation history is unavailable.");
-  if (CORMAP.state === "idle") return note(`<span class="load"></span>`);
-
-  const weights = cormapWeights();
-  const syms = Object.keys(weights).sort((a, b) => weights[b] - weights[a]);
+  const from = corScoreFrom(S.range);
   const rets = {};
-  syms.forEach(s => {
-    rets[s] = cormapReturns((CORMAP.closes && CORMAP.closes[s] && CORMAP.closes[s].closes) || []);
-  });
-  const haveAny = syms.filter(s => rets[s].size > 0);
-  if (!haveAny.length)
-    return note(`Price history is being fetched for ${
-      syms.length} holding${syms.length === 1 ? "" : "s"}. Check back in a minute.`);
+  syms.forEach(sym => { rets[sym] = corScoreReturns((S.priceCache[sym] || {}).bars); });
 
-  const cut = (() => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - CORMAP.years);
-    return d.toISOString().slice(0, 10);
-  })();
-
-  // Every date any holding traded on, inside the window.
-  const dates = new Set();
-  haveAny.forEach(s => rets[s].forEach((_, d) => { if (d >= cut) dates.add(d); }));
-  const days = [...dates].sort();
-
-  // For each day, the value-weighted return of the whole portfolio, and the
-  // total weight present -- so one holding can be removed exactly.
-  const rows = haveAny.map(sym => {
-    const cells = CORMAP_MONTHS.map((_, mi) => {
-      const xs = [], ys = [];
-      for (const d of days) {
-        if (+d.slice(5, 7) - 1 !== mi) continue;
-        const mine = rets[sym].get(d);
-        if (mine === undefined) continue;
-        let num = 0, den = 0;
-        for (const other of haveAny) {
-          if (other === sym) continue;
-          const r = rets[other].get(d);
-          if (r === undefined) continue;
-          num += r * weights[other]; den += weights[other];
-        }
-        if (den <= 0) continue;
-        ys.push(mine); xs.push(num / den);
-      }
-      const n = xs.length;
-      if (n < 3) return { n, r: null };
-      const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
-      let sxy = 0, sxx = 0, syy = 0;
-      for (let i = 0; i < n; i++) {
-        const dx = xs[i] - mx, dy = ys[i] - my;
-        sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
-      }
-      if (sxx <= 0 || syy <= 0) return { n, r: null };
-      return { n, r: sxy / Math.sqrt(sxx * syy) };
-    });
-    return { sym, cells };
-  });
-
-  // One year holds a single instance of each month -- about 21 trading days --
-  // which is below the threshold for every cell, so the grid would be entirely
-  // blank. An empty table looks broken; say why and point at the fix.
-  const usable = rows.reduce((a, r) =>
-    a + r.cells.filter(c => c.r !== null && c.n >= CORMAP_MIN_N).length, 0);
-  if (!usable) {
-    const best = rows.reduce((a, r) =>
-      Math.max(a, ...r.cells.map(c => c.n || 0)), 0);
-    return note(
-      `A single calendar month over ${CORMAP.years} year${CORMAP.years === 1 ? "" : "s"} holds
-       only about ${best} trading day${best === 1 ? "" : "s"} — too few to measure correlation
-       against. Try 3Y or longer, which stacks every January together.`);
+  // Weighted mean of the pairwise correlations: sum(wi*wj*rij) / sum(wi*wj).
+  let num = 0, den = 0, pairs = 0, minN = Infinity;
+  for (let i = 0; i < syms.length; i++) {
+    for (let j = i + 1; j < syms.length; j++) {
+      const got = corScorePairR(rets[syms[i]], rets[syms[j]], from);
+      if (!got) continue;
+      const weight = w[syms[i]] * w[syms[j]];
+      num += weight * got.r; den += weight; pairs++;
+      if (got.n < minN) minN = got.n;
+    }
+  }
+  if (!den || !pairs) {
+    box.hidden = false;
+    vEl.textContent = "—";
+    vEl.style.color = "var(--ink-3)";
+    dEl.textContent = "not enough shared history";
+    return;
   }
 
-  const head = `<tr><th class="sym"></th>${
-    CORMAP_MONTHS.map(m => `<th>${m}</th>`).join("")}</tr>`;
-  const body = rows.map(row => `<tr><th class="sym">${esc(row.sym)}</th>${
-    row.cells.map((c, mi) => {
-      const thin = c.r === null || c.n < CORMAP_MIN_N;
-      const title = c.r === null
-        ? `${row.sym} · ${CORMAP_MONTHS[mi]} · no overlapping data`
-        : `${row.sym} · ${CORMAP_MONTHS[mi]} · r ${c.r.toFixed(2)} from ${c.n} days${
-            c.n < CORMAP_MIN_N ? " — too few to be meaningful" : ""}`;
-      if (thin)
-        return `<td class="thin" title="${esc(title)}">${c.r === null ? "" : "·"}</td>`;
-      return `<td style="background:${cormapColour(c.r)}" title="${esc(title)}">${
-        c.r.toFixed(2).replace("0.", ".").replace("-.", "−.")}</td>`;
-    }).join("")}</tr>`).join("");
-
-  const missing = (CORMAP.missing || []).length;
-  host.innerHTML =
-    `<div style="overflow-x:auto"><table class="cormap-grid">${head}${body}</table></div>
-     <div class="cormap-scale">
-       <span>−1</span>
-       <i class="bar" style="background:linear-gradient(to right,
-          color-mix(in srgb, var(--down) 90%, transparent),
-          color-mix(in srgb, var(--down) 8%, transparent),
-          color-mix(in srgb, var(--up) 8%, transparent),
-          color-mix(in srgb, var(--up) 90%, transparent))"></i>
-       <span>+1</span>
-       <span>· red moves opposite, green moves together, blank means fewer than
-         ${CORMAP_MIN_N} shared days</span>
-       ${missing ? `<span>· fetching history for ${missing} holding${missing === 1 ? "" : "s"}</span>` : ""}
-     </div>`;
-}
-
-function wireCormap(){
-  const host = document.getElementById("cormap-range");
-  if (!host) return;
-  host.querySelectorAll("button").forEach(b => {
-    b.onclick = () => {
-      CORMAP.years = +b.dataset.y;
-      host.querySelectorAll("button").forEach(x =>
-        x.setAttribute("aria-pressed", String(+x.dataset.y === CORMAP.years)));
-      drawCormap();
-    };
-  });
+  const r = num / den;
+  box.hidden = false;
+  vEl.textContent = (r >= 0 ? "" : "−") + Math.abs(r).toFixed(2);
+  vEl.style.color = Math.abs(r) < 0.2 ? "var(--ink)"
+                  : r > 0 ? "var(--down)" : "var(--up)";
+  dEl.textContent = corScoreWords(r);
+  box.title = `Average correlation across ${pairs} holding pair${pairs === 1 ? "" : "s"}`
+            + `, weighted by position size, over ${S.range}`
+            + (Number.isFinite(minN) ? ` — from at least ${minN} shared days per pair` : "");
 }
 
 async function drawRightChart(){
-  // The heatmap needs the same positions and prices, so it rides the same
-  // trigger. Wired once; the history fetch is only made when it has none.
-  if (!CORMAP.wired) { CORMAP.wired = true; wireCormap(); }
-  if (CORMAP.state === "idle") loadCormap();
-  else drawCormap();
+  drawCorScore();
 
   const host = document.getElementById("chart");
   const symEl = document.getElementById("c-sym");
