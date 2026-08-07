@@ -1026,7 +1026,9 @@ const asJson = r => r.json();
 
 const API = {
   search: term => HOSTED
-    ? rpc("search_companies", { q: term })
+    ? (window.TA && window.TA.searchCompanies
+        ? window.TA.searchCompanies(term)
+        : rpc("search_companies", { q: term }))
     : fetch("/api/search?q=" + encodeURIComponent(term)).then(asJson).then(j => j.results || []),
 
   company: ticker => HOSTED
@@ -2385,7 +2387,7 @@ async function loadIndexHoldings(symbol){
       return `<tr>
       <td><a href="company.html?t=${encodeURIComponent(r.symbol)}">${esc(r.symbol)}</a></td>
       <td class="name" title="${esc(r.name || "")}">${esc(r.name || "—")}</td>
-      <td class="ind" title="${esc(r.industry || "")}">${esc(r.industry || "—")}</td>
+      <td class="ind" title="${esc(r.industry || r.sector || "")}">${esc(r.industry || r.sector || "—")}</td>
       <td class="w">${r.weightPct != null ? esc((+r.weightPct).toFixed(2) + "%") : "—"}</td>
       <td class="ret ${retClass(day)}">${esc(signedPct(day))}</td>
       <td class="ret ${retClass(ytd)}">${esc(signedPct(ytd))}</td>
@@ -2420,17 +2422,18 @@ async function loadIndexHoldings(symbol){
     <section class="card panel idx-pie-card">
       <div class="idx-pie-title">Sector breakdown</div>
       <div class="idx-pie-wrap" id="idx-pie"></div>
+      <div class="idx-pie-legend">${top.map((s, i) => {
+        const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
+        const share = (100 * s.weight / total).toFixed(1);
+        return `<span data-i="${i}"><i style="background:${colour}"></i>
+          <em title="${esc(s.label)}">${esc(s.label)}</em>
+          <b>${esc(share)}%</b></span>`;
+      }).join("")}</div>
       ${onlyOther
-        ? `<div class="note" style="text-align:left;padding:0">Sector weights are still warming up — they fill in after the next index holdings refresh.</div>`
-        : `<div class="idx-pie-legend">${top.map((s, i) => {
-            const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
-            const share = (100 * s.weight / total).toFixed(1);
-            return `<span data-i="${i}"><i style="background:${colour}"></i>
-              <em title="${esc(s.label)}">${esc(s.label)}</em>
-              <b>${esc(share)}%</b></span>`;
-          }).join("")}</div>`}
+        ? `<div class="note" style="text-align:left;padding:0">Sector labels fill in after the next index holdings refresh.</div>`
+        : ""}
     </section>`;
-  if (!onlyOther) drawIndexPie(document.getElementById("idx-pie"), top, total);
+  drawIndexPie(document.getElementById("idx-pie"), top, total);
   requestAnimationFrame(() => fitHoldingsRows());
 }
 

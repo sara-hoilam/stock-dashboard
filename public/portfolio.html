@@ -3087,7 +3087,11 @@ function wireTickerSearch(inputId, acId, formId, onPick){
     if (!term) return close();
     timer = setTimeout(async () => {
       let items = [];
-      try { items = await rpc("search_companies", { q: term }) || []; } catch {}
+      try {
+        items = (window.TA && window.TA.searchCompanies
+          ? await window.TA.searchCompanies(term)
+          : await rpc("search_companies", { q: term })) || [];
+      } catch {}
       if (!items.length) return close();
       ac.innerHTML = items.slice(0, 6).map(x => {
         const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
@@ -3776,7 +3780,11 @@ function wireCalSearch(){
     if (term.length < 1) { close(); return; }
     timer = setTimeout(async () => {
       let items = [];
-      try { items = await rpc("search_companies", { q: term }) || []; } catch {}
+      try {
+        items = (window.TA && window.TA.searchCompanies
+          ? await window.TA.searchCompanies(term)
+          : await rpc("search_companies", { q: term })) || [];
+      } catch {}
       const builtins = [
         { symbol: "PORTFOLIO", name: "My Portfolio", kind: "cal" },
         { symbol: "WATCHLIST", name: "My Watchlist", kind: "cal" },

@@ -30,6 +30,50 @@
     return r.json();
   }
 
+  /* Brand nicknames whose legal name does not contain the query (SpaceX →
+     SPACE EXPLORATION TECHNOLOGIES CORP). Mirrored in migration 0052; this
+     client boost still helps before that RPC is applied. */
+  const COMPANY_SEARCH_ALIASES = {
+    spacex: "SPCX", "space x": "SPCX", "space-x": "SPCX",
+    "space exploration": "SPCX",
+    google: "GOOGL", alphabet: "GOOGL",
+    facebook: "META", fb: "META",
+    berkshire: "BRK-B", "berkshire hathaway": "BRK-B",
+    brkb: "BRK-B", "brk.b": "BRK-B", "brk/b": "BRK-B", "brk-b": "BRK-B",
+    brka: "BRK-A", "brk.a": "BRK-A", "brk-a": "BRK-A",
+    "jp morgan": "JPM", "j.p. morgan": "JPM",
+    "johnson and johnson": "JNJ", "johnson & johnson": "JNJ", "j&j": "JNJ",
+    "coca cola": "KO", "coca-cola": "KO",
+    mcdonalds: "MCD", "mc donalds": "MCD",
+    "procter and gamble": "PG", "procter & gamble": "PG", "p&g": "PG",
+    "at&t": "T", att: "T",
+  };
+
+  function tickerOf(row){
+    return String((row && (row.ticker || row.symbol)) || "").toUpperCase();
+  }
+
+  /** search_companies with nickname boost (SpaceX, Google, Facebook, …). */
+  async function searchCompanies(term, lim){
+    const q = String(term || "").trim();
+    if (!q) return [];
+    const args = { q };
+    if (lim != null) args.lim = lim;
+    let items = [];
+    try { items = (await rpc("search_companies", args)) || []; } catch { items = []; }
+    const alias = COMPANY_SEARCH_ALIASES[q.toLowerCase()];
+    if (!alias) return items;
+    const rest = items.filter(x => tickerOf(x) !== alias);
+    const hit = items.find(x => tickerOf(x) === alias);
+    if (hit) return [hit, ...rest];
+    try {
+      const extra = (await rpc("search_companies", { q: alias, lim: 5 })) || [];
+      const row = extra.find(x => tickerOf(x) === alias);
+      if (row) return [row, ...rest];
+    } catch {}
+    return items;
+  }
+
   const page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   const here = p => page === p || (p === "index.html" && page === "");
 
@@ -176,7 +220,7 @@
     if (!term) return close();
     timer = setTimeout(async () => {
       try {
-        items = (await rpc("search_companies", { q: term })) || [];
+        items = await searchCompanies(term);
         idx = -1;
         if (!items.length) return close();
         ac.innerHTML = items.map((x, i) => {
@@ -279,6 +323,7 @@
     signIn,
     showSignupModal,
     recover,
+    searchCompanies,
     onAuthChange(fn){ addEventListener("ta-auth", () => fn(window.TA.signedIn())); },
   };
   const announce = () => dispatchEvent(new CustomEvent("ta-auth"));
