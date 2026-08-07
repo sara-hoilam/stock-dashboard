@@ -12,6 +12,8 @@
 #   company.html  the filed-financials dashboard
 #   portfolio.html user holdings tracker
 #   privacy.html  privacy policy
+#   reports.html  the research index
+#   reports/      full-length reports, self-contained
 #   nav.js/.css   the top bar every page injects
 #   brand-logo-*  light/dark brand mark for the nav
 #   favicon-*     the same mark at tab size; nav.js picks one by the
@@ -39,6 +41,11 @@ cp news.html      public/news.html
 cp earnings.html  public/earnings.html
 cp portfolio.html public/portfolio.html
 cp privacy.html   public/privacy.html
+cp reports.html   public/reports.html
+# The report is a finished artefact -- its own stylesheet, its own fonts, its
+# own A4 sheet -- so it is copied whole rather than folded into the app shell.
+mkdir -p public/reports
+cp reports/nvda.html reports/nvda.pdf reports/nvda-cover.png public/reports/
 cp nav.js nav.css public/
 cp brand-logo-light.png brand-logo-dark.png public/
 cp favicon.ico favicon-light.png favicon-dark.png public/

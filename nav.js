@@ -91,7 +91,7 @@
         <a href="index.html"   class="${here("index.html") ? "on" : ""}">Markets</a>
         <a href="news.html"    class="${here("news.html") ? "on" : ""}">News</a>
         <a href="earnings.html" class="${here("earnings.html") ? "on" : ""}">Earnings</a>
-        <a href="company.html" class="${here("company.html") ? "on" : ""}">Company Report</a>
+        <a href="reports.html" class="${here("reports.html") || here("company.html") ? "on" : ""}">Company Report</a>
         <a href="portfolio.html" class="${here("portfolio.html") ? "on" : ""}">Portfolio</a>
       </div>
 

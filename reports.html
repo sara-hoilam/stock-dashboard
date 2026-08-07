@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Equity Research Reports — Ticker Alpha</title>
+<meta name="description" content="Full-length equity research on the companies that matter, generated from SEC filings and live market data. Read the NVIDIA initiation free — no account needed.">
+<link rel="canonical" href="https://tickeralpha.ai/reports.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Equity Research Reports — Ticker Alpha">
+<meta property="og:description" content="Full-length equity research generated from SEC filings and live market data. Read the NVIDIA initiation free.">
+<meta property="og:url" content="https://tickeralpha.ai/reports.html">
+<meta property="og:image" content="https://tickeralpha.ai/reports/nvda-cover.png">
+<meta property="og:site_name" content="Ticker Alpha">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://tickeralpha.ai/reports/nvda-cover.png">
+<script src="config.js"></script>
+<script src="logo.js"></script>
+<script src="analytics.js"></script>
+<script type="module" src="clarity-init.js"></script>
+<link rel="stylesheet" href="nav.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+
+<!-- One report exists; a search engine should know which. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Report",
+  "name": "NVIDIA Corporation (NASDAQ: NVDA) — Equity Research",
+  "url": "https://tickeralpha.ai/reports/nvda.html",
+  "image": "https://tickeralpha.ai/reports/nvda-cover.png",
+  "datePublished": "2026-08-06",
+  "publisher": { "@type": "Organization", "name": "Ticker Alpha" },
+  "about": { "@type": "Corporation", "name": "NVIDIA Corporation", "tickerSymbol": "NASDAQ:NVDA" }
+}
+</script>
+
+<style>
+:root {
+  color-scheme: light;
+  --ground:#eef0f3; --card:#ffffff; --sunk:#f6f7f9;
+  --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
+  --rule:#dde2e8; --rule-2:#eaeef2;
+  --accent:#1e4fbf; --accent-soft:#e6ecfb;
+  --up:#0b7a4b; --down:#c0392e;
+  --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
+  --r:10px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:#0d1219; --card:#151c25; --sunk:#111821;
+  --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
+  --rule:#232d3a; --rule-2:#1c2531;
+  --accent:#6e9bff; --accent-soft:#1a2740;
+  --up:#38b37d; --down:#f0736a;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:var(--ground);
+  color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:34px 28px 80px}
+a{color:inherit}
+
+.masthead{max-width:660px;margin:0 0 30px}
+.masthead h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:31px;font-weight:600;
+  letter-spacing:-.02em;line-height:1.15;margin-bottom:11px}
+.masthead p{font-size:15px;line-height:1.6;color:var(--ink-2)}
+.masthead .eyebrow{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;
+  font-weight:600;color:var(--accent);margin-bottom:9px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:20px}
+
+.rep{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+  box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;
+  text-decoration:none;position:relative;transition:transform .16s ease,box-shadow .16s ease}
+a.rep:hover{transform:translateY(-3px);
+  box-shadow:0 2px 4px rgba(17,24,32,.08),0 18px 38px -18px rgba(17,24,32,.4)}
+.rep-cover{aspect-ratio:210/297;background:var(--sunk);border-bottom:1px solid var(--rule-2);
+  overflow:hidden;position:relative}
+.rep-cover img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.rep-body{padding:15px 16px 17px}
+.rep-tick{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:600;
+  color:var(--accent);letter-spacing:.04em}
+.rep-name{font-family:"IBM Plex Serif",Georgia,serif;font-size:17px;font-weight:600;
+  letter-spacing:-.01em;margin:3px 0 7px;line-height:1.25}
+.rep-meta{font-size:12px;color:var(--ink-3);display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.rep-meta i{font-style:normal;color:var(--rule)}
+.rep-read{margin-top:11px;font-size:12.5px;font-weight:600;color:var(--accent)}
+
+/* Coming soon: same shape, deliberately quieter, and not a link. */
+.rep.soon{cursor:default}
+.rep.soon .rep-cover{display:grid;place-items:center;background:
+  repeating-linear-gradient(135deg,transparent,transparent 9px,var(--rule-2) 9px,var(--rule-2) 10px)}
+.rep.soon .rep-cover span{font-family:"IBM Plex Serif",Georgia,serif;font-size:34px;
+  font-weight:600;color:var(--ink-3);opacity:.55}
+.rep.soon .rep-name{color:var(--ink-2)}
+.badge{position:absolute;top:11px;right:11px;z-index:2;font-size:10.5px;font-weight:600;
+  letter-spacing:.07em;text-transform:uppercase;padding:4px 9px;border-radius:99px;
+  background:var(--card);border:1px solid var(--rule);color:var(--ink-3)}
+.badge.live{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.foot{margin-top:38px;padding:22px 24px;background:var(--card);border:1px solid var(--rule);
+  border-radius:var(--r);box-shadow:var(--shadow);max-width:720px}
+.foot h2{font-family:"IBM Plex Serif",Georgia,serif;font-size:18px;font-weight:600;
+  margin-bottom:8px;letter-spacing:-.01em}
+.foot p{font-size:13.5px;line-height:1.6;color:var(--ink-2)}
+.foot a{color:var(--accent);font-weight:600;text-decoration:none}
+.foot a:hover{text-decoration:underline}
+
+@media (max-width:640px){
+  main{padding:24px 16px 60px}
+  .masthead h1{font-size:25px}
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="masthead">
+    <div class="eyebrow">Equity Research</div>
+    <h1>Research reports, written by machine</h1>
+    <p>
+      Full-length initiations built from a company's own SEC filings and live market
+      data — the valuation work, the peer comparison, the things that would break the
+      thesis. Free to read while we are in preview.
+    </p>
+  </div>
+
+  <div class="grid">
+    <a class="rep" href="reports/nvda.html">
+      <span class="badge live">Available</span>
+      <div class="rep-cover">
+        <img src="reports/nvda-cover.png" alt="NVIDIA equity research report cover" loading="eager" width="420" height="594">
+      </div>
+      <div class="rep-body">
+        <div class="rep-tick">NASDAQ: NVDA</div>
+        <div class="rep-name">NVIDIA Corporation</div>
+        <div class="rep-meta"><span>6 Aug 2026</span><i>·</i><span>8 pages</span><i>·</i><span>Initiation</span></div>
+        <div class="rep-read">Read the report →</div>
+      </div>
+    </a>
+
+    <div class="rep soon">
+      <span class="badge">Coming soon</span>
+      <div class="rep-cover"><span>SPX</span></div>
+      <div class="rep-body">
+        <div class="rep-tick">PRIVATE</div>
+        <div class="rep-name">SpaceX</div>
+        <div class="rep-meta"><span>In preparation</span></div>
+      </div>
+    </div>
+
+    <div class="rep soon">
+      <span class="badge">Coming soon</span>
+      <div class="rep-cover"><span>MU</span></div>
+      <div class="rep-body">
+        <div class="rep-tick">NASDAQ: MU</div>
+        <div class="rep-name">Micron Technology</div>
+        <div class="rep-meta"><span>In preparation</span></div>
+      </div>
+    </div>
+
+    <div class="rep soon">
+      <span class="badge">Coming soon</span>
+      <div class="rep-cover"><span>PLTR</span></div>
+      <div class="rep-body">
+        <div class="rep-tick">NASDAQ: PLTR</div>
+        <div class="rep-name">Palantir Technologies</div>
+        <div class="rep-meta"><span>In preparation</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <h2>Looking for a company that is not here yet?</h2>
+    <p>
+      Every listed company already has its filed financials on Ticker Alpha — revenue
+      history, segment breakdowns, cash flow and analyst coverage, straight from EDGAR.
+      <a href="company.html">Look up any ticker →</a>
+    </p>
+  </div>
+</main>
+<script src="nav.js"></script>
+</body>
+</html>
