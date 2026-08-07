@@ -2082,7 +2082,10 @@ function renderRisk(payload){
   // Labels sit on the bubbles, so the top and side margins carry a little
   // more room than the plot itself needs -- a label on the highest or
   // widest bubble would otherwise run off the frame.
-  const W = 570, H = 336, ml = 52, mr = 16, mt = 22, mb = 44;
+  // H is set so this panel finishes level with Sector Performance beside it.
+  // Its header wraps to two rows at half-width where that one's does not, so
+  // the plot is the shorter of the two to make the panels the same height.
+  const W = 570, H = 310, ml = 52, mr = 16, mt = 20, mb = 40;
   const pw = W - ml - mr, ph = H - mt - mb;
 
   // Pad the extents so no bubble is clipped by the frame, and always include
@@ -2109,12 +2112,12 @@ function renderRisk(payload){
     const v = y0 + (y1 - y0) * i / ticks;
     parts.push(`<line x1="${ml}" y1="${Y(v)}" x2="${W-mr}" y2="${Y(v)}"
       stroke="var(--rule-2)" ${Math.abs(v) < 1e-9 ? '' : 'stroke-dasharray="3 4"'}></line>
-      <text x="${ml-8}" y="${Y(v)+3.5}" text-anchor="end" font-size="10" class="tnum"
+      <text x="${ml-8}" y="${Y(v)+3.2}" text-anchor="end" font-size="9" class="tnum"
         fill="var(--ink-3)">${(v*100).toFixed(v === 0 ? 0 : 1)}%</text>`);
   }
   for (let i = 0; i <= ticks; i++){
     const v = x0 + (x1 - x0) * i / ticks;
-    parts.push(`<text x="${X(v)}" y="${H-mb+16}" text-anchor="middle" font-size="10"
+    parts.push(`<text x="${X(v)}" y="${H-mb+15}" text-anchor="middle" font-size="9"
       class="tnum" fill="var(--ink-3)">${(v*100).toFixed(1)}%</text>`);
   }
 
