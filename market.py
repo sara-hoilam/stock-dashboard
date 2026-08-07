@@ -542,7 +542,11 @@ def _datasets_sp500() -> list[dict]:
 
 
 def _enrich_holdings_meta(rows: list[dict], weighting: str) -> list[dict]:
-    """Attach industry (and fill missing weights) from FMP screener / quotes."""
+    """Attach sector/industry (and fill missing weights) from FMP screener / quotes.
+
+    Slickcharts (preferred weight source) does not publish industry. Without
+    this pass the index pie collapses to a single \"Other / unlisted\" slice.
+    """
     if not rows:
         return []
     member_set = {r["symbol"] for r in rows}
@@ -550,6 +554,7 @@ def _enrich_holdings_meta(rows: list[dict], weighting: str) -> list[dict]:
     prices: dict[str, float] = {}
     names: dict[str, str] = {}
     industries: dict[str, str] = {}
+    sectors: dict[str, str] = {}
 
     try:
         for r in _screener(1e8, ttl=3600) or []:
@@ -571,7 +576,9 @@ def _enrich_holdings_meta(rows: list[dict], weighting: str) -> list[dict]:
             if r.get("companyName"):
                 names[sym] = r["companyName"]
             if r.get("industry"):
-                industries[sym] = r["industry"]
+                industries[sym] = str(r["industry"]).strip()
+            if r.get("sector"):
+                sectors[sym] = str(r["sector"]).strip()
     except MarketError:
         pass
 
@@ -620,6 +627,8 @@ def _enrich_holdings_meta(rows: list[dict], weighting: str) -> list[dict]:
             r["name"] = names[r["symbol"]]
         if not r.get("industry") and industries.get(r["symbol"]):
             r["industry"] = industries[r["symbol"]]
+        if not r.get("sector") and sectors.get(r["symbol"]):
+            r["sector"] = sectors[r["symbol"]]
         if caps.get(r["symbol"]):
             r["marketCap"] = caps[r["symbol"]]
     return rows
