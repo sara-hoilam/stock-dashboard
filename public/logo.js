@@ -36,18 +36,22 @@
       "  position:absolute;inset:0;width:100%;height:100%;",
       "  object-fit:contain;padding:15%;box-sizing:border-box;",
       "  border-radius:inherit;display:block}",
-      /* Beside-ticker chips — hidden until a real logo is available */
+      /* Beside-ticker chips — hidden until a real logo is available.
+         Circular, and padded the same 15% as the avatars above: these sit
+         next to .dot avatars on the same screens, and a rounded square beside
+         a circle reads as two different systems rather than one. */
       ".tick-logo{",
       "  display:none;flex-shrink:0;width:22px;height:22px;",
-      "  border-radius:6px;background:#fff;overflow:hidden;",
+      "  border-radius:50%;background:#fff;overflow:hidden;",
       "  position:relative;box-sizing:border-box;",
       "  border:1px solid var(--rule, rgba(0,0,0,.08))}",
       ".tick-logo.has-logo{display:inline-block}",
-      ".tick-logo.tick-logo-lg{width:28px;height:28px;border-radius:8px}",
-      ".tick-logo.tick-logo-xl{width:36px;height:36px;border-radius:10px}",
+      ".tick-logo.tick-logo-lg{width:28px;height:28px}",
+      ".tick-logo.tick-logo-xl{width:36px;height:36px}",
       ".tick-logo img.logo-img{",
       "  position:absolute;inset:0;width:100%;height:100%;",
-      "  object-fit:contain;padding:12%;box-sizing:border-box;display:block}",
+      "  object-fit:contain;padding:15%;box-sizing:border-box;",
+      "  border-radius:inherit;display:block}",
       /* Row / chart header layouts */
       ".tsym-with-logo{",
       "  display:flex;flex-direction:row;align-items:center;gap:8px;",
