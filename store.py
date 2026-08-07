@@ -18,6 +18,9 @@ import urllib.error
 import urllib.request
 
 SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+# Accept a project URL or a mistaken .../rest/v1 paste from the dashboard.
+if SUPABASE_URL.endswith("/rest/v1"):
+    SUPABASE_URL = SUPABASE_URL[: -len("/rest/v1")].rstrip("/")
 SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or ""
 
 
@@ -84,6 +87,15 @@ def upsert_directory(rows: list[dict], chunk: int = 2000) -> int:
     return total
 
 
+def upsert_market_symbols(rows: list[dict], chunk: int = 2000) -> int:
+    """Upsert FMP ETF / crypto symbols into ledger.market_symbol."""
+    total = 0
+    for i in range(0, len(rows), chunk):
+        part = rows[i:i + chunk]
+        total += rpc("upsert_market_symbols", {"p_rows": part}) or 0
+    return total
+
+
 def ingest_company(company: dict, breakdowns: list[dict]) -> dict:
     """Write one company's quarters and revenue breakdowns in one transaction."""
     payload = {
@@ -145,6 +157,12 @@ def upsert_quotes(rows: list[dict]) -> int:
     return rpc("upsert_quotes", {"p_rows": rows}) or 0
 
 
+def replace_index_holdings(index_symbol: str, rows: list[dict]) -> int:
+    """Replace constituent rows for one major index (SPX / IXIC / DJI)."""
+    return rpc("replace_index_holdings",
+               {"p_index": index_symbol, "p_rows": rows}) or 0
+
+
 def replace_movers(kind: str, rows: list[dict], as_of: str | None) -> int:
     return rpc("replace_movers",
                {"p_kind": kind, "p_rows": rows, "p_as_of": as_of}) or 0
@@ -159,6 +177,18 @@ def upsert_intraday(symbol: str, points: list[dict], as_of: str | None) -> None:
         {"p_symbol": symbol, "p_points": points, "p_as_of": as_of})
 
 
+def skip_intraday(symbol: str) -> None:
+    rpc("skip_intraday", {"p_symbol": symbol})
+
+
+def pending_intraday(limit: int = 5) -> list[str]:
+    return rpc("pending_intraday", {"p_limit": limit}) or []
+
+
+def watchlisted_symbols(limit: int = 40) -> list[str]:
+    return rpc("watchlisted_symbols", {"p_limit": limit}) or []
+
+
 def replace_heatmap(rows: list[dict], as_of: str | None) -> int:
     return rpc("replace_heatmap", {"p_rows": rows, "p_as_of": as_of}) or 0
 
@@ -170,6 +200,25 @@ def replace_sector_history(rows: list[dict]) -> int:
 def replace_trades(insiders: list[dict], congress: list[dict]) -> int:
     return rpc("replace_trades",
                {"p_insiders": insiders, "p_congress": congress}) or 0
+
+
+def replace_trade_flow(rows: list[dict]) -> int:
+    return rpc("replace_trade_flow", {"p_rows": rows}) or 0
+
+
+def replace_earnings(rows: list[dict]) -> int:
+    return rpc("replace_earnings", {"p_rows": rows}) or 0
+
+
+def replace_economic_calendar(rows: list[dict]) -> int:
+    return rpc("replace_economic_calendar", {"p_rows": rows}) or 0
+
+
+def replace_symbol_dividends(symbol: str, rows: list[dict]) -> int:
+    return rpc("replace_symbol_dividends", {
+        "p_symbol": symbol,
+        "p_rows": rows,
+    }) or 0
 
 
 def upsert_news(rows: list[dict], keywords: list[dict]) -> int:
@@ -187,10 +236,27 @@ def pending_prices(limit: int = 5) -> list[str]:
 
 
 def upsert_company_extras(symbol: str, monthly: list[dict] | None,
-                          sector: str | None, industry: str | None) -> int:
-    return rpc("upsert_company_extras",
-               {"p_symbol": symbol, "p_monthly": monthly,
-                "p_sector": sector, "p_industry": industry}) or 0
+                          sector: str | None, industry: str | None,
+                          pe_history: list[dict] | None = None,
+                          profile: dict | None = None,
+                          employee_history: list[dict] | None = None) -> int:
+    payload = {"p_symbol": symbol, "p_monthly": monthly,
+               "p_sector": sector, "p_industry": industry}
+    if pe_history is not None:
+        payload["p_pe_history"] = pe_history
+    if profile is not None:
+        payload["p_profile"] = profile
+    if employee_history is not None:
+        payload["p_employee_history"] = employee_history
+    return rpc("upsert_company_extras", payload) or 0
+
+
+def pending_profiles(limit: int = 20) -> list[str]:
+    return rpc("pending_profiles", {"p_limit": limit}) or []
+
+
+def pending_employee_history(limit: int = 20) -> list[str]:
+    return rpc("pending_employee_history", {"p_limit": limit}) or []
 
 
 def upsert_benchmark(symbol: str, closes: list[dict]) -> int:
@@ -215,3 +281,15 @@ def upsert_analyst(symbol: str, row: dict) -> int:
 
 def pending_analyst(limit: int = 5) -> list[str]:
     return rpc("pending_analyst", {"p_limit": limit}) or []
+
+
+def upsert_symbol_logos(rows: list[dict]) -> int:
+    """Cache Logo.dev image bytes (and status) for ticker / crypto symbols."""
+    if not rows:
+        return 0
+    return rpc("upsert_symbol_logos", {"p_rows": rows}) or 0
+
+
+def logos_due(targets: list[dict], limit: int = 40) -> list[dict]:
+    """Preferred symbols that still need a Logo.dev fetch (or are stale)."""
+    return rpc("logos_due", {"p_targets": targets, "p_limit": limit}) or []

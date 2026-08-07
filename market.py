@@ -15,6 +15,7 @@ Standard library only.
 
 from __future__ import annotations
 
+import base64
 import datetime as dt
 import json
 import os
@@ -65,6 +66,13 @@ def _get(path: str, **params):
         raise MarketError(f"{path}: {exc}") from exc
 
 
+def _is_page_limit_error(exc: BaseException) -> bool:
+    """True when FMP rejected a page past its hard maximum (currently 100)."""
+    msg = str(exc).lower()
+    # FMP's own message misspells "Maximum" as "Maxmium".
+    return "maximum page" in msg or "maxmium" in msg
+
+
 # ---------------------------------------------------------------------------
 # The day's movers
 # ---------------------------------------------------------------------------
@@ -79,19 +87,29 @@ MIN_MOVER_CAP = float(os.environ.get("MIN_MOVER_CAP", "1e9"))
 # makes the market-cap filter affordable: the alternative is a quote request
 # per candidate. Cached for the length of a refresh so gainers, losers and
 # actives share the one call.
-_caps_cache: dict[str, object] = {"at": 0.0, "rows": [], "symbols": set()}
+#
+# 5,000 was not the whole universe: above $1B there are ~5,800 listings, and a
+# truncated list silently drops everything from the smallest returned cap
+# downwards -- which is a filter nobody asked for.
+SCREENER_LIMIT = 10000
+
+_caps_cache: dict[str, object] = {"at": 0.0, "min": None, "rows": [],
+                                  "symbols": set(), "caps": {}}
 
 
 def _screener(min_cap: float | None = None, ttl: int = 900) -> list[dict]:
     """The raw screener rows, cached. Carries market cap and company name."""
-    if time.time() - float(_caps_cache["at"]) < ttl and _caps_cache["rows"]:
+    want = float(min_cap or MIN_MOVER_CAP)
+    if (time.time() - float(_caps_cache["at"]) < ttl
+            and _caps_cache["rows"] and _caps_cache["min"] == want):
         return _caps_cache["rows"]             # type: ignore[return-value]
-    rows = _get("company-screener",
-                marketCapMoreThan=int(min_cap or MIN_MOVER_CAP),
-                isActivelyTrading="true", limit=5000) or []
+    rows = _get("company-screener", marketCapMoreThan=int(want),
+                isActivelyTrading="true", limit=SCREENER_LIMIT) or []
     if rows:
-        _caps_cache.update(at=time.time(), rows=rows,
-                           symbols={r["symbol"] for r in rows if r.get("symbol")})
+        _caps_cache.update(
+            at=time.time(), min=want, rows=rows,
+            symbols={r["symbol"] for r in rows if r.get("symbol")},
+            caps={r["symbol"]: r for r in rows if r.get("symbol")})
     return rows
 
 
@@ -99,6 +117,25 @@ def large_caps(min_cap: float | None = None, ttl: int = 900) -> set[str]:
     """Symbols above `min_cap`, as a set for cheap membership tests."""
     _screener(min_cap, ttl)
     return _caps_cache["symbols"]              # type: ignore[return-value]
+
+
+def cap_universe(min_cap: float | None = None, ttl: int = 900) -> dict[str, dict]:
+    """Symbol -> {market_cap, name} for every company above `min_cap`.
+
+    The earnings calendar names ~1,100 symbols on a busy day and only a few
+    hundred of them are companies anyone follows; this is how the rest are
+    told apart, for one request rather than one per symbol.
+
+    ETFs and funds are left out the same way `top_by_cap` leaves them out: a
+    fund does not report earnings, and one of them ranks above ConocoPhillips
+    on the day's calendar if you let it.
+    """
+    _screener(min_cap, ttl)
+    return {sym: {"market_cap": r.get("marketCap"),
+                  "name": r.get("companyName")}
+            for sym, r in (_caps_cache["caps"] or {}).items()   # type: ignore[union-attr]
+            if r.get("marketCap") is not None
+            and not r.get("isEtf") and not r.get("isFund")}
 
 
 def _movers(path: str, kind: str, limit: int, allowed: set[str] | None) -> list[dict]:
@@ -192,6 +229,557 @@ def quote(symbol: str) -> dict | None:
     }
 
 
+# Major indexes.
+#
+# Prices / history: FMP caret symbols (^GSPC / ^IXIC / ^DJI) — same paid feed
+# as the rest of Markets Today. Verified on the stable quote + EOD endpoints.
+#
+# Holdings: prefer Slickcharts, which publishes methodology-correct portfolio
+# weights that sum to ~100% (float market-cap for S&P 500 / Nasdaq-100,
+# price-weighted for the Dow). FMP's *-constituent endpoints are preferred
+# when the plan includes them (often 402 on starter tiers). Wikipedia /
+# datasets CSV are membership fallbacks only; weights are then recomputed.
+#
+# NASDAQ card price is the Composite (^IXIC). Holdings for IXIC use the
+# Nasdaq-100 — the Composite has ~3,000+ members and is not a useful table.
+INDEXES = {
+    "SPX": {
+        "fmp": "^GSPC",
+        "name": "S&P 500",
+        "exchange": "INDEX",
+        "constituents": "sp500",
+        "weighting": "market_cap",
+        "fmp_constituent": "sp500-constituent",
+        "slickcharts": "https://www.slickcharts.com/sp500",
+        "wikipedia": "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
+        # Forward P/E history (History of Market public JSON).
+        "pe_api": "https://historyofmarket.com/api/sp500/forward-pe.json",
+        "pe_label": "S&P 500",
+    },
+    "IXIC": {
+        "fmp": "^IXIC",
+        "name": "NASDAQ Composite",
+        "holdings_name": "Nasdaq-100",
+        "exchange": "INDEX",
+        "constituents": "nasdaq100",
+        "weighting": "market_cap",
+        "fmp_constituent": "nasdaq-constituent",
+        "slickcharts": "https://www.slickcharts.com/nasdaq100",
+        # Composite price; Nasdaq-100 forward P/E is the useful valuation series.
+        "pe_api": "https://historyofmarket.com/api/ndx/forward-pe.json",
+        "pe_label": "NASDAQ",
+    },
+    "DJI": {
+        "fmp": "^DJI",
+        "name": "Dow Jones Industrial Average",
+        "exchange": "INDEX",
+        "constituents": "dowjones",
+        "weighting": "price",  # DJIA is price-weighted, not market-cap
+        "fmp_constituent": "dowjones-constituent",
+        "slickcharts": "https://www.slickcharts.com/dowjones",
+        "wikipedia": "https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average",
+        "pe_label": "Dow",
+    },
+}
+
+# Actively maintained S&P 500 membership mirror (Wikipedia → GitHub).
+_SP500_DATASETS_CSV = (
+    "https://raw.githubusercontent.com/datasets/s-and-p-500-companies"
+    "/master/data/constituents.csv")
+
+_UA = "TickerAlpha/1.0 (index-holdings; +https://github.com/sara-hoilam/stock-dashboard)"
+
+
+def index_quote(alias: str) -> dict | None:
+    """Quote one major index, returned under its searchable alias (SPX/…)."""
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return None
+    q = quote(meta["fmp"])
+    if not q:
+        return None
+    q["symbol"] = alias.upper()
+    q["name"] = meta["name"]
+    q["exchange"] = meta["exchange"]
+    return q
+
+
+def index_quotes() -> list[dict]:
+    out = []
+    for alias in INDEXES:
+        try:
+            q = index_quote(alias)
+        except MarketError:
+            q = None
+        if q:
+            out.append(q)
+    return out
+
+
+def index_history(alias: str, limit: int = 420) -> list[dict]:
+    """Daily OHLCV for an index alias, as ``{d, o, h, l, c, v}`` bars."""
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return []
+    try:
+        rows = _get("historical-price-eod/full", symbol=meta["fmp"]) or []
+    except MarketError:
+        return []
+    bars = []
+    for r in rows[: max(1, int(limit or 420))]:
+        d = r.get("date")
+        c = r.get("close") if r.get("close") is not None else r.get("price")
+        if not d or c is None:
+            continue
+        bars.append({
+            "d": d,
+            "o": r.get("open"),
+            "h": r.get("high"),
+            "l": r.get("low"),
+            "c": c,
+            "v": r.get("volume"),
+        })
+    bars.sort(key=lambda b: b["d"])
+    return bars
+
+
+def _http_get_text(url: str, timeout: int = 30) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept": "text/html,*/*"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8", "replace")
+
+
+def _clean_index_symbol(raw: str) -> str | None:
+    sym = (raw or "").upper().strip().strip('"').replace("-", ".")
+    if not sym or not re.match(r"^[A-Z][A-Z0-9.\-]{0,9}$", sym):
+        return None
+    return sym
+
+
+def _fmp_constituent_rows(path: str) -> list[dict]:
+    """FMP index constituents when the plan includes them (else [])."""
+    if not path or not KEY:
+        return []
+    try:
+        rows = _get(path) or []
+    except MarketError:
+        return []
+    out = []
+    for r in rows:
+        sym = _clean_index_symbol(r.get("symbol") or "")
+        if not sym:
+            continue
+        out.append({
+            "symbol": sym,
+            "name": (r.get("name") or r.get("companyName") or "").strip() or None,
+            "industry": (r.get("subSector") or r.get("industry") or "").strip() or None,
+            "sector": (r.get("sector") or "").strip() or None,
+            "weightPct": None,
+            "source": "fmp",
+        })
+    return out
+
+
+def _slickcharts_holdings(url: str) -> list[dict]:
+    """Parse Slickcharts index table: Symbol + Portfolio % (methodology weights)."""
+    if not url:
+        return []
+    try:
+        text = _http_get_text(url)
+    except Exception:
+        return []
+    table = re.search(r"<table[^>]*>(.*?)</table>", text, re.I | re.S)
+    if not table:
+        return []
+    out, seen = [], set()
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", table.group(1), re.I | re.S)[1:]:
+        cells = [re.sub(r"<[^>]+>", "", c) for c in
+                 re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.I | re.S)]
+        cells = [" ".join(c.replace("\xa0", " ").split()) for c in cells]
+        if len(cells) < 4:
+            continue
+        # Columns: #, Company, Symbol, Portfolio%, Price, …
+        sym = _clean_index_symbol(cells[2])
+        if not sym or sym in seen:
+            continue
+        try:
+            weight = float(cells[3].replace("%", "").replace(",", "").strip())
+        except ValueError:
+            weight = None
+        if weight is not None and not (0 < weight <= 100):
+            weight = None
+        name = cells[1].strip() or None
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": name,
+            "industry": None,
+            "weightPct": weight,
+            "source": "slickcharts",
+        })
+    # Sanity: expect a near-complete published book (Dow 30, NDX ~100, SPX ~500).
+    if len(out) < 20:
+        return []
+    return out
+
+
+def _wikipedia_sp500() -> list[dict]:
+    """Current S&P 500 membership from Wikipedia's constituent table."""
+    try:
+        text = _http_get_text(INDEXES["SPX"]["wikipedia"])
+    except Exception:
+        return []
+    table = re.search(
+        r"<table[^>]*class=\"[^\"]*wikitable[^\"]*\"[^>]*>(.*?)</table>",
+        text, re.I | re.S)
+    if not table:
+        return []
+    out, seen = [], set()
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", table.group(1), re.I | re.S)[1:]:
+        cells = [re.sub(r"<[^>]+>", "", c) for c in
+                 re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.I | re.S)]
+        cells = [" ".join(c.replace("\xa0", " ").split()) for c in cells]
+        if len(cells) < 4:
+            continue
+        sym = _clean_index_symbol(cells[0])
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": cells[1] or None,
+            "industry": cells[3] or None,   # GICS Sub-Industry
+            "sector": cells[2] or None,
+            "weightPct": None,
+            "source": "wikipedia",
+        })
+    return out if len(out) >= 400 else []
+
+
+def _wikipedia_dow() -> list[dict]:
+    """DJIA components + published index weightings from Wikipedia."""
+    try:
+        text = _http_get_text(INDEXES["DJI"]["wikipedia"])
+    except Exception:
+        return []
+    # First wikitable with a Symbol column.
+    for block in re.findall(
+            r"<table[^>]*class=\"[^\"]*wikitable[^\"]*\"[^>]*>(.*?)</table>",
+            text, re.I | re.S):
+        header = re.findall(r"<th[^>]*>(.*?)</th>", block, re.I | re.S)
+        headers = [" ".join(re.sub(r"<[^>]+>", "", h).split()).lower() for h in header]
+        if not any("symbol" == h for h in headers):
+            continue
+        out, seen = [], set()
+        for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", block, re.I | re.S)[1:]:
+            cells = [re.sub(r"<[^>]+>", "", c) for c in
+                     re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.I | re.S)]
+            cells = [" ".join(c.replace("\xa0", " ").split()) for c in cells]
+            if len(cells) < 4:
+                continue
+            # Company, Exchange, Symbol, Sector, …, Index weighting
+            sym = _clean_index_symbol(cells[2] if len(cells) > 2 else "")
+            if not sym or sym in seen:
+                continue
+            weight = None
+            for c in reversed(cells):
+                m = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*%", c)
+                if m:
+                    try:
+                        weight = float(m.group(1))
+                    except ValueError:
+                        weight = None
+                    break
+            seen.add(sym)
+            out.append({
+                "symbol": sym,
+                "name": cells[0] or None,
+                "industry": cells[3] if len(cells) > 3 else None,
+                "weightPct": weight,
+                "source": "wikipedia",
+            })
+        if len(out) >= 25:
+            return out
+    return []
+
+
+def _datasets_sp500() -> list[dict]:
+    """S&P 500 membership from the datasets/s-and-p-500-companies CSV mirror."""
+    try:
+        text = _http_get_text(_SP500_DATASETS_CSV)
+    except Exception:
+        return []
+    out, seen = [], set()
+    for i, line in enumerate(text.splitlines()):
+        if i == 0 or not line.strip():
+            continue
+        # Symbol,Security,GICS Sector,GICS Sub-Industry,… (quoted fields OK).
+        cols, cur, in_q = [], [], False
+        for ch in line:
+            if ch == '"':
+                in_q = not in_q
+            elif ch == "," and not in_q:
+                cols.append("".join(cur))
+                cur = []
+            else:
+                cur.append(ch)
+        cols.append("".join(cur))
+        if len(cols) < 4:
+            continue
+        sym = _clean_index_symbol(cols[0])
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": cols[1].strip() or None,
+            "sector": cols[2].strip() or None,
+            "industry": cols[3].strip() or None,
+            "weightPct": None,
+            "source": "datasets",
+        })
+    return out if len(out) >= 400 else []
+
+
+def _enrich_holdings_meta(rows: list[dict], weighting: str) -> list[dict]:
+    """Attach industry (and fill missing weights) from FMP screener / quotes."""
+    if not rows:
+        return []
+    member_set = {r["symbol"] for r in rows}
+    caps: dict[str, float] = {}
+    prices: dict[str, float] = {}
+    names: dict[str, str] = {}
+    industries: dict[str, str] = {}
+
+    try:
+        for r in _screener(1e8, ttl=3600) or []:
+            sym = (r.get("symbol") or "").upper()
+            if sym not in member_set:
+                continue
+            try:
+                cap = float(r.get("marketCap") or 0)
+            except (TypeError, ValueError):
+                cap = 0.0
+            try:
+                px = float(r.get("price") or 0)
+            except (TypeError, ValueError):
+                px = 0.0
+            if cap > 0:
+                caps[sym] = cap
+            if px > 0:
+                prices[sym] = px
+            if r.get("companyName"):
+                names[sym] = r["companyName"]
+            if r.get("industry"):
+                industries[sym] = r["industry"]
+    except MarketError:
+        pass
+
+    need = [s for s in member_set
+            if s not in caps or (weighting == "price" and s not in prices)][:60]
+    if need:
+        try:
+            for q in quotes(need) or []:
+                sym = (q.get("symbol") or "").upper()
+                if not sym:
+                    continue
+                try:
+                    cap = float(q.get("market_cap") or 0)
+                except (TypeError, ValueError):
+                    cap = 0.0
+                try:
+                    px = float(q.get("price") or 0)
+                except (TypeError, ValueError):
+                    px = 0.0
+                if cap > 0:
+                    caps[sym] = cap
+                if px > 0:
+                    prices[sym] = px
+                if q.get("name"):
+                    names[sym] = q["name"]
+        except MarketError:
+            pass
+
+    have_weights = any(r.get("weightPct") is not None for r in rows)
+    if not have_weights:
+        if weighting == "price":
+            total = sum(prices.get(r["symbol"], 0) for r in rows) or 0.0
+            if total:
+                for r in rows:
+                    px = prices.get(r["symbol"], 0)
+                    r["weightPct"] = round(100.0 * px / total, 4) if px else None
+        else:
+            total = sum(caps.get(r["symbol"], 0) for r in rows) or 0.0
+            if total:
+                for r in rows:
+                    cap = caps.get(r["symbol"], 0)
+                    r["weightPct"] = round(100.0 * cap / total, 4) if cap else None
+
+    for r in rows:
+        if not r.get("name") and names.get(r["symbol"]):
+            r["name"] = names[r["symbol"]]
+        if not r.get("industry") and industries.get(r["symbol"]):
+            r["industry"] = industries[r["symbol"]]
+        if caps.get(r["symbol"]):
+            r["marketCap"] = caps[r["symbol"]]
+    return rows
+
+
+def index_forward_pe_history(alias: str, years: int = 10) -> list[dict]:
+    """Forward P/E history for an index, as ``[{d, pe}, …]`` oldest first.
+
+    Prefers History of Market's published forward series (SPX / NDX). For the
+    Dow (no public forward series on that feed), builds a price-scaled path
+    from today's price-weighted constituent TTM P/E so the comparison chart
+    still has a Dow line.
+    """
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return []
+    api = meta.get("pe_api")
+    if api:
+        try:
+            raw = _http_get_text(api, timeout=30)
+            data = json.loads(raw)
+        except Exception:
+            data = None
+        pts = []
+        if isinstance(data, dict):
+            series = data.get("forward") or data.get("trailing") or []
+            cutoff = (dt.date.today() - dt.timedelta(days=int(years) * 365)).isoformat()
+            for row in series:
+                d = (row.get("date") or "")[:10]
+                try:
+                    pe = float(row.get("value"))
+                except (TypeError, ValueError):
+                    continue
+                if d and pe > 0 and d >= cutoff:
+                    pts.append({"d": d, "pe": round(pe, 4)})
+            pts.sort(key=lambda p: p["d"])
+            if len(pts) >= 2:
+                return pts
+
+    # Dow (and any index without a public forward series): spot from holdings,
+    # then scale along the index price path.
+    return _index_pe_from_price_path(alias.upper(), years=years)
+
+
+def _index_pe_spot(alias: str) -> float | None:
+    """Weighted TTM P/E from current constituents + FMP quote P/Es.
+
+    Uses each holding's published weight (Slickcharts methodology), so the Dow
+    stays price-weighted and the S&P / NDX stay float market-cap weighted.
+    """
+    if (alias or "").upper() not in INDEXES:
+        return None
+    rows = index_holdings(alias)
+    if not rows:
+        return None
+    # Need P/E per name — quote_detail carries ratios-ttm pe when available.
+    num = den = 0.0  # Σ w / Σ(w/PE) ≡ weight-weighted harmonic mean of P/Es
+    for r in rows:
+        sym = r.get("symbol")
+        w = r.get("weightPct")
+        if not sym or not w:
+            continue
+        try:
+            q = quote_detail(sym)
+        except MarketError:
+            q = None
+        pe = (q or {}).get("pe")
+        try:
+            pe_f = float(pe) if pe is not None else 0.0
+        except (TypeError, ValueError):
+            pe_f = 0.0
+        if pe_f <= 0:
+            continue
+        # weightPct already encodes methodology (Slickcharts).
+        num += float(w)
+        den += float(w) / pe_f
+    if den <= 0:
+        return None
+    return num / den
+
+
+def _index_pe_from_price_path(alias: str, years: int = 10) -> list[dict]:
+    """Approximate PE history: spot_pe × price(t) / price_now."""
+    spot = _index_pe_spot(alias)
+    if not spot or spot <= 0:
+        return []
+    meta = INDEXES[alias]
+    try:
+        bars = closes(meta["fmp"], years) or []
+    except MarketError:
+        bars = []
+    if len(bars) < 2:
+        try:
+            bars = [{"d": b["d"], "c": b["c"]} for b in index_history(alias, 420)]
+        except Exception:
+            bars = []
+    bars = [b for b in bars if b.get("d") and b.get("c")]
+    if len(bars) < 2:
+        return [{"d": dt.date.today().isoformat(), "pe": round(spot, 4)}]
+    last = float(bars[-1]["c"])
+    if last <= 0:
+        return []
+    # Monthly points keep the series light and aligned with seasonality.
+    by_month: dict[str, dict] = {}
+    for b in bars:
+        by_month[b["d"][:7]] = b
+    out = []
+    for k in sorted(by_month):
+        b = by_month[k]
+        pe = spot * (float(b["c"]) / last)
+        if pe > 0:
+            out.append({"d": b["d"], "pe": round(pe, 4)})
+    return out
+
+
+def index_holdings(alias: str) -> list[dict]:
+    """Constituents + % weights for an index page / industry pie.
+
+    Source order:
+      1. Slickcharts published portfolio weights (best free methodology match)
+      2. FMP ``*-constituent`` when the API plan allows
+      3. Wikipedia / datasets membership, with weights recomputed
+         (market-cap for SPX/NDX, price for DJI)
+    """
+    meta = INDEXES.get((alias or "").upper())
+    if not meta:
+        return []
+    kind = meta["constituents"]
+    weighting = meta.get("weighting") or "market_cap"
+    rows: list[dict] = []
+    source = None
+
+    slick = _slickcharts_holdings(meta.get("slickcharts") or "")
+    if slick:
+        rows, source = slick, "slickcharts"
+
+    if not rows:
+        fmp_rows = _fmp_constituent_rows(meta.get("fmp_constituent") or "")
+        if fmp_rows:
+            rows, source = fmp_rows, "fmp"
+
+    if not rows and kind == "sp500":
+        rows = _wikipedia_sp500() or _datasets_sp500()
+        source = rows[0]["source"] if rows else None
+    elif not rows and kind == "dowjones":
+        rows = _wikipedia_dow()
+        source = "wikipedia" if rows else None
+
+    if not rows:
+        return []
+
+    rows = _enrich_holdings_meta(rows, weighting)
+    rows.sort(key=lambda r: (r.get("weightPct") is None,
+                             -(r.get("weightPct") or 0), r["symbol"]))
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i
+        r["source"] = source or r.get("source")
+    return rows
+
+
 def quote_detail(symbol: str) -> dict | None:
     """Everything the company page's price panel shows, in one call.
 
@@ -246,6 +834,107 @@ def daily(symbol: str, days: int = 300) -> list[dict]:
             if r.get("date") and r.get("close") is not None]
     bars.sort(key=lambda b: b["d"])
     return bars
+
+
+_SYMBOL_RE = re.compile(r"^[A-Z][A-Z.\-]{0,9}$")
+
+
+def _clean_market_symbol(raw: str) -> str | None:
+    sym = (raw or "").upper().strip()
+    if not _SYMBOL_RE.match(sym):
+        return None
+    return sym
+
+
+def etf_list() -> list[dict]:
+    """All ETFs from FMP ``/etf-list`` (symbol + name)."""
+    rows = _get("etf-list") or []
+    out = []
+    seen = set()
+    for r in rows:
+        sym = _clean_market_symbol(r.get("symbol") or "")
+        name = (r.get("name") or "").strip()
+        if not sym or not name or sym in seen:
+            continue
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": name,
+            "kind": "etf",
+            "exchange": (r.get("exchange") or r.get("exchangeShortName") or "") or None,
+        })
+    out.sort(key=lambda x: x["symbol"])
+    return out
+
+
+def crypto_list() -> list[dict]:
+    """Cryptocurrencies from FMP ``/cryptocurrency-list`` (e.g. BTCUSD).
+
+    FMP sometimes attaches garbage names to long *USD tickers — e.g.
+    ``BITCOINUSD`` → "HarryPotterObamaSonic10Inu…". Real Bitcoin is
+    ``BTCUSD``. Drop pairs whose long stem does not appear in the name.
+    """
+    rows = _get("cryptocurrency-list") or []
+    out = []
+    seen = set()
+    for r in rows:
+        sym = _clean_market_symbol(r.get("symbol") or "")
+        name = (r.get("name") or "").strip()
+        if not sym or not name or sym in seen:
+            continue
+        if sym.endswith("USD") and len(sym) > 3:
+            stem = sym[:-3]
+            # Long stems like BITCOIN must appear in the name; short ones
+            # (BTC, ETH, SOL) are allowed without that check.
+            if len(stem) >= 6:
+                compact = re.sub(r"[^A-Z0-9]", "", name.upper())
+                if stem not in compact:
+                    continue
+        seen.add(sym)
+        out.append({
+            "symbol": sym,
+            "name": name,
+            "kind": "crypto",
+            "exchange": (r.get("exchange") or r.get("exchangeShortName") or "CRYPTO") or None,
+        })
+    out.sort(key=lambda x: x["symbol"])
+    return out
+
+
+def dividends(symbol: str) -> list[dict]:
+    """Per-share dividend history for one ticker (ex-date + amount).
+
+    FMP ``/dividends?symbol=`` returns past and declared upcoming payouts.
+    ``date`` is the ex-dividend date. Used by the portfolio page to credit
+    cash on/after ex-date for holdings logged before that date.
+    """
+    rows = _get("dividends", symbol=symbol) or []
+    out = []
+    for r in rows:
+        ex = (r.get("date") or r.get("exDividendDate") or "")[:10]
+        amt = r.get("adjDividend")
+        if amt is None:
+            amt = r.get("dividend")
+        if not ex or amt is None:
+            continue
+        try:
+            amount = float(amt)
+        except (TypeError, ValueError):
+            continue
+        if amount < 0:
+            continue
+        out.append({
+            "exDate": ex,
+            "amount": amount,
+            "adjAmount": r.get("adjDividend"),
+            "yield": r.get("yield"),
+            "frequency": r.get("frequency"),
+            "declarationDate": (r.get("declarationDate") or "")[:10] or None,
+            "recordDate": (r.get("recordDate") or "")[:10] or None,
+            "paymentDate": (r.get("paymentDate") or "")[:10] or None,
+        })
+    out.sort(key=lambda x: x["exDate"])
+    return out
 
 
 def quotes(symbols: list[str]) -> list[dict]:
@@ -375,61 +1064,465 @@ def sector_history(days: int = 45) -> list[dict]:
 # Insider and congressional trades
 # ---------------------------------------------------------------------------
 
-def insider_trades(limit: int = 40) -> list[dict]:
-    """The most recent Form 4 filings, one line per company.
+def _insider_title(type_of_owner: str | None) -> str:
+    """Collapse FMP's typeOfOwner string into a short role label.
+
+    Filings say things like ``officer: Sr. VP, Chief Acct Officer`` or plain
+    ``director``. The Markets Today panel only has room for a generic title
+    (CEO, CFO, Director, …) above the person's name.
+    """
+    raw = " ".join(str(type_of_owner or "").split())
+    if not raw:
+        return "Insider"
+    # Lowercase and split camelCase (tenPercentOwner → ten percent owner) so
+    # the same patterns work on both FMP styles.
+    spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", raw)
+    s = spaced.lower()
+    body = s.split(":", 1)[-1].strip() if ":" in s else s
+    hay = f"{s} {body}"
+
+    # VP family before President: "vice president" contains "president".
+    rules: list[tuple[str, str]] = [
+        ("CEO", r"chief\s+executive|\bceo\b"),
+        ("CFO", r"chief\s+financial|chief\s+acct|chief\s+account|\bcontroller\b|\bcfo\b"),
+        ("CTO", r"chief\s+technolog|chief\s+information|\bcto\b|\bcio\b"),
+        ("COO", r"chief\s+operating|\bcoo\b"),
+        ("CMO", r"chief\s+marketing|\bcmo\b"),
+        ("CLO", r"chief\s+legal|general\s+counsel|\bclo\b"),
+        ("CHRO", r"chief\s+human|chief\s+people|\bchro\b"),
+        ("SVP", r"senior\s+vice\s+president|sr\.?\s*vice\s+president|sr\.?\s*vp\b|\bsvp\b"),
+        ("EVP", r"executive\s+vice\s+president|exec(?:utive)?\s+vp\b|\bevp\b"),
+        ("VP", r"vice\s+president|\bv\.?p\.?\b"),
+        ("President", r"\bpresident\b"),
+        ("Director", r"\bdirector\b"),
+        ("10% Owner", r"ten\s*percent|10\s*percent|10\s*%|beneficial\s+owner"),
+        ("Officer", r"\bofficer\b"),
+    ]
+    for label, pattern in rules:
+        if re.search(pattern, hay):
+            return label
+    return "Insider"
+
+
+def _insider_person_name(name: str | None) -> str | None:
+    """Light cleanup so ALL-CAPS Form 4 names read as ordinary names."""
+    if not name:
+        return None
+    text = " ".join(str(name).split())
+    if text.isupper() and any(c.isalpha() for c in text):
+        return text.title()
+    return text
+
+
+def _as_day(value) -> dt.date | None:
+    try:
+        return dt.date.fromisoformat(str(value or "")[:10])
+    except ValueError:
+        return None
+
+
+# Markets Today only surfaces material trades.
+MIN_INSIDER_AMOUNT = 1_000_000       # $1M absolute Form 4 value
+MIN_INSIDER_SHARES_PCT = 0.01        # or ≥1% of shares outstanding
+# Congress: store every disclosure (no $0.5M floor). UI + get_trades match.
+MIN_CONGRESS_AMOUNT = 0
+
+
+def _congress_amount_vals(raw) -> list[float]:
+    """Dollar figures mentioned in a disclosure amount band."""
+    vals: list[float] = []
+    for n in re.findall(r"[\d,]+", str(raw or "")):
+        try:
+            vals.append(float(n.replace(",", "")))
+        except ValueError:
+            continue
+    return vals
+
+
+def _congress_amount_high(raw) -> float:
+    """Largest dollar figure mentioned in a disclosure amount band."""
+    vals = _congress_amount_vals(raw)
+    return max(vals) if vals else 0.0
+
+
+def _congress_amount_mid(raw) -> float:
+    """Midpoint of a disclosure band (or the sole figure when there is one)."""
+    vals = _congress_amount_vals(raw)
+    if not vals:
+        return 0.0
+    return (min(vals) + max(vals)) / 2.0
+
+
+def _shares_outstanding_map(symbols: list[str], cap: int = 100) -> dict[str, float]:
+    """Approx shares outstanding from FMP quote marketCap / price.
+
+    Capped so a noisy Form 4 dump cannot turn into hundreds of quote calls.
+    """
+    out: dict[str, float] = {}
+    for sym in symbols[:max(0, cap)]:
+        if not sym or sym in out:
+            continue
+        try:
+            q = quote(sym)
+        except MarketError:
+            continue
+        if not q:
+            continue
+        px = q.get("price")
+        cap_v = q.get("market_cap")
+        if px and cap_v and float(px) > 0:
+            out[sym] = float(cap_v) / float(px)
+    return out
+
+
+def _trade_list_page_size(days: int) -> int:
+    """Rows per FMP page for trade feeds.
+
+    FMP hard-caps ``page`` at 100. With ``limit=100`` the Form 4 feed only
+    reaches ~10 calendar days, which left the 60-day inflow/outflow chart
+    empty for most of its window. ``limit=1000`` covers 60+ days inside that
+    page cap.
+    """
+    d = max(1, int(days or 1))
+    return 1000 if d > 14 else 100
+
+
+def _trade_list_max_pages(days: int) -> int:
+    """How far to page FMP 'latest' trade feeds to cover ``days``.
+
+    Never ask past page 100 — FMP returns HTTP 400 beyond that, which used to
+    abort the whole trades refresh and leave stale sparse charts.
+    """
+    d = max(1, int(days or 1))
+    if d <= 7:
+        return 24
+    if d <= 14:
+        return 48
+    return 100
+
+
+def insider_trades(days: int = 7, store_cap: int = 400,
+                   collapse: bool = True) -> list[dict]:
+    """Form 4 filings from the last `days`.
 
     A single company often files a dozen Form 4s on the same day -- each
-    officer separately, or one sale split across several lots. Left as-is the
-    panel fills with one ticker repeated, so only the largest transaction per
-    company is kept and a wider window is fetched to compensate.
+    officer separately, or one sale split across several lots. For the
+    Markets Today table (`collapse=True`) only the largest transaction per
+    company in the window is kept. For the 60-day inflow/outflow chart
+    (`collapse=False`) every material filing is kept so daily sums are honest.
+
+    A row is kept when abs(dollar amount) > $1M, or when shares transacted are
+    at least 1% of estimated shares outstanding (market cap / price).
     """
-    rows = _get("insider-trading/latest", page=0, limit=max(limit * 5, 100)) or []
-    out = []
-    for r in rows:
-        shares = r.get("securitiesTransacted") or 0
-        price = r.get("price") or 0
-        code = (r.get("transactionType") or r.get("acquisitionOrDisposition") or "")
-        buy = str(code).upper().startswith(("P", "A"))
-        out.append({
-            "filed": r.get("filingDate", "")[:10],
-            "symbol": r.get("symbol"),
-            "side": "Buy" if buy else "Sell",
-            "shares": shares,
-            "amount": (shares * price) * (1 if buy else -1),
-            "person": r.get("reportingName"),
-        })
+    cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
+    raw_rows: list[dict] = []
+    page_size = _trade_list_page_size(days)
+    max_pages = _trade_list_max_pages(days)
+    for page in range(max_pages):
+        try:
+            rows = _get("insider-trading/latest", page=page, limit=page_size) or []
+        except MarketError as exc:
+            if page > 0 and _is_page_limit_error(exc):
+                break
+            raise
+        if not rows:
+            break
+        page_days = [_as_day(r.get("filingDate")) for r in rows]
+        page_days = [d for d in page_days if d]
+        if page_days and max(page_days) < cutoff:
+            break
+        for r in rows:
+            filed = _as_day(r.get("filingDate"))
+            if filed is not None and filed < cutoff:
+                continue
+            shares = float(r.get("securitiesTransacted") or 0)
+            price = float(r.get("price") or 0)
+            code = (r.get("transactionType") or r.get("acquisitionOrDisposition") or "")
+            buy = str(code).upper().startswith(("P", "A"))
+            amount = (shares * price) * (1 if buy else -1)
+            sym = r.get("symbol")
+            if not sym:
+                continue
+            raw_rows.append({
+                "filed": (r.get("filingDate") or "")[:10],
+                "symbol": sym,
+                "side": "Buy" if buy else "Sell",
+                "shares": shares,
+                "amount": amount,
+                "person": _insider_person_name(r.get("reportingName")),
+                "title": _insider_title(r.get("typeOfOwner")),
+                "shares_out": None,
+            })
+        if len(rows) < page_size:
+            break
+
+    # Quote only names that need the 1%-of-float test (amount alone is not enough).
+    need_out: dict[str, float] = {}
+    for r in raw_rows:
+        if abs(r["amount"] or 0) > MIN_INSIDER_AMOUNT:
+            continue
+        sh = float(r["shares"] or 0)
+        if sh <= 0:
+            continue
+        sym = r["symbol"]
+        need_out[sym] = max(need_out.get(sym, 0.0), sh)
+    ranked_need = sorted(need_out, key=lambda s: -need_out[s])
+    shares_out = _shares_outstanding_map(ranked_need, cap=150)
+
+    out: list[dict] = []
+    for r in raw_rows:
+        so = shares_out.get(r["symbol"])
+        if so:
+            r["shares_out"] = so
+        big_dollars = abs(r["amount"] or 0) > MIN_INSIDER_AMOUNT
+        big_float = bool(
+            so and so > 0 and (float(r["shares"] or 0) / so) >= MIN_INSIDER_SHARES_PCT)
+        if big_dollars or big_float:
+            out.append(r)
+
+    if not collapse:
+        ranked = sorted(out,
+                        key=lambda r: (r["filed"] or "", abs(r["amount"] or 0)),
+                        reverse=True)
+        return ranked[:max(1, store_cap)]
 
     best: dict[str, dict] = {}
     for r in out:
-        if not r["symbol"]:
-            continue
         prev = best.get(r["symbol"])
-        if prev is None or abs(r["amount"]) > abs(prev["amount"]):
+        if prev is None or abs(r["amount"] or 0) > abs(prev["amount"] or 0):
             best[r["symbol"]] = r
-    return sorted(best.values(),
-                  key=lambda r: (r["filed"], abs(r["amount"])), reverse=True)[:limit]
+    ranked = sorted(best.values(),
+                    key=lambda r: (r["filed"] or "", abs(r["amount"] or 0)),
+                    reverse=True)
+    return ranked[:max(1, store_cap)]
 
 
-def congress_trades(limit: int = 40) -> list[dict]:
-    """Recent disclosures from both chambers, newest first."""
-    rows = []
+def _congress_side(raw: str | None) -> str | None:
+    """Map FMP disclosure types onto the same Buy/Sell labels as Form 4s."""
+    if not raw:
+        return None
+    s = str(raw).strip().lower()
+    if s.startswith(("buy", "purchase", "receive")) or "purchase" in s or "receive" in s:
+        return "Buy"
+    if (s.startswith(("sell", "sale")) or "sale" in s or "sell" in s
+            or "exchange" in s):
+        return "Sell"
+    return str(raw).strip()
+
+
+def congress_trades(days: int = 14, store_cap: int = 400) -> list[dict]:
+    """Disclosures from both chambers filed in the last `days`, newest first.
+
+    All amount bands are kept (no $0.5M floor) so the Congress table and
+    inflow/outflow chart stay populated.
+    """
+    cutoff = dt.date.today() - dt.timedelta(days=max(1, days))
+    rows: list[dict] = []
+    page_size = _trade_list_page_size(days)
+    max_pages = _trade_list_max_pages(days)
+    min_amt = float(MIN_CONGRESS_AMOUNT or 0)
     for path, chamber in (("senate-latest", "Senate"), ("house-latest", "House")):
         try:
-            for r in _get(path, page=0, limit=limit) or []:
-                rows.append({
-                    "disclosed": (r.get("disclosureDate") or "")[:10],
-                    "traded": (r.get("transactionDate") or "")[:10],
-                    "symbol": r.get("symbol"),
-                    "person": " ".join(x for x in (r.get("firstName"), r.get("lastName")) if x),
-                    "chamber": chamber,
-                    "side": r.get("type"),
-                    "amount": r.get("amount"),
-                })
+            for page in range(max_pages):
+                try:
+                    batch = _get(path, page=page, limit=page_size) or []
+                except MarketError as exc:
+                    if page > 0 and _is_page_limit_error(exc):
+                        break
+                    raise
+                if not batch:
+                    break
+                page_days = [_as_day(r.get("disclosureDate")) for r in batch]
+                page_days = [d for d in page_days if d]
+                if page_days and max(page_days) < cutoff:
+                    break
+                for r in batch:
+                    disclosed = _as_day(r.get("disclosureDate"))
+                    if disclosed is not None and disclosed < cutoff:
+                        continue
+                    amount = r.get("amount")
+                    if min_amt > 0 and _congress_amount_high(amount) <= min_amt:
+                        continue
+                    rows.append({
+                        "disclosed": (r.get("disclosureDate") or "")[:10],
+                        "traded": (r.get("transactionDate") or "")[:10],
+                        "symbol": r.get("symbol"),
+                        "person": " ".join(
+                            x for x in (r.get("firstName"), r.get("lastName")) if x),
+                        "chamber": chamber,
+                        "side": _congress_side(r.get("type")),
+                        "amount": amount,
+                    })
+                if len(batch) < page_size:
+                    break
         except MarketError:
             continue
     rows = [r for r in rows if r["symbol"]]
-    rows.sort(key=lambda r: r["disclosed"], reverse=True)
-    return rows[:limit]
+    rows.sort(key=lambda r: r["disclosed"] or "", reverse=True)
+    return rows[:max(1, store_cap)]
+
+
+def trade_flow_daily(insiders: list[dict], congress: list[dict],
+                     days: int = 60) -> list[dict]:
+    """Sum buy (inflow) and sell (outflow) dollars per calendar day.
+
+    Insider amounts are already signed (+ buy / − sell). Congress disclosures
+    are bands; the midpoint of the band is used so a $1M–$5M sale does not
+    count as a $5M day.
+    """
+    from collections import defaultdict
+
+    window = max(1, days)
+    start = dt.date.today() - dt.timedelta(days=window - 1)
+    buckets: dict[tuple[str, str], list[float]] = defaultdict(lambda: [0.0, 0.0])
+
+    for r in insiders or []:
+        day = (r.get("filed") or "")[:10]
+        if not day or day < start.isoformat():
+            continue
+        amt = float(r.get("amount") or 0)
+        if amt > 0:
+            buckets[("insider", day)][0] += amt
+        elif amt < 0:
+            buckets[("insider", day)][1] += abs(amt)
+
+    for r in congress or []:
+        day = (r.get("disclosed") or "")[:10]
+        if not day or day < start.isoformat():
+            continue
+        mid = _congress_amount_mid(r.get("amount"))
+        if mid <= 0:
+            continue
+        side = str(r.get("side") or "").lower()
+        if side.startswith("buy") or "purchase" in side or "receive" in side:
+            buckets[("congress", day)][0] += mid
+        elif side.startswith("sell") or "sale" in side or "sell" in side:
+            buckets[("congress", day)][1] += mid
+
+    # Emit every calendar day in the window so the chart has a bar slot even
+    # on quiet days (drawn as zero-height).
+    out: list[dict] = []
+    for i in range(window):
+        day = (start + dt.timedelta(days=i)).isoformat()
+        for kind in ("insider", "congress"):
+            inflow, outflow = buckets.get((kind, day), [0.0, 0.0])
+            out.append({
+                "kind": kind,
+                "day": day,
+                "inflow": inflow,
+                "outflow": outflow,
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Earnings calendar
+# ---------------------------------------------------------------------------
+
+# FMP's earnings-calendar returns at most ~4000 rows and prefers the back of
+# a wide window, so a single 60-day pull silently drops the current week.
+# Pull week-sized chunks and merge.
+_EARNINGS_CHUNK_DAYS = 7
+
+
+def earnings_calendar(start: dt.date | None = None,
+                      end: dt.date | None = None) -> list[dict]:
+    """Upcoming and recent earnings announcements from FMP.
+
+    ``from``/``to`` are capped by FMP (about three months). The worker asks for
+    a short window around today so the Earnings page can scroll a week at a
+    time without storing the whole universe forever.
+    """
+    start = start or (dt.date.today() - dt.timedelta(days=7))
+    end = end or (dt.date.today() + dt.timedelta(days=90))
+    if end < start:
+        start, end = end, start
+
+    by_key: dict[tuple[str, str], dict] = {}
+    cursor = start
+    while cursor <= end:
+        chunk_end = min(cursor + dt.timedelta(days=_EARNINGS_CHUNK_DAYS - 1), end)
+        rows = _get("earnings-calendar",
+                    **{"from": cursor.isoformat(), "to": chunk_end.isoformat()}) or []
+        for r in rows:
+            sym = (r.get("symbol") or "").upper().strip()
+            day = (r.get("date") or "")[:10]
+            if not sym or not day:
+                continue
+            by_key[(day, sym)] = {
+                "date": day,
+                "symbol": sym,
+                "eps_actual": r.get("epsActual"),
+                "eps_estimated": r.get("epsEstimated"),
+                "revenue_actual": r.get("revenueActual"),
+                "revenue_estimated": r.get("revenueEstimated"),
+                # Stable calendar often omits timing / fiscal-end; keep both
+                # spellings so a plan that still sends them is not dropped.
+                "time": (r.get("time") or r.get("when") or "")[:16] or None,
+                "fiscal_date": (r.get("fiscalDateEnding") or r.get("fiscalDate")
+                                or "")[:10] or None,
+            }
+        cursor = chunk_end + dt.timedelta(days=1)
+
+    out = list(by_key.values())
+    out.sort(key=lambda x: (x["date"], x["symbol"]))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Economic calendar (US macro releases — jobs, CPI, FOMC, etc.)
+# ---------------------------------------------------------------------------
+
+def economic_calendar(start: dt.date | None = None,
+                      end: dt.date | None = None,
+                      country: str = "US") -> list[dict]:
+    """Scheduled economic data releases from FMP ``economic-calendar``.
+
+    Same shape as MarketWatch's economy calendar: unemployment, CPI, Fed
+    decisions, GDP, and other high-impact prints. FMP caps the window at
+    about 90 days; the worker keeps a month behind and ~two months ahead.
+    """
+    start = start or (dt.date.today() - dt.timedelta(days=14))
+    end = end or (dt.date.today() + dt.timedelta(days=60))
+    if end < start:
+        start, end = end, start
+
+    rows = _get("economic-calendar",
+                **{"from": start.isoformat(), "to": end.isoformat()}) or []
+    want = (country or "US").upper()
+    out: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+    for r in rows:
+        ctry = (r.get("country") or "").upper().strip() or "US"
+        if want and ctry != want:
+            continue
+        raw = (r.get("date") or "").strip()
+        day = raw[:10]
+        if not day or len(day) < 10:
+            continue
+        time_part = raw[11:16] if len(raw) >= 16 else None
+        event = (r.get("event") or "").strip()
+        if not event:
+            continue
+        key = (day, ctry, event)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "date": day,
+            "time": time_part,
+            "country": ctry,
+            "currency": (r.get("currency") or "")[:8] or None,
+            "event": event[:200],
+            "impact": (r.get("impact") or "")[:16] or None,
+            "previous": r.get("previous"),
+            "estimate": r.get("estimate"),
+            "actual": r.get("actual"),
+            "change": r.get("change"),
+            "changePct": r.get("changePercentage"),
+        })
+    out.sort(key=lambda x: (x["date"], x["event"]))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -510,19 +1603,30 @@ def _trim_company(name: str) -> str:
     return name
 
 
+# Policy / geopolitics subjects the Discover rail on Markets Today also
+# surfaces. Appended to the chip catalogue so the News page can filter them.
+_POLICY_TOPICS: list[tuple[str, str]] = [
+    ("War",            "war"),
+    ("Sanctions",      "sanction"),
+    ("Geopolitics",    "geopolit"),
+]
+
+
 def _topics(companies: list[tuple[str, str]]) -> list[dict]:
     """The catalogue of chips: what each one says, and what it searches for.
 
-    Deliberately uncounted. Counting here would mean counting the batch just
-    fetched, while the filter searches a seven-day window -- the two disagreed
-    badly enough that "Nasdaq" read 2 and opened on 21 stories. The count is
-    computed in get_news against the same rows the filter reads.
+    Deliberately uncounted here. Counting the batch just fetched disagreed
+    with the seven-day filter badly enough that "Nasdaq" read 2 and opened
+    on 21 stories. upsert_news counts each chip against the stored corpus
+    with the same match rules as the filter; get_news only reads those
+    numbers so the page cannot time out recounting them.
 
     `ord` is the position: for companies that is market-cap rank, which is the
     order they are shown in and the reason they are on the list at all.
     """
+    topics = list(_TOPICS) + _POLICY_TOPICS
     out = [{"word": label, "query": query, "kind": "topic", "ord": i}
-           for i, (label, query) in enumerate(_TOPICS)]
+           for i, (label, query) in enumerate(topics)]
     out += [{"word": name, "query": ticker, "kind": "company", "ord": i}
             for i, (ticker, name) in enumerate(companies)]
     return out
@@ -565,7 +1669,9 @@ def news(limit: int = 120) -> tuple[list[dict], list[dict]]:
     uniq.sort(key=lambda r: r["published"] or "", reverse=True)
 
     try:
-        companies = top_by_cap(8)
+        # Discover on Markets Today covers the twenty largest names; keep the
+        # chip catalogue aligned so those tickers are tagged in the corpus.
+        companies = top_by_cap(20)
     except MarketError:
         companies = []
     return uniq[:limit * 2], _topics(companies)
@@ -594,17 +1700,35 @@ SECTOR_ETF = {
 
 
 def profile(symbol: str) -> dict | None:
-    """Sector and industry, which decide the benchmark and the peer PE."""
+    """Company identity from FMP /profile.
+
+    Sector and industry decide the benchmark and peer PE. The rest (CEO, IPO,
+    employees, description, …) fills the flip side of the price metrics card.
+    """
     rows = _get("profile", symbol=symbol) or []
     if not rows:
         return None
     r = rows[0]
+    employees = r.get("fullTimeEmployees")
+    try:
+        employees = int(employees) if employees not in (None, "") else None
+    except (TypeError, ValueError):
+        employees = None
     return {
         "symbol": r.get("symbol"),
         "name": r.get("companyName"),
         "sector": r.get("sector"),
         "industry": r.get("industry"),
         "exchange": r.get("exchangeShortName") or r.get("exchange"),
+        "exchangeFull": r.get("exchangeFullName") or r.get("exchange"),
+        "ceo": r.get("ceo") or None,
+        "ipoDate": (r.get("ipoDate") or "")[:10] or None,
+        "employees": employees,
+        "country": r.get("country") or None,
+        "description": r.get("description") or None,
+        "website": r.get("website") or None,
+        "city": r.get("city") or None,
+        "state": r.get("state") or None,
     }
 
 
@@ -632,6 +1756,57 @@ def monthly_closes(symbol: str, years: int = 11) -> list[dict]:
     for b in closes(symbol, years):
         last[b["d"][:7]] = b            # ascending, so the last write wins
     return [last[k] for k in sorted(last)]
+
+
+def pe_history(symbol: str, limit: int = 40) -> list[dict]:
+    """Historical price/earnings from FMP key-metrics, oldest first.
+
+    The company page's P/E chart uses this rather than reconstructing TTM from
+    sparse filing EPS (which misleads on FPIs that only tag some quarters).
+    The price panel's current P/E still comes from ratios-ttm via quote_detail.
+    """
+    rows = _get("key-metrics", symbol=symbol, period="quarter", limit=limit) or []
+    out = []
+    for r in rows:
+        pe = r.get("peRatio")
+        if pe is None:
+            pe = r.get("priceToEarningsRatio")
+        d = r.get("date")
+        if d and pe is not None:
+            try:
+                pe_f = float(pe)
+            except (TypeError, ValueError):
+                continue
+            if pe_f > 0:
+                out.append({"d": d, "pe": pe_f})
+    out.sort(key=lambda p: p["d"])
+    return out
+
+
+def employee_history(symbol: str) -> list[dict]:
+    """Annual headcount from FMP historical-employee-count, oldest first.
+
+    Counts come from 10-K filings (periodOfReport). The revenue chart joins
+    each quarter to the latest count on or before that quarter's period end.
+    """
+    rows = _get("historical-employee-count", symbol=symbol) or []
+    out: list[dict] = []
+    for r in rows:
+        d = (r.get("periodOfReport") or r.get("filingDate") or "")[:10]
+        n = r.get("employeeCount")
+        if not d or n in (None, ""):
+            continue
+        try:
+            count = int(n)
+        except (TypeError, ValueError):
+            continue
+        if count > 0:
+            out.append({"d": d, "n": count})
+    # Prefer the later filing when the same period appears twice.
+    by_day: dict[str, int] = {}
+    for row in sorted(out, key=lambda p: p["d"]):
+        by_day[row["d"]] = row["n"]
+    return [{"d": d, "n": by_day[d]} for d in sorted(by_day)]
 
 
 def industry_pe(day: dt.date | None = None, look_back: int = 6) -> tuple[list[dict], str | None]:
@@ -867,4 +2042,363 @@ def analyst_view(symbol: str, houses: int = 14, stories: int = 6) -> dict:
     except MarketError:
         pass
 
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Logo.dev — company / crypto logos (publishable key; worker caches bytes)
+# ---------------------------------------------------------------------------
+
+# Safe to ship client-side; override via env if the key rotates.
+LOGO_DEV_KEY = os.environ.get(
+    "LOGO_DEV_PUBLISHABLE_KEY", "pk_RQkedGufR1uCvTvlztKeQg")
+LOGO_DEV_BASE = "https://img.logo.dev"
+_LOGO_MIN_INTERVAL = 0.2
+_logo_last = [0.0]
+
+# Well-known large-cap cryptos when FMP quote ranking is unavailable.
+_TOP_CRYPTO_FALLBACK = [
+    "BTCUSD", "ETHUSD", "BNBUSD", "XRPUSD", "SOLUSD", "ADAUSD", "DOGEUSD",
+    "TRXUSD", "TONUSD", "AVAXUSD", "LINKUSD", "DOTUSD", "MATICUSD", "SHIBUSD",
+    "LTCUSD", "BCHUSD", "UNIUSD", "ATOMUSD", "XLMUSD", "NEARUSD", "APTUSD",
+    "ICPUSD", "FILUSD", "ARBUSD", "OPUSD", "VETUSD", "HBARUSD", "AAVEUSD",
+    "MKRUSD", "GRTUSD", "SANDUSD", "MANAUSD", "AXSUSD", "EGLDUSD", "FTMUSD",
+    "ALGOUSD", "XTZUSD", "EOSUSD", "FLOWUSD", "THETAUSD", "SUIUSD", "SEIUSD",
+    "INJUSD", "IMXUSD", "RNDRUSD", "PEPEUSD", "WIFUSD", "BONKUSD", "FLRUSD",
+    "STXUSD", "TIAUSD", "RUNEUSD", "KASUSD", "CFXUSD", "GALAUSD", "ENSUSD",
+    "LDOUSD", "CRVUSD", "SNXUSD", "COMPUSD", "1INCHUSD", "ZRXUSD", "BATUSD",
+    "CHZUSD", "ENJUSD", "ROSEUSD", "KAVAUSD", "ZILUSD", "IOTAUSD", "QTUMUSD",
+    "DASHUSD", "ZECUSD", "XMRUSD", "NEOUSD", "WAVESUSD", "CAKEUSD", "DYDXUSD",
+    "GMTUSD", "APEUSD", "BLURUSD",
+]
+
+
+def crypto_base_symbol(symbol: str) -> str:
+    """Map FMP pair tickers (BTCUSD) to Logo.dev crypto ids (BTC)."""
+    s = (symbol or "").upper().strip()
+    for suffix in ("USD", "USDT", "USDC", "EUR", "GBP"):
+        if s.endswith(suffix) and len(s) > len(suffix):
+            return s[: -len(suffix)]
+    return s
+
+
+def logo_dev_url(symbol: str, kind: str = "stock", *, size: int = 128) -> str:
+    """CDN URL for one logo. ``fallback=404`` so we can detect misses."""
+    sym = (symbol or "").upper().strip()
+    if kind == "crypto":
+        path = f"crypto/{crypto_base_symbol(sym)}"
+    else:
+        path = f"ticker/{sym}"
+    q = urllib.parse.urlencode({
+        "token": LOGO_DEV_KEY,
+        "size": str(size),
+        "format": "png",
+        "fallback": "404",
+        "retina": "true",
+    })
+    return f"{LOGO_DEV_BASE}/{path}?{q}"
+
+
+def download_logo(symbol: str, kind: str = "stock", *, size: int = 128
+                  ) -> dict:
+    """Fetch one logo image. Returns a row ready for ``upsert_symbol_logos``."""
+    url = logo_dev_url(symbol, kind, size=size)
+    wait = _LOGO_MIN_INTERVAL - (time.time() - _logo_last[0])
+    if wait > 0:
+        time.sleep(wait)
+    _logo_last[0] = time.time()
+
+    row = {
+        "symbol": (symbol or "").upper().strip(),
+        "kind": "crypto" if kind == "crypto" else "stock",
+        "logoUrl": url,
+        "imageMime": None,
+        "imageB64": None,
+        "status": "missing",
+    }
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "TickerAlpha/1.0 (logo-cache)",
+            "Accept": "image/png,image/webp,image/jpeg,*/*",
+        })
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+            ctype = (resp.headers.get("Content-Type") or "image/png").split(";")[0].strip()
+            if not raw or len(raw) < 32:
+                row["status"] = "missing"
+                return row
+            row["imageMime"] = ctype if ctype.startswith("image/") else "image/png"
+            row["imageB64"] = base64.b64encode(raw).decode("ascii")
+            row["status"] = "ok"
+            return row
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            row["status"] = "missing"
+        else:
+            row["status"] = "error"
+        return row
+    except Exception:
+        row["status"] = "error"
+        return row
+
+
+_SYM_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+# Public constituent CSVs used when FMP's index endpoints are not on the plan.
+_INDEX_CSV = {
+    "sp500": (
+        "https://raw.githubusercontent.com/datasets/s-and-p-500-companies"
+        "/master/data/constituents.csv"),
+    "nasdaq100": (
+        "https://yfiua.github.io/index-constituents/constituents-nasdaq100.csv"),
+    "dowjones": (
+        "https://yfiua.github.io/index-constituents/constituents-dowjones.csv"),
+}
+
+
+def _normalize_symbol(raw: str) -> str | None:
+    sym = (raw or "").upper().strip().replace("/", ".")
+    # Wikipedia / some CSVs use BRK-B; Logo.dev and FMP prefer BRK.B.
+    if "-" in sym and re.match(r"^[A-Z]+-[A-Z]$", sym):
+        sym = sym.replace("-", ".")
+    if not sym or not _SYM_RE.match(sym):
+        return None
+    return sym
+
+
+def _add_symbol(raw: str, out: list[str], seen: set[str]) -> None:
+    sym = _normalize_symbol(raw)
+    if not sym or sym in seen:
+        return
+    seen.add(sym)
+    out.append(sym)
+
+
+def _symbols_from_fmp(path: str) -> list[str]:
+    if not KEY:
+        return []
+    try:
+        rows = _get(path) or []
+    except MarketError:
+        return []
+    out, seen = [], set()
+    for r in rows:
+        if isinstance(r, dict):
+            _add_symbol(r.get("symbol") or "", out, seen)
+    return out
+
+
+def _symbols_from_csv(url: str) -> list[str]:
+    """First-column ticker CSV (header row skipped)."""
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "TickerAlpha/1.0 (logo-priority)"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            text = resp.read().decode("utf-8", "replace")
+    except Exception:
+        return []
+    out, seen = [], set()
+    for i, line in enumerate(text.splitlines()):
+        if i == 0 or not line.strip():
+            continue
+        _add_symbol(line.split(",", 1)[0].strip().strip('"'), out, seen)
+    return out
+
+
+def _symbols_from_wikipedia(title: str) -> list[str]:
+    """Tickers from the first Symbol/Ticker column of a Wikipedia wikitable."""
+    url = "https://en.wikipedia.org/wiki/" + urllib.parse.quote(title)
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "TickerAlpha/1.0 (logo-priority)"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            html = resp.read().decode("utf-8", "replace")
+    except Exception:
+        return []
+    tables = re.findall(
+        r'<table[^>]*class="[^"]*wikitable[^"]*"[^>]*>(.*?)</table>',
+        html, re.S | re.I)
+    out, seen = [], set()
+    for table in tables:
+        header = re.search(r"<tr[^>]*>(.*?)</tr>", table, re.S | re.I)
+        if not header:
+            continue
+        cells = re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", header.group(1), re.S | re.I)
+        col = -1
+        for i, cell in enumerate(cells):
+            plain = re.sub(r"<[^>]+>", "", cell).strip().lower()
+            if plain in ("symbol", "ticker", "ticker symbol"):
+                col = i
+                break
+        if col < 0:
+            continue
+        for row_html in re.findall(r"<tr[^>]*>(.*?)</tr>", table, re.S | re.I)[1:]:
+            row_cells = re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", row_html, re.S | re.I)
+            if col >= len(row_cells):
+                continue
+            plain = re.sub(r"<[^>]+>", " ", row_cells[col])
+            plain = re.sub(r"\s+", " ", plain).strip()
+            # Prefer the first token that looks like a ticker.
+            for tok in re.split(r"[\s,;/]+", plain):
+                if _normalize_symbol(tok):
+                    _add_symbol(tok, out, seen)
+                    break
+        if out:
+            break
+    return out
+
+
+def sp500_symbols() -> list[str]:
+    """S&P 500 tickers for logo priority (FMP, else public CSV)."""
+    out = _symbols_from_fmp("sp500-constituent")
+    if len(out) < 100:
+        for sym in _symbols_from_csv(_INDEX_CSV["sp500"]):
+            if sym not in out:
+                out.append(sym)
+    if len(out) < 40:
+        for sym in HEATMAP_UNIVERSE:
+            if _normalize_symbol(sym) and sym not in out:
+                out.append(sym)
+    out.sort()
+    return out
+
+
+def nasdaq100_symbols() -> list[str]:
+    """Nasdaq-100 tickers for logo priority."""
+    out = _symbols_from_fmp("nasdaq-constituent")
+    if len(out) < 50:
+        for sym in _symbols_from_csv(_INDEX_CSV["nasdaq100"]):
+            if sym not in out:
+                out.append(sym)
+    if len(out) < 50:
+        for sym in _symbols_from_wikipedia("Nasdaq-100"):
+            if sym not in out:
+                out.append(sym)
+    out.sort()
+    return out
+
+
+def dowjones_symbols() -> list[str]:
+    """Dow Jones Industrial Average tickers for logo priority."""
+    out = _symbols_from_fmp("dowjones-constituent")
+    if len(out) < 20:
+        for sym in _symbols_from_csv(_INDEX_CSV["dowjones"]):
+            if sym not in out:
+                out.append(sym)
+    if len(out) < 20:
+        for sym in _symbols_from_wikipedia("Dow_Jones_Industrial_Average"):
+            if sym not in out:
+                out.append(sym)
+    out.sort()
+    return out
+
+
+def russell1000_symbols() -> list[str]:
+    """Russell 1000 tickers for logo priority (Wikipedia; FMP has no stable list)."""
+    out = _symbols_from_wikipedia("Russell_1000_Index")
+    out.sort()
+    return out
+
+
+def common_stock_symbols(limit: int = 2000) -> list[str]:
+    """Actively traded common stocks (ex-ETF/fund), ranked by market cap."""
+    limit = max(1, min(int(limit or 2000), 5000))
+    if not KEY:
+        return []
+    try:
+        rows = _get(
+            "company-screener",
+            marketCapMoreThan=int(5e8),
+            isActivelyTrading="true",
+            isEtf="false",
+            isFund="false",
+            limit=limit,
+        ) or []
+    except MarketError:
+        return []
+    scored: list[tuple[float, str]] = []
+    seen = set()
+    for r in rows:
+        sym = _normalize_symbol(r.get("symbol") or "")
+        if not sym or sym in seen:
+            continue
+        if r.get("isEtf") or r.get("isFund"):
+            continue
+        try:
+            cap = float(r.get("marketCap") or 0)
+        except (TypeError, ValueError):
+            cap = 0.0
+        seen.add(sym)
+        scored.append((cap, sym))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [s for _, s in scored[:limit]]
+
+
+def top_crypto_by_cap(n: int = 80) -> list[str]:
+    """Top cryptocurrencies by market cap (FMP quotes), for logo priority."""
+    n = max(1, min(int(n or 80), 120))
+    if KEY:
+        try:
+            listed = crypto_list()
+            caps: list[tuple[float, str]] = []
+            chunk = 50
+            syms = [r["symbol"] for r in listed]
+            for i in range(0, min(len(syms), 600), chunk):
+                batch = syms[i:i + chunk]
+                for q in quotes(batch) or []:
+                    sym = (q.get("symbol") or "").upper().strip()
+                    cap = q.get("marketCap")
+                    try:
+                        cap_f = float(cap) if cap is not None else 0.0
+                    except (TypeError, ValueError):
+                        cap_f = 0.0
+                    if sym and cap_f > 0:
+                        caps.append((cap_f, sym))
+            if caps:
+                caps.sort(key=lambda x: x[0], reverse=True)
+                return [s for _, s in caps[:n]]
+        except MarketError:
+            pass
+    # Extend the hardcoded fallback if more than its length is requested.
+    base = list(_TOP_CRYPTO_FALLBACK)
+    return base[:n] if n <= len(base) else base
+
+
+def logo_priority_targets(crypto_n: int = 80,
+                          common_n: int = 2000) -> list[dict]:
+    """Index equities + common stocks + top crypto for Logo.dev backfill.
+
+    Sources (unioned, de-duplicated):
+      S&P 500, Nasdaq-100, Dow Jones, Russell 1000, common stocks (screener),
+      and the top ``crypto_n`` cryptocurrencies by market cap.
+    """
+    out, seen = [], set()
+
+    def add_stock(sym: str) -> None:
+        if sym in seen:
+            return
+        seen.add(sym)
+        out.append({"symbol": sym, "kind": "stock"})
+
+    for sym in sp500_symbols():
+        add_stock(sym)
+    for sym in nasdaq100_symbols():
+        add_stock(sym)
+    for sym in dowjones_symbols():
+        add_stock(sym)
+    for sym in russell1000_symbols():
+        add_stock(sym)
+    for sym in common_stock_symbols(common_n):
+        add_stock(sym)
+
+    for sym in top_crypto_by_cap(crypto_n):
+        if sym in seen:
+            continue
+        seen.add(sym)
+        out.append({"symbol": sym, "kind": "crypto"})
+
+    if not any(t["kind"] == "stock" for t in out):
+        for sym in ("AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "BRK.B",
+                    "TSLA", "JPM", "V", "UNH", "XOM", "JNJ", "WMT", "MA"):
+            add_stock(sym)
     return out

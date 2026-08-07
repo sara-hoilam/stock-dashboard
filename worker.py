@@ -7,8 +7,12 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py backfill           drain the request queue once
     python worker.py sweep [YYYY-MM-DD] ingest that day's new 10-Q/10-K
     python worker.py market             refresh prices, movers and sectors
+    python worker.py indexes            refresh SPX / IXIC / DJI quotes + holdings
     python worker.py sections           refresh heatmap, rotation and trades
     python worker.py news               refresh market news
+    python worker.py earnings           refresh earnings calendar
+    python worker.py economics          refresh US economic calendar
+    python worker.py logos [N]          cache Logo.dev images (S&P 500 + crypto)
     python worker.py prices [TICKER...] fill price requests, or named symbols
     python worker.py analyst [TICKER...] fill coverage requests, or named symbols
     python worker.py intraday TICKER    refresh one chart series
@@ -53,7 +57,40 @@ def sync_directory() -> int:
     rows = edgar.ticker_directory()
     n = store.upsert_directory(rows)
     log(f"directory: {len(rows):,} tickers upserted ({n:,} rows written)")
+    # ETF + crypto lists power portfolio / nav search for symbols the SEC
+    # directory does not carry (VOO, BTCUSD, …).
+    try:
+        sync_market_symbols()
+    except Exception as exc:
+        log(f"  market symbols: {exc}")
     return len(rows)
+
+
+def sync_market_symbols() -> int:
+    """Refresh FMP ETF and cryptocurrency symbol directories."""
+    if not market.configured():
+        log("market symbols: FMP_API_KEY not set — skipped")
+        return 0
+    total = 0
+    try:
+        etfs = market.etf_list()
+        n = store.upsert_market_symbols(etfs)
+        total += n
+        log(f"market symbols: {len(etfs):,} ETFs ({n:,} rows written)")
+    except market.MarketError as exc:
+        log(f"  etf-list: {exc}")
+    except store.StoreError as exc:
+        log(f"  etf-list write: {exc}")
+    try:
+        coins = market.crypto_list()
+        n = store.upsert_market_symbols(coins)
+        total += n
+        log(f"market symbols: {len(coins):,} crypto ({n:,} rows written)")
+    except market.MarketError as exc:
+        log(f"  cryptocurrency-list: {exc}")
+    except store.StoreError as exc:
+        log(f"  cryptocurrency-list write: {exc}")
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +271,13 @@ WATCHLIST = os.environ.get("WATCHLIST", "").split(",") if os.environ.get("WATCHL
     "AVGO", "JPM", "UBER", "COIN", "MU", "NFLX",
 ]
 
+# How many followed companies get a chart series on every market pass. One
+# FMP request each, so this is the cost of the feature: at the default
+# fifteen-minute cadence, forty names is 160 requests an hour. Raise it when
+# the plan allows; anything past the cap still gets a series the moment
+# someone opens it, through the request queue.
+FOLLOWED_CHARTS = int(os.environ.get("FOLLOWED_CHART_LIMIT", "40"))
+
 
 def refresh_market() -> bool:
     """Pull the day's market picture into Supabase.
@@ -260,16 +304,38 @@ def refresh_market() -> bool:
         except market.MarketError as exc:
             log(f"  movers {kind}: {exc}")
 
-    quotes = market.quotes(WATCHLIST)
+    # Chart series for the watchlist and for the top few movers, so every
+    # view of the summary list has something to draw when it is opened --
+    # and for what people actually follow, which is the only part of this
+    # list that is not known in advance.
+    followed: list[str] = []
+    try:
+        followed = store.watchlisted_symbols(FOLLOWED_CHARTS)
+    except store.StoreError as exc:
+        # 0020 not applied yet. Followed companies still get a series from the
+        # request queue when someone opens one; they just are not pre-fetched.
+        log(f"  followed symbols unavailable (apply 0020_intraday_requests.sql): {exc}")
+
+    pending: list[str] = []
+    try:
+        pending = store.pending_prices(FOLLOWED_CHARTS)
+    except store.StoreError as exc:
+        log(f"  pending prices unavailable: {exc}")
+
+    # Quotes feed the watchlist price column and the tape. The hardcoded
+    # WATCHLIST alone left followed names (AZN, HOOD, …) with a chart but
+    # "—" for the price, so anything people follow or have asked about is
+    # quoted here too.
+    quote_syms = list(dict.fromkeys(WATCHLIST + followed + pending))
+    quotes = market.quotes(quote_syms)
     if quotes:
         store.upsert_quotes(quotes)
 
-    # Chart series for the watchlist and for the top few movers, so every
-    # view of the summary list has something to draw when it is opened.
     chart_syms = list(dict.fromkeys(
         WATCHLIST
         + [r["symbol"] for r in (store_movers.get("gainer") or [])[:6]]
-        + [r["symbol"] for r in (store_movers.get("loser") or [])[:6]]))
+        + [r["symbol"] for r in (store_movers.get("loser") or [])[:6]]
+        + followed))
     for sym in chart_syms:
         try:
             pts = market.intraday(sym, days=2)
@@ -289,9 +355,133 @@ def refresh_market() -> bool:
     except (market.MarketError, store.StoreError) as exc:
         log(f"  fear&greed: {exc}")
 
+    try:
+        refresh_indexes(holdings=False)
+    except Exception as exc:
+        log(f"  indexes: {exc}")
+
     log(f"market: {len(sectors)} sectors, {len(quotes)} quotes, "
         f"{len(chart_syms)} charts, as of {as_of}, {time.time()-started:.1f}s")
     return True
+
+
+def refresh_indexes(holdings: bool = True) -> bool:
+    """Quotes, daily bars, search rows, and optional holdings for SPX/IXIC/DJI.
+
+    FMP serves caret symbols (^GSPC…); we store searchable aliases. Holdings
+    hit public constituent CSVs + the screener, so they run on the slower
+    sections cadence unless ``holdings`` is forced.
+    """
+    if not market.configured():
+        return False
+    sym_rows = [{
+        "symbol": alias,
+        "name": meta["name"],
+        "kind": "index",
+        "exchange": meta.get("exchange") or "INDEX",
+    } for alias, meta in market.INDEXES.items()]
+    try:
+        store.upsert_market_symbols(sym_rows)
+    except store.StoreError as exc:
+        log(f"  index symbols: {exc}")
+
+    quotes = market.index_quotes()
+    if quotes:
+        store.upsert_quotes([{
+            "symbol": q["symbol"],
+            "name": q.get("name"),
+            "price": q.get("price"),
+            "change": q.get("change"),
+            "change_pct": q.get("change_pct"),
+            "volume": q.get("volume"),
+            "market_cap": q.get("market_cap"),
+            "exchange": q.get("exchange"),
+        } for q in quotes])
+
+    for alias in market.INDEXES:
+        try:
+            fetch_index_prices(alias)
+        except Exception as exc:
+            log(f"  index prices {alias}: {exc}")
+
+    if holdings:
+        for alias in market.INDEXES:
+            try:
+                rows = market.index_holdings(alias)
+                if rows:
+                    n = store.replace_index_holdings(alias, rows)
+                    log(f"  index holdings {alias}: {n} rows")
+                    # Warm quotes so the holdings table can show today's % move.
+                    members = [r["symbol"] for r in rows if r.get("symbol")]
+                    for i in range(0, len(members), 50):
+                        try:
+                            batch = market.quotes(members[i:i + 50]) or []
+                            if batch:
+                                store.upsert_quotes([{
+                                    "symbol": x["symbol"],
+                                    "name": x.get("name"),
+                                    "price": x.get("price"),
+                                    "change": x.get("change"),
+                                    "change_pct": x.get("change_pct"),
+                                    "volume": x.get("volume"),
+                                    "market_cap": x.get("market_cap"),
+                                    "exchange": x.get("exchange"),
+                                } for x in batch if x.get("symbol")])
+                        except market.MarketError as exc:
+                            log(f"  index holding quotes {alias}: {exc}")
+                            break
+            except Exception as exc:
+                log(f"  index holdings {alias}: {exc}")
+
+    log(f"indexes: {len(quotes)} quotes"
+        + (" + holdings" if holdings else ""))
+    return bool(quotes)
+
+
+def fetch_index_prices(alias: str) -> bool:
+    """Daily bars, quote, monthly closes, and PE history for one index alias."""
+    sym = (alias or "").upper()
+    if sym not in market.INDEXES:
+        return False
+    meta = market.INDEXES[sym]
+    q = market.index_quote(sym)
+    # ~25 years of daily bars for all-time-high drawdown + historical
+    # probability guides on the index drawdown chart.
+    bars = market.index_history(sym, 6500)
+    quote_detail = None
+    if q:
+        quote_detail = {
+            "name": q.get("name"),
+            "price": q.get("price"),
+            "change": q.get("change"),
+            "change_pct": q.get("change_pct"),
+            "day_low": q.get("day_low"),
+            "day_high": q.get("day_high"),
+            "volume": q.get("volume"),
+            "market_cap": q.get("market_cap"),
+            "exchange": q.get("exchange"),
+        }
+    store.upsert_prices(sym, bars, quote_detail, bars[-1]["d"] if bars else None)
+
+    # Seasonality + PE comparison chart on the index ticker page.
+    try:
+        monthly = market.monthly_closes(meta["fmp"], 11)
+    except Exception as exc:
+        log(f"  index monthly {sym}: {exc}")
+        monthly = []
+    try:
+        pe_hist = market.index_forward_pe_history(sym, years=10)
+    except Exception as exc:
+        log(f"  index pe {sym}: {exc}")
+        pe_hist = []
+    if monthly or pe_hist:
+        try:
+            store.upsert_company_extras(
+                sym, monthly or None, None, None, pe_hist or None)
+        except store.StoreError as exc:
+            log(f"  index extras {sym}: {exc}")
+
+    return bool(bars)
 
 
 def refresh_news() -> bool:
@@ -314,6 +504,14 @@ def fetch_prices(symbol: str) -> bool:
     if not market.configured():
         return False
     sym = symbol.upper()
+    # Indexes are quoted under caret symbols at FMP; route by alias.
+    if sym in market.INDEXES:
+        try:
+            return fetch_index_prices(sym)
+        except Exception as exc:
+            log(f"  prices {sym}: {exc}")
+            store.upsert_prices(sym, [], None, None)
+            return False
     try:
         bars = market.daily(sym, 300)
         q = market.quote_detail(sym)
@@ -324,6 +522,24 @@ def fetch_prices(symbol: str) -> bool:
         return False
     store.upsert_prices(sym, bars, q, bars[-1]["d"] if bars else None)
 
+    # Keep the summary quote in sync too. fetch_prices writes quote_detail for
+    # the company page; without this, a watchlisted symbol that was never on
+    # the hardcoded WATCHLIST still shows "—" on Markets Today.
+    if q and q.get("price") is not None:
+        try:
+            store.upsert_quotes([{
+                "symbol": q.get("symbol") or sym,
+                "name": q.get("name"),
+                "price": q.get("price"),
+                "change": q.get("change"),
+                "change_pct": q.get("change_pct"),
+                "volume": q.get("volume"),
+                "market_cap": q.get("market_cap"),
+                "exchange": q.get("exchange"),
+            }])
+        except store.StoreError as exc:
+            log(f"  quote {sym}: {exc}")
+
     # The report also plots this company against its sector and over ten years
     # of months. Both come off the same visit, so they are fetched here rather
     # than through a second queue.
@@ -331,21 +547,141 @@ def fetch_prices(symbol: str) -> bool:
     try:
         prof = market.profile(sym) or {}
         monthly = market.monthly_closes(sym, 11)
-        store.upsert_company_extras(sym, monthly, prof.get("sector"),
-                                    prof.get("industry"))
+        pe_hist: list[dict] = []
+        emp_hist: list[dict] = []
+        try:
+            pe_hist = market.pe_history(sym)
+        except market.MarketError as exc:
+            log(f"  pe history {sym}: {exc}")
+        try:
+            emp_hist = market.employee_history(sym)
+        except market.MarketError as exc:
+            log(f"  employee history {sym}: {exc}")
+        try:
+            store.upsert_company_extras(
+                sym, monthly, prof.get("sector"), prof.get("industry"),
+                pe_hist or None, prof or None, emp_hist if emp_hist is not None else [])
+        except store.StoreError as exc:
+            # Older migrations: peel off the newest optional args one by one.
+            log(f"  extras write failed ({exc}); falling back")
+            try:
+                store.upsert_company_extras(
+                    sym, monthly, prof.get("sector"), prof.get("industry"),
+                    pe_hist or None, prof or None)
+            except store.StoreError:
+                try:
+                    store.upsert_company_extras(
+                        sym, monthly, prof.get("sector"), prof.get("industry"),
+                        pe_hist or None)
+                except store.StoreError:
+                    store.upsert_company_extras(
+                        sym, monthly, prof.get("sector"), prof.get("industry"))
         extras = f", {len(monthly)} months, {prof.get('sector') or 'no sector'}"
+        if pe_hist:
+            extras += f", {len(pe_hist)} pe"
+        if emp_hist:
+            extras += f", {len(emp_hist)} headcount"
+        if prof.get("ceo") or prof.get("description"):
+            extras += ", profile"
         etf = market.SECTOR_ETF.get(prof.get("sector") or "")
         if etf:
             fetch_benchmark(etf)
     except market.MarketError as exc:
+        log(f"  extras {sym}: {exc}")
+    except store.StoreError as exc:
         log(f"  extras {sym}: {exc}")
 
     # Analyst coverage rides along with the same visit.
     if fetch_analyst(sym):
         extras += ", analysts"
 
+    # Dividend history for the portfolio Dividend column (ex-date + amount).
+    try:
+        divs = market.dividends(sym)
+        n_div = store.replace_symbol_dividends(sym, divs)
+        if divs:
+            extras += f", {n_div} dividends"
+    except market.MarketError as exc:
+        log(f"  dividends {sym}: {exc}")
+    except store.StoreError as exc:
+        log(f"  dividends {sym}: {exc}")
+
     log(f"prices {sym}: {len(bars)} bars{', quote' if q else ', no quote'}{extras}")
     return True
+
+
+def fill_company_profile(symbol: str) -> bool:
+    """Write FMP /profile (+ headcount history) onto an existing price_daily row."""
+    if not market.configured():
+        return False
+    sym = symbol.upper()
+    try:
+        prof = market.profile(sym)
+    except market.MarketError as exc:
+        log(f"  profile {sym}: {exc}")
+        return False
+    if not prof:
+        return False
+    emp_hist: list[dict] = []
+    try:
+        emp_hist = market.employee_history(sym)
+    except market.MarketError as exc:
+        log(f"  employee history {sym}: {exc}")
+    try:
+        store.upsert_company_extras(sym, None, prof.get("sector"),
+                                    prof.get("industry"), None, prof,
+                                    emp_hist)
+    except store.StoreError:
+        try:
+            store.upsert_company_extras(sym, None, prof.get("sector"),
+                                        prof.get("industry"), None, prof)
+        except store.StoreError as exc:
+            log(f"  profile write {sym}: {exc}")
+            return False
+    log(f"profile {sym}: {prof.get('name') or sym}"
+        f"{', ' + prof['ceo'] if prof.get('ceo') else ''}"
+        f"{', ' + str(len(emp_hist)) + ' headcount' if emp_hist else ''}")
+    return True
+
+
+def fill_employee_history(symbol: str) -> bool:
+    """Write FMP headcount history only (for the revenue / employee line)."""
+    if not market.configured():
+        return False
+    sym = symbol.upper()
+    try:
+        emp_hist = market.employee_history(sym)
+    except market.MarketError as exc:
+        log(f"  employee history {sym}: {exc}")
+        return False
+    try:
+        store.upsert_company_extras(sym, None, None, None, None, None, emp_hist)
+    except store.StoreError as exc:
+        log(f"  employee history write {sym}: {exc}")
+        return False
+    log(f"employee history {sym}: {len(emp_hist)} year(s)")
+    return True
+
+
+def drain_profiles(max_items: int = 15) -> int:
+    """Fill About-card profiles for symbols that already have prices."""
+    try:
+        pending = store.pending_profiles(max_items)
+    except store.StoreError as exc:
+        log(f"  profile queue unavailable (apply 0031_pending_profiles.sql): {exc}")
+        return 0
+    return sum(1 for sym in pending if fill_company_profile(sym))
+
+
+def drain_employee_history(max_items: int = 15) -> int:
+    """Fill headcount history for symbols missing the revenue / employee series."""
+    try:
+        pending = store.pending_employee_history(max_items)
+    except store.StoreError as exc:
+        log(f"  employee-history queue unavailable "
+            f"(apply 0033_pending_employee_history.sql): {exc}")
+        return 0
+    return sum(1 for sym in pending if fill_employee_history(sym))
 
 
 def fetch_analyst(symbol: str) -> bool:
@@ -468,14 +804,162 @@ def refresh_sections() -> bool:
         hist = []
 
     try:
-        ins, con = market.insider_trades(40), market.congress_trades(40)
-        store.replace_trades(ins, con)
+        # Pull sixty days once. FMP caps page at 100, so the worker uses
+        # limit=1000 (see market._trade_list_page_size) — limit=100 only
+        # reached ~10 days and left the inflow/outflow charts nearly empty.
+        flow_days = 60
+        ins_all = market.insider_trades(
+            days=flow_days, store_cap=10000, collapse=False)
+        con_all = market.congress_trades(days=flow_days, store_cap=5000)
+
+        # Persist the full 60-day material pulls. Tables still request 7 / 14
+        # days via get_trades; flow charts and fallbacks need the longer set.
+        # No congress amount floor (MIN_CONGRESS_AMOUNT = 0).
+        ins_store = ins_all[:5000]
+        con_store = con_all[:2000]
+        store.replace_trades(ins_store, con_store)
+        log(f"  trades pulled: {len(ins_all)} insider / {len(con_all)} congress "
+            f"over {flow_days}d; stored {len(ins_store)} / {len(con_store)}")
     except market.MarketError as exc:
         log(f"  trades: {exc}")
         ins = con = []
+        ins_all = con_all = []
+        flow_days = 60
+    except Exception as exc:
+        log(f"  trades: {exc}")
+        ins = con = []
+        ins_all = con_all = []
+        flow_days = 60
+    else:
+        ins = ins_store
+        con = con_store
+
+    try:
+        flow = market.trade_flow_daily(ins_all, con_all, days=flow_days)
+        store.replace_trade_flow(flow)
+        nonzero = sum(1 for r in flow
+                      if (r.get("inflow") or 0) > 0 or (r.get("outflow") or 0) > 0)
+        log(f"  trade flow: {len(flow)} day-rows, {nonzero} with volume")
+    except Exception as exc:
+        # Flow RPC may not be applied yet; keep the tables writing.
+        log(f"  trade flow: {exc}")
+        flow = []
 
     log(f"sections: {len(rows)} heatmap, {len(hist)} sector series, "
-        f"{len(ins)} insider, {len(con)} congress, {time.time()-started:.1f}s")
+        f"{len(ins)} insider rows, {len(con)} congress rows, "
+        f"{len(flow)} flow days, "
+        f"{time.time()-started:.1f}s")
+    return True
+
+
+# The calendar lists every filer that reports, shells and OTC stubs included.
+# The page hides anything below this unless the visitor watchlists it, and the
+# same figure orders the day, so it has to be stored per event.
+EARNINGS_MIN_CAP = float(os.environ.get("EARNINGS_MIN_CAP", "1e9"))
+
+
+def refresh_earnings() -> bool:
+    """FMP earnings calendar for the window the Earnings page reads."""
+    if not market.configured():
+        return False
+    start = dt.date.today() - dt.timedelta(days=7)
+    # FMP allows ~90 days; keep enough runway for "next earning" on mega-caps
+    # that just reported (e.g. AAPL → late October).
+    end = dt.date.today() + dt.timedelta(days=90)
+    try:
+        rows = market.earnings_calendar(start, end)
+    except market.MarketError as exc:
+        log(f"  earnings: {exc}")
+        return False
+    if not rows:
+        log(f"earnings: FMP returned no rows for "
+            f"{start.isoformat()} → {end.isoformat()}")
+        return False
+
+    # One screener call covers the whole above-$1B universe. Losing it costs
+    # ordering and the size filter, not the calendar, so it must not abort.
+    caps = {}
+    try:
+        caps = market.cap_universe(EARNINGS_MIN_CAP)
+    except market.MarketError as exc:
+        log(f"  earnings: market caps unavailable ({exc})")
+    stamped = 0
+    for r in rows:
+        known = caps.get(r["symbol"])
+        if not known:
+            continue
+        r["market_cap"] = known.get("market_cap")
+        r["name"] = known.get("name")
+        stamped += 1
+
+    try:
+        n = store.replace_earnings(rows)
+    except store.StoreError as exc:
+        # Missing migration or RPC must not take down the whole worker loop.
+        log(f"  earnings write failed: {exc}")
+        return False
+    log(f"earnings: {len(rows)} events ({n} written, {stamped} above "
+        f"${EARNINGS_MIN_CAP/1e9:g}B), {start.isoformat()} → {end.isoformat()}")
+    return True
+
+
+def refresh_logos(limit: int = 40) -> int:
+    """Fetch Logo.dev images for index + common stocks + crypto; cache in Supabase.
+
+    Priority set: S&P 500, Nasdaq-100, Dow, Russell 1000, common stocks, and
+    top crypto. ``logos_due`` skips symbols already cached within 30 days.
+    Returns rows upserted.
+    """
+    crypto_n = int(os.environ.get("LOGOS_CRYPTO_N", "80"))
+    common_n = int(os.environ.get("LOGOS_COMMON_N", "2000"))
+    targets = market.logo_priority_targets(crypto_n=crypto_n, common_n=common_n)
+    due = store.logos_due(targets, limit=limit)
+    if not due:
+        log("logos: nothing due (priority indexes + crypto already cached)")
+        return 0
+    rows = []
+    ok = miss = err = 0
+    for t in due:
+        sym = (t.get("symbol") or "").upper()
+        kind = t.get("kind") or "stock"
+        if not sym:
+            continue
+        row = market.download_logo(sym, kind)
+        rows.append(row)
+        st = row.get("status")
+        if st == "ok":
+            ok += 1
+        elif st == "missing":
+            miss += 1
+        else:
+            err += 1
+    n = store.upsert_symbol_logos(rows) if rows else 0
+    log(f"logos: upserted {n} (ok={ok} missing={miss} error={err})")
+    return n
+
+
+def refresh_economic_calendar() -> bool:
+    """FMP US economic releases for the portfolio Calendar panel."""
+    if not market.configured():
+        return False
+    start = dt.date.today() - dt.timedelta(days=14)
+    end = dt.date.today() + dt.timedelta(days=60)
+    try:
+        rows = market.economic_calendar(start, end, country="US")
+    except market.MarketError as exc:
+        log(f"  economic calendar: {exc}")
+        return False
+    if not rows:
+        log(f"economic calendar: FMP returned no US rows for "
+            f"{start.isoformat()} → {end.isoformat()}")
+        return False
+    try:
+        n = store.replace_economic_calendar(rows)
+    except store.StoreError as exc:
+        log(f"  economic calendar write failed: {exc}")
+        return False
+    log(f"economic calendar: {len(rows)} US events ({n} written), "
+        f"{start.isoformat()} → {end.isoformat()}")
     return True
 
 
@@ -485,12 +969,38 @@ def refresh_intraday(symbol: str) -> bool:
         return False
     pts = market.intraday(symbol, days=2)
     if not pts:
+        # Close the request anyway. A symbol FMP has no series for -- a
+        # delisting, a ticker that never traded -- would otherwise sit at the
+        # head of the queue and be drawn again on every pass.
+        try:
+            store.skip_intraday(symbol)
+        except store.StoreError:
+            pass
         return False
     store.upsert_intraday(symbol, pts, pts[-1]["t"][:10])
     q = market.quote(symbol)
     if q:
         store.upsert_quotes([q])
     return True
+
+
+def drain_intraday(max_items: int = 5) -> int:
+    """Fetch chart series for companies someone has just opened or followed.
+
+    The market refresh pre-fetches a fixed set. Anything outside it -- a
+    company added to a personal watchlist -- is pulled here, so it has a chart
+    within a minute of being followed rather than at the next refresh.
+    """
+    if not market.configured():
+        return 0
+    try:
+        pending = store.pending_intraday(max_items)
+    except store.StoreError as exc:
+        # 0020 not applied yet. The page falls back to daily closes, so this
+        # degrades rather than taking the loop down with it.
+        log(f"  intraday queue unavailable (apply 0020_intraday_requests.sql): {exc}")
+        return 0
+    return sum(1 for sym in pending if refresh_intraday(sym))
 
 
 # ---------------------------------------------------------------------------
@@ -515,9 +1025,15 @@ def run() -> None:
     last_directory = 0.0
     last_market = 0.0
     last_sections = 0.0
+    last_logos = 0.0
     last_sweep_day: dt.date | None = None
     market_every = int(os.environ.get("MARKET_REFRESH_SECONDS", "900"))
     sections_every = int(os.environ.get("SECTIONS_REFRESH_SECONDS", "3600"))
+    # Pace Logo.dev: a small batch each cycle until the priority set is warm.
+    logos_every = int(os.environ.get("LOGOS_REFRESH_SECONDS", "3600"))
+    # Larger priority set (indexes + common stocks + crypto) — 50/hour warms
+    # ~1.2k logos/day and stays well under Logo.dev's free monthly cap.
+    logos_batch = int(os.environ.get("LOGOS_BATCH", "50"))
 
     while True:
         try:
@@ -536,6 +1052,16 @@ def run() -> None:
                     refresh_news()
                 except market.MarketError as exc:
                     log(f"news refresh failed (continuing): {exc}")
+                # Keep the Earnings page warm with the market cycle (one FMP
+                # call) so a deploy does not wait an hour for the first fill.
+                try:
+                    refresh_earnings()
+                except market.MarketError as exc:
+                    log(f"earnings refresh failed (continuing): {exc}")
+                try:
+                    refresh_economic_calendar()
+                except market.MarketError as exc:
+                    log(f"economic calendar refresh failed (continuing): {exc}")
                 last_market = now
 
             if now - last_sections > sections_every:
@@ -547,12 +1073,31 @@ def run() -> None:
                     refresh_sections()
                 except market.MarketError as exc:
                     log(f"sections refresh failed (continuing): {exc}")
+                try:
+                    refresh_indexes(holdings=True)
+                except Exception as exc:
+                    log(f"index holdings refresh failed (continuing): {exc}")
                 last_sections = now
+
+            if now - last_logos > logos_every:
+                try:
+                    refresh_logos(logos_batch)
+                except store.StoreError as exc:
+                    log(f"logos refresh failed (continuing): {exc}")
+                except Exception as exc:
+                    log(f"logos refresh failed (continuing): {type(exc).__name__}: {exc}")
+                last_logos = now
 
             # Visitors first: a queued company should appear within a minute.
             if drain_backfill():
                 continue
             if drain_prices():
+                continue
+            if drain_profiles():
+                continue
+            if drain_employee_history():
+                continue
+            if drain_intraday():
                 continue
             if drain_analyst():
                 continue
@@ -586,6 +1131,8 @@ def main(argv: list[str]) -> int:
 
     if cmd == "sync-directory":
         sync_directory()
+    elif cmd == "sync-market-symbols":
+        sync_market_symbols()
     elif cmd == "seed":
         seed(int(argv[1]) if len(argv) > 1 else 500)
     elif cmd == "ingest":
@@ -622,12 +1169,40 @@ def main(argv: list[str]) -> int:
     elif cmd == "market":
         log("market refreshed" if refresh_market()
             else "FMP_API_KEY not set; nothing to do")
+    elif cmd == "indexes":
+        log("indexes refreshed" if refresh_indexes(holdings=True)
+            else "FMP_API_KEY not set; nothing to do")
     elif cmd == "news":
         log("news refreshed" if refresh_news()
             else "FMP_API_KEY not set; nothing to do")
     elif cmd == "sections":
         log("sections refreshed" if refresh_sections()
             else "FMP_API_KEY not set; nothing to do")
+    elif cmd == "earnings":
+        log("earnings refreshed" if refresh_earnings()
+            else "earnings unavailable (check FMP_API_KEY / plan / migration)")
+    elif cmd == "economics" or cmd == "economic-calendar":
+        log("economic calendar refreshed" if refresh_economic_calendar()
+            else "economic calendar unavailable (check FMP_API_KEY / plan / migration)")
+    elif cmd == "logos":
+        n = refresh_logos(int(argv[1]) if len(argv) > 1 else 40)
+        log(f"logos done ({n} row(s))" if n else "logos: nothing due or upsert failed")
+    elif cmd == "profiles":
+        if len(argv) > 1:
+            for sym in argv[1:]:
+                log(f"{sym}: {'ok' if fill_company_profile(sym.upper()) else 'failed'}")
+        else:
+            n = drain_profiles(40)
+            log(f"filled {n} company profile(s)" if n
+                else "no profiles pending (apply 0031, or none missing)")
+    elif cmd == "employees":
+        if len(argv) > 1:
+            for sym in argv[1:]:
+                log(f"{sym}: {'ok' if fill_employee_history(sym.upper()) else 'failed'}")
+        else:
+            n = drain_employee_history(40)
+            log(f"filled {n} employee history series" if n
+                else "no employee history pending (apply 0033, or none missing)")
     elif cmd == "intraday":
         if len(argv) < 2:
             print("usage: python worker.py intraday TICKER")

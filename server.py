@@ -92,16 +92,33 @@ class Handler(BaseHTTPRequestHandler):
             if route in ("/news.html", "/news"):
                 return self._file("news.html", "text/html; charset=utf-8")
 
+            if route in ("/earnings.html", "/earnings"):
+                return self._file("earnings.html", "text/html; charset=utf-8")
+
+            if route in ("/portfolio.html", "/portfolio"):
+                return self._file("portfolio.html", "text/html; charset=utf-8")
+
             if route == "/nav.js":
                 return self._file("nav.js", "application/javascript")
 
             if route == "/nav.css":
                 return self._file("nav.css", "text/css; charset=utf-8")
 
+            # Both read their IDs from config.js, which is empty locally, so
+            # they load and do nothing rather than 404 in every console.
+            if route == "/analytics.js":
+                return self._file("analytics.js", "application/javascript")
+
+            if route == "/clarity-init.js":
+                return self._file("clarity-init.js", "application/javascript")
+
             if route == "/config.js":
-                # Deployed builds ship a real config.js pointing at Supabase.
-                # Locally the page talks to this server instead, so an empty
-                # file is the correct answer rather than a 404.
+                # Prefer public/config.js when present so Markets / Portfolio
+                # can reach Supabase during local development. Fall back to
+                # an empty file (not a 404) when it is absent.
+                if os.path.isfile(os.path.join(HERE, "public", "config.js")):
+                    return self._file(os.path.join("public", "config.js"),
+                                      "application/javascript")
                 return self._send(200, b"", "application/javascript")
 
             if route == "/api/search":

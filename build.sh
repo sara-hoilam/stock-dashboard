@@ -5,22 +5,80 @@
 #   Build command:          bash build.sh
 #   Build output directory: public
 #
-# Three pages plus the shared navigation, no bundler:
+# Pages plus the shared navigation, no bundler:
 #   index.html    Markets Today — the landing page
 #   news.html     market news
+#   earnings.html earnings calendar
 #   company.html  the filed-financials dashboard
+#   portfolio.html user holdings tracker
+#   privacy.html  privacy policy
 #   nav.js/.css   the top bar every page injects
+#   brand-logo-*  light/dark brand mark (nav + favicon)
+#   analytics.js  Google Analytics 4 (gtag.js) and the consent banner
+#   clarity-init.js + vendor/clarity  Microsoft Clarity (@microsoft/clarity)
+#   logo.js       cached Logo.dev company logos (via Supabase)
 set -euo pipefail
 
-mkdir -p public
+# Clarity ships as an npm package; install it when the build environment does
+# not already have node_modules (Cloudflare Pages, a fresh clone).
+if [ ! -f node_modules/@microsoft/clarity/index.js ]; then
+  if command -v npm >/dev/null 2>&1; then
+    npm ci --omit=dev
+  else
+    echo "npm is required to install @microsoft/clarity" >&2
+    exit 1
+  fi
+fi
+
+mkdir -p public/vendor/clarity/src
 cp landing.html   public/index.html
 cp dashboard.html public/company.html
 cp news.html      public/news.html
+cp earnings.html  public/earnings.html
+cp portfolio.html public/portfolio.html
+cp privacy.html   public/privacy.html
 cp nav.js nav.css public/
+cp brand-logo-light.svg brand-logo-dark.svg public/
+cp brand-logo-light.png brand-logo-dark.png public/
+cp favicon.ico public/
+cp analytics.js public/
+cp logo.js public/
+cp clarity-init.js public/
+cp node_modules/@microsoft/clarity/index.js      public/vendor/clarity/
+cp node_modules/@microsoft/clarity/package.json  public/vendor/clarity/
+cp node_modules/@microsoft/clarity/src/utils.js  public/vendor/clarity/src/
 
 if [ ! -f public/config.js ]; then
   echo "public/config.js is missing — both pages would have no data source." >&2
   exit 1
+fi
+
+# Optional: inject the public analytics IDs from the environment (Cloudflare
+# Pages env vars, or a local `.env` already exported). Leaves config.js
+# unchanged when unset, so a committed ID keeps working.
+inject() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import json, pathlib, re, sys
+field, value, label = sys.argv[1], sys.argv[2], sys.argv[3]
+path = pathlib.Path("public/config.js")
+text = path.read_text(encoding="utf-8")
+new, n = re.subn(
+    field + r':\s*["\'][^"\']*["\']',
+    field + ": " + json.dumps(value),
+    text, count=1)
+if n != 1:
+    sys.exit(f"could not inject {label} into public/config.js")
+path.write_text(new, encoding="utf-8")
+print(f"{label}: injected ({len(value)} chars)")
+PY
+}
+
+if [ -n "${CLARITY_PROJECT_ID:-}" ]; then
+  inject clarityProjectId "$CLARITY_PROJECT_ID" CLARITY_PROJECT_ID
+fi
+
+if [ -n "${GA_MEASUREMENT_ID:-}" ]; then
+  inject gaMeasurementId "$GA_MEASUREMENT_ID" GA_MEASUREMENT_ID
 fi
 
 echo "built public/: $(ls -1 public | tr '\n' ' ')"

@@ -1054,22 +1054,263 @@ def segments_for_quarter(cik: int, filings: list[dict], end: str,
 
 
 # ---------------------------------------------------------------------------
+# iXBRL / XBRL instance fallback when companyfacts lags
+# ---------------------------------------------------------------------------
+# Foreign private issuers often land a 6-K with a full iXBRL instance days or
+# weeks before the same numbers appear in companyfacts. Prefer companyfacts
+# whenever it already has a (start, end) window; parse the instance only to
+# fill gaps.
+
+_INSTANCE_SKIP = re.compile(
+    r"(_cal|_def|_lab|_pre|FilingSummary|xsd)\.xml$", re.I)
+
+
+def _financial_6k(primary: str | None, period: str | None,
+                  filed: str | None) -> bool:
+    """True when a 6-K looks like an interim report, not a press release.
+
+    Earnings 6-Ks close on a month-end and usually name the period in the
+    primary document. Same-day press releases share their filing date as the
+    report date and carry opaque primary names like `a8757o.htm`.
+    """
+    if not period:
+        return False
+    try:
+        end = _d(period)
+    except ValueError:
+        return False
+    # Within a couple of days of the calendar month-end.
+    last = (end.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    if end.day < last.day - 2:
+        return False
+    if primary and re.search(r"20\d{6}", primary):
+        return True
+    if filed:
+        try:
+            if (_d(filed) - end).days >= 5:
+                return True
+        except ValueError:
+            pass
+    return end.month in (3, 6, 9, 12)
+
+
+def _instance_document(cik: int, accession: str) -> str | None:
+    """URL of the filing's XBRL instance, if it shipped one."""
+    accn = accession.replace("-", "")
+    base = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accn}"
+    try:
+        idx = json.loads(fetch(f"{base}/index.json", ttl=TTL_ARCHIVE))
+    except FetchError:
+        return None
+    names = [it.get("name") or "" for it in
+             (idx.get("directory") or {}).get("item") or []]
+    # Prefer the iXBRL-extracted instance (`*_htm.xml`); fall back to any
+    # non-linkbase .xml that is not the schema.
+    preferred = next((n for n in names if n.lower().endswith("_htm.xml")), None)
+    if preferred:
+        return f"{base}/{preferred}"
+    for n in names:
+        if n.lower().endswith(".xml") and not _INSTANCE_SKIP.search(n):
+            return f"{base}/{n}"
+    return None
+
+
+def _parse_contexts(xml: str) -> dict[str, dict]:
+    """Consolidated duration contexts only — dimensional ones are skipped."""
+    out: dict[str, dict] = {}
+    for m in re.finditer(
+            r'<(?:xbrli:)?context\s+id="([^"]+)"[^>]*>(.*?)</(?:xbrli:)?context>',
+            xml, re.I | re.S):
+        body = m.group(2)
+        if "<segment>" in body or "explicitMember" in body:
+            continue
+        start = re.search(r"<(?:xbrli:)?startDate>([^<]+)</(?:xbrli:)?startDate>",
+                          body, re.I)
+        end = re.search(r"<(?:xbrli:)?endDate>([^<]+)</(?:xbrli:)?endDate>",
+                        body, re.I)
+        if not start or not end:
+            continue
+        out[m.group(1)] = {
+            "start": start.group(1).strip()[:10],
+            "end": end.group(1).strip()[:10],
+        }
+    return out
+
+
+def _parse_instance_facts(xml: str, taxonomy: str, tags: set[str],
+                          accn: str, form: str, filed: str) -> dict[str, list[dict]]:
+    """Pull consolidated facts for the tags we know how to quarterize."""
+    contexts = _parse_contexts(xml)
+    if not contexts:
+        return {}
+    # Accept both prefixed (`ifrs-full:Revenue`) and unprefixed local names
+    # when the default namespace is the taxonomy.
+    tag_alt = "|".join(re.escape(t) for t in sorted(tags, key=len, reverse=True))
+    pat = re.compile(
+        rf'<(?:{re.escape(taxonomy)}:)?(?P<tag>{tag_alt})\s+(?P<attrs>[^>]*)>'
+        rf'(?P<val>[^<]*)</(?:{re.escape(taxonomy)}:)?(?P=tag)>',
+        re.I)
+    by_tag: dict[str, list[dict]] = {}
+    for m in pat.finditer(xml):
+        attrs = m.group("attrs")
+        cref = re.search(r'contextRef="([^"]+)"', attrs)
+        uref = re.search(r'unitRef="([^"]+)"', attrs)
+        if not cref or cref.group(1) not in contexts:
+            continue
+        unit = (uref.group(1) if uref else "").lower()
+        # Money and per-share; reject shares-only counts here.
+        if unit and not any(k in unit for k in ("usd", "pure", "share")):
+            continue
+        try:
+            val = float(m.group("val").replace(",", "").strip())
+        except ValueError:
+            continue
+        ctx = contexts[cref.group(1)]
+        tag = m.group("tag")
+        # Canonicalize to the concept spelling we look up later.
+        canon = next((t for t in tags if t.lower() == tag.lower()), tag)
+        by_tag.setdefault(canon, []).append({
+            "start": ctx["start"],
+            "end": ctx["end"],
+            "val": val,
+            "accn": accn,
+            "form": form,
+            "filed": filed,
+            "fy": None,
+            "fp": None,
+            "frame": None,
+        })
+    return by_tag
+
+
+def _facts_windows(facts: dict, taxonomy: str, tag: str) -> set[tuple[str, str]]:
+    node = (facts.get(taxonomy) or {}).get(tag) or {}
+    units = node.get("units") or {}
+    windows: set[tuple[str, str]] = set()
+    for rows in units.values():
+        for f in rows:
+            if f.get("start") and f.get("end"):
+                windows.add((f["start"], f["end"]))
+    return windows
+
+
+def _inject_fact(facts: dict, taxonomy: str, tag: str, fact: dict,
+                 unit_key: str) -> None:
+    """Add one fact into the companyfacts-shaped tree without clobbering."""
+    tax = facts.setdefault(taxonomy, {})
+    node = tax.setdefault(tag, {"label": tag, "units": {}})
+    units = node.setdefault("units", {})
+    bucket = units.setdefault(unit_key, [])
+    windows = {(f.get("start"), f.get("end")) for f in bucket}
+    if (fact["start"], fact["end"]) in windows:
+        return
+    bucket.append(fact)
+
+
+def _revenue_ends(facts: dict, taxonomy: str, concepts: dict) -> set[str]:
+    ends: set[str] = set()
+    for tag in concepts.get("revenue", []):
+        for f in _usable_facts(facts, tag, taxonomy):
+            ends.add(f["end"])
+    return ends
+
+
+def _supplement_from_instances(cik: int, facts: dict, taxonomy: str,
+                               concepts: dict, submissions: dict,
+                               limit: int = 3) -> int:
+    """Fill companyfacts gaps from recent financial 6-K/20-F instances.
+
+    Returns how many filings contributed at least one new fact. Companyfacts
+    always wins on an overlapping (start, end) window.
+    """
+    known_ends = _revenue_ends(facts, taxonomy, concepts)
+    wanted_tags = {t for tags in concepts.values() for t in tags}
+    # OperatingExpenses / CostsAndExpenses are used by name later.
+    wanted_tags.update({"OperatingExpenses", "CostsAndExpenses",
+                        "OperatingExpense"})
+
+    recent = (submissions.get("filings") or {}).get("recent") or {}
+    forms = recent.get("form") or []
+    added_filings = 0
+    for i, form in enumerate(forms):
+        if added_filings >= limit:
+            break
+        base = form.split("/")[0]
+        if base not in ("6-K", "20-F", "40-F", "10-K", "10-Q"):
+            continue
+        period = (recent.get("reportDate") or [""])[i] if i < len(
+            recent.get("reportDate") or []) else ""
+        filed = recent["filingDate"][i]
+        accn = recent["accessionNumber"][i]
+        primary = (recent.get("primaryDocument") or [""])[i] if i < len(
+            recent.get("primaryDocument") or []) else ""
+        if base == "6-K" and not _financial_6k(primary, period, filed):
+            continue
+        # companyfacts already has revenue through this period end — nothing
+        # to fill. Still allow a 6-K when the period is entirely missing.
+        if period and period in known_ends:
+            continue
+        # Domestic 10-Q/10-K almost always reach companyfacts first; skip them
+        # unless the period is missing (rare restatement lag).
+        if base in ("10-K", "10-Q") and period and period in known_ends:
+            continue
+
+        url = _instance_document(cik, accn)
+        if not url:
+            continue
+        try:
+            xml = fetch(url, ttl=TTL_ARCHIVE)
+        except FetchError:
+            continue
+        parsed = _parse_instance_facts(xml, taxonomy, wanted_tags,
+                                       accn, form, filed)
+        if not parsed:
+            continue
+        contributed = False
+        for tag, rows in parsed.items():
+            existing = _facts_windows(facts, taxonomy, tag)
+            unit_key = ("USD/shares" if "PerShare" in tag or "per share" in tag.lower()
+                        else "USD")
+            if "Share" in tag and "PerShare" not in tag and "Earnings" not in tag:
+                unit_key = "shares"
+            for fact in rows:
+                if (fact["start"], fact["end"]) in existing:
+                    continue
+                _inject_fact(facts, taxonomy, tag, fact, unit_key)
+                existing.add((fact["start"], fact["end"]))
+                contributed = True
+                if tag in concepts.get("revenue", []):
+                    known_ends.add(fact["end"])
+        if contributed:
+            added_filings += 1
+    return added_filings
+
+
+# ---------------------------------------------------------------------------
 # Assembling the company model
 # ---------------------------------------------------------------------------
 
-def _filing_index(cik: int) -> list[dict]:
+def _filing_index(cik: int) -> tuple[list[dict], dict]:
     raw = json.loads(fetch(
         f"https://data.sec.gov/submissions/CIK{cik:010d}.json", ttl=TTL_FACTS))
     recent = raw.get("filings", {}).get("recent", {})
     out = []
     for i, form in enumerate(recent.get("form", [])):
-        if form.split("/")[0] not in ("10-K", "10-Q", "20-F", "40-F"):
+        base = form.split("/")[0]
+        period = recent.get("reportDate", [""] * (i + 1))[i]
+        filed = recent["filingDate"][i]
+        primary = (recent.get("primaryDocument") or [""] * (i + 1))[i]
+        if base in ("10-K", "10-Q", "20-F", "40-F"):
+            pass
+        elif base == "6-K" and _financial_6k(primary, period, filed):
+            pass
+        else:
             continue
         out.append({
             "form": form,
             "accession": recent["accessionNumber"][i],
-            "filed": recent["filingDate"][i],
-            "periodEnd": recent.get("reportDate", [""] * (i + 1))[i],
+            "filed": filed,
+            "periodEnd": period,
         })
     out.sort(key=lambda f: f["filed"], reverse=True)
     return out, raw
@@ -1099,6 +1340,11 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
     fye_month = detect_fye_month(facts, taxonomy, concepts)
 
     filings, submissions = _filing_index(cik)
+
+    # companyfacts is the source of truth when present. When it lags a newer
+    # financial 6-K (common for FPIs), fill the missing windows from that
+    # filing's iXBRL instance — never overwriting a companyfacts number.
+    _supplement_from_instances(cik, facts, taxonomy, concepts, submissions)
 
     # Every candidate tag, quarterized once.
     series: dict[str, dict[str, dict]] = {}
@@ -1162,8 +1408,16 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
         elif line.get("noninterestExpense") is not None:
             opex = line["noninterestExpense"]
             prov["opex"] = "reported"
-        elif series.get("CostsAndExpenses", {}).get(end) and line.get("cogs") is not None:
-            opex = series["CostsAndExpenses"][end]["value"] - line["cogs"]
+        elif series.get("CostsAndExpenses", {}).get(end):
+            # Total costs less cost of sales, where cost of sales is known.
+            # Where it is not, the total stands as the cost base and the
+            # residual below carries the unnamed part. Requiring cogs here
+            # instead meant a quarter that never tagged it fell through to the
+            # sum of the named categories alone, which understates the cost
+            # base by everything it does not name: McDonald's tags cost of
+            # sales in its 10-Qs and never in the 10-K, so every derived Q4
+            # counted only its overheads.
+            opex = series["CostsAndExpenses"][end]["value"] - (line.get("cogs") or 0)
             prov["opex"] = "computed"
         elif opex_sum is not None:
             opex = opex_sum
@@ -1172,8 +1426,10 @@ def build_company(ticker: str, max_quarters: int = 24) -> dict:
 
         # Whatever the named categories don't account for, shown as its own
         # line rather than silently dropped from the expense breakdown.
-        if opex is not None and opex_sum is not None:
-            residual = opex - opex_sum
+        if opex is not None:
+            # A period that names no category at all still spent the money;
+            # the residual is then the whole of it rather than nothing.
+            residual = opex - (opex_sum or 0)
             line["opexOther"] = residual if abs(residual) > abs(opex) * 0.01 else None
         else:
             line["opexOther"] = None

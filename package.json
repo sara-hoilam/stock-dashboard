@@ -1,0 +1,17 @@
+{
+  "name": "ticker-alpha",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ticker Alpha — markets today, news, and SEC-filed company financials.",
+  "scripts": {
+    "build": "bash build.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sara-hoilam/stock-dashboard.git"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@microsoft/clarity": "^1.0.2"
+  }
+}

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ticker Alpha — market news</title>
 <script src="config.js"></script>
+<script src="logo.js"></script>
+<script src="analytics.js"></script>
+<script type="module" src="clarity-init.js"></script>
 <link rel="stylesheet" href="nav.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,20 +42,25 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:var(--ground);
   color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-main{max-width:1360px;margin:0 auto;padding:20px 24px 72px}
+main{max-width:var(--page,1680px);margin:0 auto;padding:20px 28px 72px}
 a{color:inherit}
 .up{color:var(--up)} .down{color:var(--down)}
 .panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
   box-shadow:var(--shadow);overflow:hidden}
 h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
 
-.cols{display:grid;grid-template-columns:250px minmax(0,1fr) 300px;gap:18px;align-items:start}
+.cols{display:grid;grid-template-columns:270px minmax(0,1fr) 320px;gap:20px;align-items:start}
 
 /* ---- left: the market summary list, same component as Markets Today ------ */
-/* The panel is as tall as its rows. A scrollbar inside a column that has room
-   to grow is friction for nothing. */
+/* Eight rows, then scroll. The column now carries Topics beneath it, so an
+   unbounded list would push them off the screen. */
 .side h3{padding:13px 15px 9px}
-.rows{overflow:visible}
+.rows{max-height:298px;overflow-y:auto;scrollbar-width:thin;
+  scrollbar-color:var(--rule) transparent}
+.rows::-webkit-scrollbar{width:8px}
+.rows::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+
+.side-l{display:flex;flex-direction:column;gap:18px;align-items:stretch}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{position:sticky;top:0;background:var(--card);z-index:1;
   font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
@@ -94,7 +102,10 @@ tbody tr:hover td{background:var(--sunk)}
 .newsscroll::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
 .newsscroll::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
 .newsscroll{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+/* Three abreast on a wide screen, two when the centre column narrows, one on
+   a phone. Cards, not a fixed count: the breakpoints follow the space the
+   column actually has rather than the size of the window. */
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .story{display:flex;flex-direction:column;text-decoration:none}
 .story .thumb{width:100%;aspect-ratio:16/9;border-radius:9px;overflow:hidden;
   background:var(--sunk);margin-bottom:11px;flex-shrink:0}
@@ -144,7 +155,8 @@ tbody tr:hover td{background:var(--sunk)}
 /* The feed drifts by moving its own scroll position rather than by a CSS
    transform, so a reader can grab it and scroll back to a story that has
    already gone past. It picks the drift back up once they stop. */
-.feedwrap{height:430px;overflow-y:auto;position:relative;
+.feedwrap{height:calc(100vh - var(--nav-h,56px) - 150px);min-height:580px;
+  overflow-y:auto;position:relative;
   scrollbar-width:thin;scrollbar-color:var(--rule) transparent;overscroll-behavior:contain}
 .feedwrap::-webkit-scrollbar{width:8px}
 .feedwrap::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
@@ -163,6 +175,9 @@ tbody tr:hover td{background:var(--sunk)}
   vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 
+@media (max-width:1500px){
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 @media (max-width:1180px){
   .cols{grid-template-columns:minmax(0,1fr) 300px}
   .side{display:none}
@@ -178,14 +193,28 @@ tbody tr:hover td{background:var(--sunk)}
 <main>
   <div class="cols">
     <!-- left ------------------------------------------------------------- -->
-    <aside class="panel side">
-      <h3>Market Summary</h3>
-      <div class="seg" id="views">
-        <button data-v="market_cap" aria-pressed="true">Mkt cap</button>
-        <button data-v="gainers" aria-pressed="false">Gainers</button>
-        <button data-v="losers" aria-pressed="false">Losers</button>
+    <aside class="side-l">
+      <div class="panel side">
+        <h3>Market Summary</h3>
+        <div class="seg" id="views">
+          <button data-v="market_cap" aria-pressed="true">Mkt cap</button>
+          <button data-v="gainers" aria-pressed="false">Gainers</button>
+          <button data-v="losers" aria-pressed="false">Losers</button>
+        </div>
+        <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
       </div>
-      <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
+
+      <div class="panel">
+        <h3 style="padding:13px 15px 9px">Topics</h3>
+        <form class="tsearch" id="tsearch">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+            stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="search" id="tq" placeholder="Search the news" autocomplete="off"
+                 aria-label="Search the news">
+        </form>
+        <div class="chips" id="chips"><span class="note" style="padding:0 0 12px">…</span></div>
+      </div>
     </aside>
 
     <!-- centre ----------------------------------------------------------- -->
@@ -206,18 +235,6 @@ tbody tr:hover td{background:var(--sunk)}
     <!-- right ------------------------------------------------------------ -->
     <aside class="side-r">
       <div class="panel">
-        <h3 style="padding:13px 15px 9px">Topics</h3>
-        <form class="tsearch" id="tsearch">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
-            stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round"/></svg>
-          <input type="search" id="tq" placeholder="Search the news" autocomplete="off"
-                 aria-label="Search the news">
-        </form>
-        <div class="chips" id="chips"><span class="note" style="padding:0 0 12px">…</span></div>
-      </div>
-
-      <div class="panel">
         <div class="feedhead"><span class="bolt">⚡</span><h3>The Feed</h3></div>
         <div class="feedwrap" id="feedwrap">
           <div class="feedtrack" id="feed"><div class="note"><span class="load"></span></div></div>
@@ -232,6 +249,9 @@ tbody tr:hover td{background:var(--sunk)}
 
 const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
 const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+// analytics.js loads first, in the head. The fallback is only so a missing one
+// breaks analytics rather than the page.
+const GA = window.TAnalytics || { track(){}, pageView(){} };
 
 async function rpc(fn, args){
   if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
@@ -284,15 +304,20 @@ async function setView(v){
   const host = document.getElementById("rows");
   host.innerHTML = `<div class="note"><span class="load"></span></div>`;
   let rows = [];
+  // Twenty fetched, eight visible: the cap is on the panel's height, not on
+  // the data, so the rest are a scroll away rather than absent.
   try { rows = await rpc("get_market_summary", { p_view: v, p_limit: 20 }) || []; } catch {}
   if (!rows.length){ host.innerHTML = `<div class="note">No data.</div>`; return; }
   host.innerHTML = `<table><thead><tr><th>Token</th><th>Price</th><th>Change</th></tr></thead>
     <tbody>${rows.map(r => `
       <tr data-s="${esc(r.symbol)}">
-        <td><span class="sym"><span class="dot" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>${esc(r.symbol)}</span></td>
+        <td><span class="sym"><span class="dot" data-logo="${esc(r.symbol)}" style="background:${avatarColour(r.symbol)}">${esc(r.symbol.slice(0,2))}</span>${esc(r.symbol)}</span></td>
         <td>${esc(price(r.price))}</td>
         <td><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
       </tr>`).join("")}</tbody></table>`;
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(rows.map(r => r.symbol), host);
+  }
   // Clicking a row filters the news to that company -- the whole reason the
   // list sits beside the stories rather than on its own page.
   host.querySelectorAll("tr[data-s]").forEach(tr =>
@@ -301,7 +326,8 @@ async function setView(v){
 
 /* ---- centre column ------------------------------------------------------- */
 function storyCard(a){
-  return `<a class="story" href="${esc(a.url)}" target="_blank" rel="noopener">
+  return `<a class="story" href="${esc(a.url)}" target="_blank" rel="noopener"
+    data-ta-news="news_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
     ${a.image ? `<span class="thumb"><img src="${esc(a.image)}" alt="" loading="lazy"
         onerror="this.parentNode.style.display='none'"></span>` : ""}
     <h2>${esc(a.title)}</h2>
@@ -322,9 +348,25 @@ async function loadNews(reset){
   try {
     d = await rpc("get_news", { p_q: S.q, p_limit: PAGE, p_offset: S.page * PAGE });
   } catch (e) {
-    host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
-    S.loading = false;
-    return;
+    // get_news used to time out recounting every topic chip. Until that
+    // migration is applied, still show the day's stories from the feed RPC
+    // rather than leaving the centre column on an error.
+    try {
+      const feed = await rpc("get_news_feed", {
+        p_hours: S.q ? 168 : 48,
+        p_limit: PAGE,
+      }) || [];
+      const q = (S.q || "").toLowerCase();
+      const arts = !q ? feed : feed.filter(a =>
+        (a.symbol && a.symbol.toLowerCase() === q) ||
+        (a.title && a.title.toLowerCase().includes(q)) ||
+        (a.summary && a.summary.toLowerCase().includes(q)));
+      d = { articles: arts, total: arts.length, keywords: [], newest: arts[0] && arts[0].published };
+    } catch {
+      host.innerHTML = `<div class="note">News unavailable: ${esc(e.message)}</div>`;
+      S.loading = false;
+      return;
+    }
   }
   const arts = (d && d.articles) || [];
   S.total = (d && d.total) || 0;
@@ -356,7 +398,12 @@ function renderChips(){
   const host = document.getElementById("chips");
   if (!S.keywords.length){ host.innerHTML = `<span class="note" style="padding:0">No topics yet.</span>`; return; }
 
-  const group = kind => S.keywords.filter(k => k.kind === kind);
+  // Half as many as before. The column is narrower here than the old right-hand
+  // one, and the chips are ranked by how much news is behind them, so the tail
+  // was the part nobody clicked. Every subject is still reachable through the
+  // search above them.
+  const HALF = arr => arr.slice(0, Math.max(4, Math.ceil(arr.length / 2)));
+  const group = kind => HALF(S.keywords.filter(k => k.kind === kind));
   const chip = k =>
     `<button data-q="${esc(k.query || k.word)}" data-l="${esc(k.word)}"
        class="${k.kind === "company" ? "co" : ""}"
@@ -367,7 +414,7 @@ function renderChips(){
   host.innerHTML =
     group("topic").map(chip).join("") +
     // Anything the worker did not label stays visible rather than vanishing.
-    S.keywords.filter(k => k.kind !== "topic" && k.kind !== "company").map(chip).join("") +
+    HALF(S.keywords.filter(k => k.kind !== "topic" && k.kind !== "company")).map(chip).join("") +
     (companies.length
       ? `<div class="grouplabel">Most valuable companies</div>` + companies.map(chip).join("")
       : "");
@@ -399,7 +446,8 @@ async function loadFeed(){
   try { rows = await rpc("get_news_feed", { p_hours: 24, p_limit: 30 }) || []; } catch {}
   if (!rows.length){ host.innerHTML = `<div class="note">No stories in the last 24 hours.</div>`; return; }
 
-  const item = a => `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener">
+  const item = a => `<a class="item" href="${esc(a.url)}" target="_blank" rel="noopener"
+      data-ta-news="news_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
       <div class="when">${esc(ago(a.published))}${a.symbol ? ` · <span class="tag">${esc(a.symbol)}</span>` : ""}</div>
       <h4>${esc(a.title)}</h4>
       <p>${esc(a.summary || "")}</p></a>`;
@@ -464,7 +512,12 @@ function startFeedDrift(){
       `<div class="note">config.js is missing, so this page has no data source.</div>`;
     return;
   }
-  document.querySelectorAll("#views button").forEach(b => b.onclick = () => setView(b.dataset.v));
+  // Wired here rather than inside setView, which also runs on boot: a view the
+  // visitor never chose is not a screener they ran.
+  document.querySelectorAll("#views button").forEach(b => b.onclick = () => {
+    GA.track("run_screener", { screener_name: b.dataset.v });
+    setView(b.dataset.v);
+  });
 
   // A ticker in the URL pre-filters, so a company page can link straight to
   // "news about this company".
@@ -478,14 +531,20 @@ function startFeedDrift(){
   // Free-text search, on the same filter as the chips.
   const tq = document.getElementById("tq");
   let typing = null;
+  // Reported where the filter is actually applied, so a search is one event
+  // per question asked rather than one per keystroke.
+  const searched = term => {
+    if (term) GA.track("search", { search_term: term });
+    setFilter(term || null);
+  };
   document.getElementById("tsearch").onsubmit = e => {
     e.preventDefault();
     clearTimeout(typing);
-    setFilter(tq.value.trim() || null);
+    searched(tq.value.trim());
   };
   tq.addEventListener("input", () => {
     clearTimeout(typing);
-    typing = setTimeout(() => setFilter(tq.value.trim() || null), 350);
+    typing = setTimeout(() => searched(tq.value.trim()), 350);
   });
 
   const more = document.getElementById("more");

@@ -1,0 +1,4197 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ticker Alpha — Portfolio</title>
+<script src="config.js"></script>
+<script src="logo.js"></script>
+<script src="analytics.js"></script>
+<script type="module" src="clarity-init.js"></script>
+<link rel="stylesheet" href="nav.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --ground:#eef0f3; --card:#ffffff; --sunk:#f6f7f9;
+  --ink:#111820; --ink-2:#4a5866; --ink-3:#78889a;
+  --rule:#dde2e8; --rule-2:#eaeef2;
+  --accent:#1e4fbf; --accent-soft:#e6ecfb;
+  --up:#0b7a4b; --down:#c0392e;
+  --up-soft:#e3f4ec; --down-soft:#fbe9e7;
+  --s1:#2a78d6; --s2:#38b0de; --s3:#1baf7a; --s4:#eda100; --s5:#f0c419; --s6:#eb6834;
+  --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
+  --r:10px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:#0d1219; --card:#151c25; --sunk:#111821;
+  --ink:#e7edf4; --ink-2:#a3b1c0; --ink-3:#77879a;
+  --rule:#232d3a; --rule-2:#1c2531;
+  --accent:#6e9bff; --accent-soft:#1a2740;
+  --up:#38b37d; --down:#f0736a;
+  --up-soft:#12291f; --down-soft:#2b1614;
+  --s1:#3987e5; --s2:#4ec4e8; --s3:#199e70; --s4:#c98500; --s5:#e0b84a; --s6:#d95926;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  background:var(--ground); color:var(--ink);
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
+.up{color:var(--up)} .down{color:var(--down)}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+/* Table needs enough width for %Portfolio + Dividend + actions without a
+   horizontal scroll; chart keeps a solid but smaller share. */
+.split{display:grid;grid-template-columns:minmax(600px,1.35fr) minmax(280px,1fr);min-height:520px}
+.note{padding:28px 20px;color:var(--ink-3);text-align:center}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--rule);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- empty state --------------------------------------------------------- */
+.empty{
+  min-height:min(70vh,640px);display:flex;align-items:center;justify-content:center;
+  padding:40px 20px;position:relative;overflow:hidden;
+}
+.empty-bg{
+  position:absolute;inset:0;pointer-events:none;opacity:.07;
+  background:
+    radial-gradient(circle at 12% 22%, var(--accent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 78% 18%, var(--ink-2) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 88% 70%, var(--accent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 18% 78%, var(--ink-2) 0 1px, transparent 1.5px);
+  background-size:180px 140px;
+}
+.empty-card{position:relative;max-width:480px;width:100%;text-align:center}
+.empty-card h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin:0 0 8px}
+.empty-card .lead{color:var(--ink-3);font-size:14px;margin-bottom:22px;line-height:1.45}
+.benefits{list-style:none;text-align:left;margin:0 auto 22px;max-width:400px;display:grid;gap:12px}
+.benefits li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start}
+.benefits .ico{
+  width:28px;height:28px;border-radius:8px;background:var(--accent-soft);color:var(--accent);
+  display:grid;place-items:center;font-size:14px;line-height:1}
+.benefits b{display:block;font-size:13.5px;font-weight:600;margin-bottom:2px}
+.benefits span{font-size:12.5px;color:var(--ink-3);line-height:1.4}
+.empty-actions{display:flex;gap:10px;align-items:stretch;margin-bottom:12px}
+.pf-search{
+  position:relative;flex:1;display:flex;align-items:center;gap:8px;
+  background:var(--sunk);border:1px solid var(--rule);border-radius:10px;padding:0 12px;
+}
+.pf-search svg{width:16px;height:16px;color:var(--ink-3);flex-shrink:0}
+.pf-search input{
+  flex:1;border:0;background:transparent;padding:12px 0;font:inherit;color:var(--ink);
+  outline:none;min-width:0
+}
+.pf-ac{
+  position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card);
+  border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shadow);
+  z-index:20;display:none;max-height:260px;overflow:auto;text-align:left
+}
+.pf-ac.open{display:block}
+.pf-ac div{padding:10px 12px;cursor:pointer;display:flex;gap:10px;align-items:baseline}
+.pf-ac div:hover,.pf-ac div.on{background:var(--accent-soft)}
+.pf-ac b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--accent)}
+.pf-ac span{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{
+  border:0;border-radius:10px;padding:0 18px;font:inherit;font-size:13.5px;font-weight:600;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  white-space:nowrap;min-height:44px
+}
+/* Keep the CTA dark in both themes — --ink flips to light in dark mode,
+   which washed the button out to near-white. */
+.btn-primary{background:#111820;color:#fff}
+.btn-primary:hover{opacity:.9}
+:root[data-theme="dark"] .btn-primary{
+  background:#243141;color:var(--ink);border:1px solid var(--rule);
+}
+:root[data-theme="dark"] .btn-primary:hover{background:#2c3a4d;opacity:1}
+.btn-ghost{background:transparent;border:1px solid var(--rule);color:var(--ink-2)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.empty-foot{font-size:12px;color:var(--ink-3)}
+
+/* Inline empty states inside the portfolio table */
+.pf-empty{
+  padding:28px 20px 32px;text-align:center;color:var(--ink-3);
+}
+.pf-empty h3{
+  margin:0 0 8px;font-size:15px;font-weight:600;color:var(--ink);
+  letter-spacing:-.01em;
+}
+.pf-empty p{margin:0 0 16px;font-size:13px;line-height:1.45;max-width:320px;margin-left:auto;margin-right:auto}
+.pf-quick{
+  display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 0 16px;
+}
+.pf-quick button{
+  border:1px solid var(--rule);background:var(--sunk);color:var(--ink-2);
+  border-radius:8px;padding:7px 12px;font:inherit;font-size:12.5px;font-weight:600;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;cursor:pointer;
+}
+.pf-quick button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.pulse .v.placeholder{color:var(--ink-3);font-weight:600}
+
+/* ---- pulse / overview cards ---------------------------------------------- */
+.sumhead{
+  display:flex;justify-content:space-between;align-items:baseline;
+  gap:12px 24px;margin-bottom:12px;flex-wrap:wrap
+}
+.sumhead h2{font-size:15px;font-weight:600;letter-spacing:-.005em;margin:0}
+.sumhead .sub{color:var(--ink-3);font-size:12.5px;margin-left:auto}
+.pulse{
+  display:grid;grid-template-columns:repeat(4,1fr);background:var(--card);
+  border:1px solid var(--rule);border-radius:var(--r);box-shadow:var(--shadow);
+  margin-bottom:18px;overflow:hidden
+}
+.pulse .cell{padding:14px 16px;border-right:1px solid var(--rule);min-width:0}
+.pulse .cell:last-child{border-right:0}
+.pulse .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;margin-bottom:6px;
+  display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pulse .k .info-tip{text-transform:none;letter-spacing:0}
+.pulse .v{font-family:"IBM Plex Sans",sans-serif;font-size:22px;font-weight:700;
+  letter-spacing:-.02em;line-height:1.15}
+.pulse .v .dim{color:var(--ink-3);font-weight:500;font-size:16px}
+.pulse .chg{margin-top:6px;font-size:12.5px;font-weight:600}
+.pulse .chg.up{color:var(--up)} .pulse .chg.down{color:var(--down)}
+.pulse .chg.mut{color:var(--ink-3);font-weight:500}
+.mut{color:var(--ink-3)}
+.pulse .scale{margin-top:10px;height:6px;border-radius:99px;position:relative;
+  background:linear-gradient(90deg,#1baf7a 0%,#eda100 50%,#c0392e 100%)}
+.pulse .scale i{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;
+  background:var(--card);border:2px solid var(--ink);transform:translate(-50%,-50%);
+  box-shadow:0 0 0 1px var(--rule)}
+.donut-wrap{display:flex;align-items:center;gap:14px;margin-top:4px}
+.donut{width:88px;height:52px;flex-shrink:0}
+.donut-legend{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;font-size:11px;min-width:0}
+.donut-legend span{display:flex;align-items:center;gap:5px;color:var(--ink-2);min-width:0}
+.donut-legend i{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.donut-legend b{font-family:"IBM Plex Mono",monospace;font-weight:500;margin-left:auto}
+
+/* ---- split list + chart -------------------------------------------------- */
+.listhead{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:14px 18px 10px;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden;flex-shrink:0}
+.seg button{background:transparent;border:0;padding:6px 11px;font:inherit;font-size:12px;
+  cursor:pointer;color:var(--ink-2);border-right:1px solid var(--rule);white-space:nowrap}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:500}
+.rows{border-right:1px solid var(--rule);overflow-y:auto;overflow-x:auto;max-height:520px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600;padding:8px 14px;border-bottom:1px solid var(--rule);
+  position:sticky;top:0;background:var(--card);z-index:1}
+td{padding:10px 14px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
+tr{cursor:pointer} tr:hover td{background:var(--sunk)}
+tr.on td{background:var(--accent-soft)}
+.tsym{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-decoration:none}
+.tsym-with-logo{display:flex;flex-direction:row;align-items:center;gap:8px;
+  text-decoration:none;min-width:0}
+.tsym-with-logo .tsym-text{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
+.tsym-t{font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--accent);
+  font-size:12.5px;line-height:1.25}
+.tsym-n{font-size:10.5px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;max-width:140px;line-height:1.3}
+.chead .c-sym-line{display:inline-flex;align-items:center;gap:8px}
+.chead .c-sym-line b{font-family:"IBM Plex Serif",Georgia,serif;font-size:27px;font-weight:600;
+  letter-spacing:-.015em;line-height:1}
+.pill{display:inline-block;padding:2px 7px;border-radius:99px;font-size:11.5px;font-weight:600}
+.pill.up{background:var(--up-soft);color:var(--up)}
+.pill.down{background:var(--down-soft);color:var(--down)}
+.row-actions{display:flex;gap:4px;flex-wrap:nowrap;align-items:center}
+.row-actions button{
+  border:1px solid var(--rule);background:var(--card);border-radius:6px;
+  padding:3px 8px;font:inherit;font-size:11px;cursor:pointer;color:var(--ink-2);
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:26px
+}
+.row-actions button:hover{border-color:var(--accent);color:var(--accent)}
+.row-actions .icon-btn{padding:3px 6px;color:var(--ink-3)}
+.row-actions .icon-btn svg{width:13px;height:13px;display:block}
+.rows th.col-act .icon-btn{
+  border:1px solid var(--rule);background:var(--card);border-radius:6px;
+  padding:3px 6px;min-height:26px;cursor:pointer;color:var(--ink-3);
+  display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;
+}
+.rows th.col-act .icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.rows th.col-act .icon-btn svg{width:13px;height:13px;display:block}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;align-items:center}
+.modal-actions .grow{flex:1;display:flex;justify-content:flex-start}
+.btn-danger{
+  border:1px solid var(--down);background:transparent;color:var(--down);
+  border-radius:10px;padding:0 12px;min-height:44px;font:inherit;font-size:13px;
+  font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px
+}
+.btn-danger:hover{background:var(--down-soft)}
+.btn-danger svg{width:15px;height:15px}
+.btn-danger[hidden]{display:none}
+.stack-cell{display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.25}
+.stack-cell.start{align-items:flex-start}
+.stack-cell .top{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  font-size:12.5px;font-weight:600;color:var(--ink)}
+.stack-cell .bot{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  font-size:10.5px;color:var(--ink-3)}
+.stack-cell .bot.up{color:var(--up)}
+.stack-cell .bot.down{color:var(--down)}
+.stack-cell .top.up{color:var(--up)}
+.stack-cell .top.down{color:var(--down)}
+.rows table{font-size:12.5px;width:100%;border-collapse:collapse}
+.rows th,.rows td{padding:9px 10px;white-space:nowrap}
+.rows th:first-child,.rows td:first-child{padding-left:10px}
+.rows .idcol{white-space:normal;width:1%;max-width:152px;padding-right:8px;text-align:left}
+/* Numeric columns: right-align headers and values (Symbol stays left). */
+.rows th.col-num,.rows td.col-num,
+.rows th.col-px,.rows td.col-px,
+.rows th.col-act,.rows td.col-act{width:1%;padding-left:6px;padding-right:6px;text-align:right}
+.rows th.col-act,.rows td.col-act{padding-right:10px}
+.rows td.col-num .stack-cell,
+.rows td.col-px .stack-cell{margin-left:auto}
+.rows td.col-act .row-actions{justify-content:flex-end}
+.rows{overflow-x:auto}
+.th-with-tip{display:inline-flex;align-items:center;justify-content:flex-end;gap:4px;width:100%}
+.info-tip{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;border:1px solid var(--ink-3);
+  color:var(--ink-3);font-size:10px;font-weight:700;line-height:1;cursor:help;
+  flex-shrink:0
+}
+.info-tip:hover,.info-tip:focus{color:var(--accent);border-color:var(--accent);outline:none}
+/* Fixed positioning is applied in JS so tips are not clipped by .rows overflow. */
+.info-tip .tip{
+  display:none;position:fixed;z-index:120;width:220px;padding:8px 10px;border-radius:8px;
+  background:var(--card);color:var(--ink);border:1px solid var(--rule);
+  box-shadow:var(--shadow);font-size:11.5px;font-weight:500;line-height:1.35;
+  text-transform:none;letter-spacing:0;white-space:normal;text-align:left;
+  pointer-events:none
+}
+.info-tip:hover .tip,.info-tip:focus .tip,.info-tip .tip.on{display:block}
+.wl-bar{padding:10px 14px;border-bottom:1px solid var(--rule)}
+.wl-search{
+  position:relative;display:flex;align-items:center;gap:8px;
+  background:var(--sunk);border:1px solid var(--rule);border-radius:8px;padding:0 10px
+}
+.wl-search svg{width:14px;height:14px;color:var(--ink-3)}
+.wl-search input{flex:1;border:0;background:transparent;padding:9px 0;font:inherit;outline:none;color:var(--ink)}
+.wl-ac{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card);
+  border:1px solid var(--rule);border-radius:8px;box-shadow:var(--shadow);z-index:15;display:none}
+.wl-ac.open{display:block}
+.wl-ac div{padding:8px 10px;cursor:pointer;display:flex;gap:8px}
+.wl-ac div:hover{background:var(--accent-soft)}
+.wl-ac b{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--accent)}
+.wl-ac span{font-size:11.5px;color:var(--ink-3)}
+
+.chartwrap{display:flex;flex-direction:column;min-width:0;padding:14px 16px 10px;height:100%;min-height:0}
+.chead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;flex-shrink:0}
+.chead .price{font-size:22px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chead .price b{font-family:"IBM Plex Mono",monospace}
+.chead .c-sym-line{display:inline-flex;align-items:center;gap:8px}
+.chead .meta{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+.chead .meta .up,.chead .meta .down{font-weight:600}
+/* Fill the split pane; SVG stretches to the available box (pads keep labels readable). */
+#chart{flex:1;min-height:280px;position:relative;display:block}
+#chart > svg{
+  position:absolute;inset:0;width:100%;height:100%;
+  display:block;overflow:visible
+}
+.idx-bar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 4px;border-top:1px solid var(--rule-2);margin-top:6px;flex-shrink:0}
+.idx-chip{
+  display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);
+  border-radius:99px;padding:4px 10px;font-size:12px;cursor:pointer;background:transparent;color:var(--ink-2)
+}
+.idx-chip[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.idx-chip i{width:8px;height:8px;border-radius:50%}
+.range{display:flex;gap:4px}
+.range button{
+  border:1px solid var(--rule);background:transparent;border-radius:7px;
+  padding:4px 9px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--ink-2)
+}
+.range button[aria-pressed=true]{border-color:var(--ink);color:var(--ink);font-weight:600}
+
+/* ---- modal --------------------------------------------------------------- */
+.modal{
+  position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:80;
+  display:grid;place-items:center;padding:20px
+}
+.modal[hidden]{display:none}
+.modal-card{
+  background:var(--card);border:1px solid var(--rule);border-radius:14px;
+  box-shadow:var(--shadow);width:min(440px,100%);padding:22px 22px 18px;position:relative
+}
+.modal-card h2{font-size:18px;font-weight:700;letter-spacing:-.015em;margin-bottom:4px}
+.modal-card .sub{font-size:12.5px;color:var(--ink-3);margin-bottom:16px}
+.modal-x{position:absolute;top:12px;right:12px;border:0;background:transparent;
+  font-size:22px;line-height:1;cursor:pointer;color:var(--ink-3);padding:4px 8px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11.5px;font-weight:600;color:var(--ink-3);
+  letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px}
+.field input{
+  width:100%;border:1px solid var(--rule);border-radius:8px;padding:10px 12px;
+  font:inherit;background:var(--sunk);color:var(--ink);outline:none
+}
+.field input:focus{border-color:var(--accent);background:var(--card)}
+.field .hint{font-size:11.5px;color:var(--ink-3);margin-top:4px}
+.field-check{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;
+  padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--sunk)}
+.field-check input{width:16px;height:16px;margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
+.field-check label{font-size:13px;font-weight:500;color:var(--ink);letter-spacing:0;
+  text-transform:none;line-height:1.35;cursor:pointer}
+.field-check .hint{font-size:11.5px;color:var(--ink-3);margin-top:3px;font-weight:400}
+.cash-row td{background:color-mix(in srgb, var(--sunk) 70%, transparent)}
+.err{color:var(--down);font-size:12.5px;margin-top:8px;min-height:1.2em}
+
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;
+  font-size:13px;z-index:90;box-shadow:var(--shadow)
+}
+#chart{position:relative}
+#chart-tip{
+  position:absolute;z-index:5;pointer-events:none;opacity:0;
+  background:var(--card);border:1px solid var(--rule);border-radius:8px;
+  box-shadow:var(--shadow);padding:8px 10px;font-size:11.5px;min-width:120px;
+  transition:opacity .08s ease
+}
+#chart-tip.on{opacity:1}
+#chart-tip b{display:block;font-size:12px;margin-bottom:4px;font-weight:600}
+#chart-tip .r{display:flex;justify-content:space-between;gap:14px;align-items:center;
+  color:var(--ink-2);margin-top:2px}
+#chart-tip .r span:last-child{font-family:"IBM Plex Mono",monospace;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+#chart-tip .sw{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:6px}
+
+@media (max-width:980px){
+  .pulse{grid-template-columns:1fr 1fr}
+  .pulse .cell:nth-child(2){border-right:0}
+  .pulse .cell:nth-child(n+3){border-top:1px solid var(--rule)}
+  .grid2{grid-template-columns:1fr}
+}
+@media (max-width:720px){
+  main{padding:16px 14px 56px}
+  .empty-card h1{font-size:24px}
+  .empty-actions{flex-direction:column}
+  /* Overview: Total Assets (donut) left, other 3 metrics stacked right */
+  .pulse{
+    grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+    grid-template-rows:repeat(3,minmax(0,auto));
+    align-items:stretch
+  }
+  .pulse .cell{
+    padding:10px 12px;border-right:0;border-top:0;
+    display:flex;flex-direction:column;min-width:0;overflow:hidden
+  }
+  .pulse .cell:first-child{
+    grid-column:1;grid-row:1 / span 3;
+    border-right:1px solid var(--rule);padding:12px;
+    justify-content:flex-start
+  }
+  .pulse .cell:nth-child(n+2){
+    grid-column:2;border-top:1px solid var(--rule);
+    justify-content:center;gap:2px
+  }
+  .pulse .cell:nth-child(2){border-top:0}
+  .pulse .k{
+    font-size:9.5px;letter-spacing:.05em;margin-bottom:4px;
+    line-height:1.25;gap:4px
+  }
+  .pulse .v{
+    font-size:15px;line-height:1.2;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  }
+  .pulse .cell:first-child .v{font-size:17px;white-space:normal}
+  .pulse .v .dim{font-size:12px}
+  .pulse .chg{margin-top:3px;font-size:11px}
+  .pulse .scale{margin-top:7px;height:5px;flex-shrink:0}
+  .pulse .scale i{width:10px;height:10px}
+  .donut-wrap{
+    flex-direction:column;align-items:stretch;gap:6px;margin-top:6px;flex:1;
+    justify-content:flex-start;min-height:0
+  }
+  .donut{width:min(100%,128px);height:auto;aspect-ratio:120 / 70;align-self:center;flex-shrink:0}
+  .donut-legend{
+    grid-template-columns:1fr 1fr;gap:1px 6px;font-size:9.5px;width:100%;line-height:1.25
+  }
+  .donut-legend span{gap:3px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .donut-legend b{font-size:9.5px;flex-shrink:0;margin-left:2px}
+  .split{grid-template-columns:1fr;min-height:0}
+  .rows{border-right:0;max-height:none}
+  .rows th,.rows td{padding:8px 6px}
+  .rows th:first-child,.rows td:first-child{padding-left:8px}
+  .rows th.col-act,.rows td.col-act{padding-right:8px}
+  .stack-cell .top{font-size:11.5px}
+  .stack-cell .bot{font-size:9.5px}
+  .tsym-t{font-size:11.5px}
+  .tsym-n{font-size:9.5px;max-width:96px}
+  .chartwrap{display:none}
+  .discover{margin-top:18px}
+  .disc-rail{padding:0}
+  .disc-nav{display:none}
+  .disc-viewport{overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none}
+  .disc-viewport::-webkit-scrollbar{display:none}
+  .disc-track{transition:none;transform:none!important;gap:10px}
+  .disc-card{flex-basis:min(42vw,168px);scroll-snap-align:start}
+  .disc-card h3{font-size:12.5px;min-height:0}
+  .grid2{gap:12px}
+  .grid2 > .panel{min-width:0;overflow:hidden}
+  .scroll{-webkit-overflow-scrolling:touch}
+  .mini{font-size:11.5px}
+  .mini thead th{font-size:9px;padding:0 0 6px 6px}
+  .cal-ev .sym{font-size:12.5px}
+  .cal-ev .meta{font-size:11px}
+}
+
+/* ---- Discover + Congress & Insiders (below holdings) --------------------- */
+.discover{margin-top:28px}
+.disc-head{display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;margin-bottom:14px}
+.disc-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
+.disc-head a{font-size:13px;font-weight:600;color:var(--accent);text-decoration:none}
+.disc-head a:hover{text-decoration:underline}
+.disc-rail{position:relative;padding:0 48px}
+.disc-viewport{overflow:hidden;border-radius:calc(var(--r) + 2px)}
+.disc-track{display:flex;gap:12px;transition:transform .45s cubic-bezier(.22,.61,.36,1);
+  will-change:transform}
+.disc-card{
+  flex:0 0 calc((100% - 48px) / 5);min-width:0;
+  display:flex;flex-direction:column;background:var(--card);
+  border:1px solid var(--rule);border-radius:9px;overflow:hidden;
+  text-decoration:none;color:inherit;box-shadow:var(--shadow);
+  transition:transform .25s ease, border-color .2s ease, box-shadow .25s ease;
+}
+.disc-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb, var(--accent) 45%, var(--rule));
+  box-shadow:0 4px 18px -10px rgba(17,24,32,.35)}
+.disc-card .ph{aspect-ratio:16/9;background:var(--sunk);overflow:hidden}
+.disc-card .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.disc-card .ph.blank{display:grid;place-items:center;color:var(--ink-3);
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.disc-card .body{padding:10px 11px 11px;display:flex;flex-direction:column;gap:8px;flex:1}
+.disc-card h3{font-family:"IBM Plex Serif",Georgia,serif;font-size:13.5px;font-weight:600;
+  letter-spacing:-.015em;line-height:1.3;margin:0;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  min-height:3.9em}
+.disc-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;
+  margin-top:auto;padding-top:1px}
+.disc-src{display:flex;align-items:center;gap:6px;min-width:0;font-size:10.5px;color:var(--ink-3)}
+.disc-src .av{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  font-size:8px;font-weight:700;color:#fff;background:var(--accent)}
+.disc-src .who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.disc-card .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;
+  color:var(--accent);flex-shrink:0}
+.disc-nav{
+  position:absolute;top:50%;transform:translateY(-50%);z-index:2;
+  width:40px;height:40px;border-radius:50%;border:1px solid var(--rule);
+  background:var(--card);color:var(--ink);cursor:pointer;display:grid;place-items:center;
+  box-shadow:var(--shadow);padding:0;
+}
+.disc-nav:hover{border-color:var(--accent);color:var(--accent)}
+.disc-nav:disabled{opacity:.35;cursor:default}
+.disc-nav.prev{left:0}
+.disc-nav.next{right:0}
+.disc-nav svg{width:18px;height:18px;display:block}
+.disc-dots{display:flex;justify-content:center;gap:7px;margin-top:16px;min-height:10px}
+.disc-dots button{width:7px;height:7px;border-radius:50%;border:0;padding:0;
+  background:var(--rule);cursor:pointer}
+.disc-dots button[aria-current=true]{background:var(--ink);transform:scale(1.15)}
+.disc-empty{padding:28px;text-align:center;color:var(--ink-3);font-size:13px}
+@media (max-width:1280px){ .disc-card{flex-basis:calc((100% - 36px) / 4)} }
+@media (max-width:980px){ .disc-card{flex-basis:calc((100% - 24px) / 3)} }
+
+.trades-head{margin:26px 0 12px;font-size:18px;font-weight:700;letter-spacing:-.02em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.hmhead{display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:14px 18px 6px}
+.hmhead h3{font-size:14.5px;font-weight:600;letter-spacing:-.005em;margin:0}
+.htitle{display:inline-flex;align-items:center;gap:7px;min-width:0}
+.info-i{
+  width:16px;height:16px;border-radius:50%;border:1px solid var(--ink-3);color:var(--ink-3);
+  background:transparent;font-size:10px;font-weight:700;line-height:1;cursor:help;
+  display:inline-flex;align-items:center;justify-content:center;position:relative;padding:0;
+  flex-shrink:0
+}
+.info-i:hover, .info-i:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+/* Panel (i) bubbles — separate class from column .info-tip icons so icon
+   sizing (14×14, no fill) cannot leak onto the readable tip surface. */
+.info-i .info-bubble, .info-bubble{
+  display:none;position:fixed;left:0;top:0;z-index:200;
+  width:min(280px,72vw);height:auto;min-height:0;
+  padding:8px 10px;border-radius:8px;
+  background-color:var(--card);background:var(--card);color:var(--ink);
+  border:1px solid var(--rule);box-shadow:var(--shadow);
+  font-size:11.5px;font-weight:500;line-height:1.35;
+  text-align:left;text-transform:none;letter-spacing:0;pointer-events:none;
+  white-space:normal
+}
+.info-i:hover .info-bubble, .info-i:focus-visible .info-bubble, .info-bubble.on{display:block}
+.grid2 > .panel{overflow:visible}
+.scroll{overflow-x:auto;padding:10px 18px 18px}
+#insiders.scroll, #congress.scroll{
+  max-height:420px; overflow-y:auto; overflow-x:auto;
+  scrollbar-gutter:stable; overscroll-behavior:contain;
+}
+#insiders .mini thead th, #congress .mini thead th{
+  position:sticky; top:0; z-index:1; background:var(--card);
+  box-shadow:0 1px 0 var(--rule);
+}
+#insiders .trade-more, #congress .trade-more{
+  text-align:center; font-size:11.5px; color:var(--ink-3); padding:10px 0 2px;
+}
+.mini{width:100%;border-collapse:collapse;font-size:12.5px}
+.mini thead th{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);
+  font-weight:600;text-align:right;padding:0 0 7px 8px;border-bottom:1px solid var(--rule)}
+.mini thead th:first-child{text-align:left;padding-left:0}
+.mini thead th.idcol{text-align:left}
+.mini tbody td{padding:7px 0 7px 8px;border-bottom:1px solid var(--rule-2);text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;
+  vertical-align:middle}
+.mini tbody td:first-child{text-align:left;color:var(--ink-3);padding-left:0}
+.mini tbody td.idcol{text-align:left;font-family:"IBM Plex Sans",sans-serif}
+.mini tbody tr:last-child td{border-bottom:0}
+.mini a{color:var(--accent);text-decoration:none;font-weight:500}
+.mini a:hover .tsym-t{text-decoration:underline}
+.side{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;font-weight:600;
+  font-family:"IBM Plex Sans",sans-serif}
+.side.buy{background:var(--up-soft);color:var(--up)}
+.side.sell{background:var(--down-soft);color:var(--down)}
+.ppl{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
+.ppl-t{font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:12.5px;line-height:1.25}
+.ppl-n{font-family:"IBM Plex Sans",sans-serif;font-size:10.5px;color:var(--ink-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;line-height:1.3}
+
+/* ---- Portfolio Calendar -------------------------------------------------- */
+.cal-section{margin-top:28px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.cal-head h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em;
+  font-family:"IBM Plex Serif",Georgia,serif}
+.cal-tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+.cal-ico,.cal-nav-btn{
+  width:34px;height:34px;border-radius:8px;border:1px solid var(--rule);
+  background:var(--card);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;
+  padding:0;font:inherit;box-shadow:var(--shadow);
+}
+.cal-ico:hover,.cal-nav-btn:hover{border-color:var(--accent);color:var(--accent)}
+.cal-ico svg,.cal-nav-btn svg{width:16px;height:16px}
+.cal-today{
+  border:0;background:transparent;color:var(--ink);cursor:pointer;font:inherit;
+  font-size:13.5px;font-weight:600;padding:6px 4px;letter-spacing:-.01em;
+}
+.cal-today:hover{color:var(--accent)}
+.cal-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,0.9fr);
+  gap:20px;align-items:start}
+@media (max-width:980px){.cal-layout{grid-template-columns:1fr}}
+.cal-week-wrap,.cal-day{
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+/* Fixed heights so selection / empty days never resize the panels.
+   Right rundown is intentionally a touch taller than the week strip. */
+.cal-week-wrap{height:168px}
+.cal-day{height:196px}
+.cal-week{
+  display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;
+  padding:12px;flex:1;min-height:0;height:100%;align-items:stretch;
+}
+@media (max-width:720px){
+  .cal-week{gap:6px;padding:10px}
+  .cal-daycard .dom{font-size:15px}
+  .cal-week-wrap{height:152px}
+  .cal-day{height:180px}
+}
+.cal-daycard{
+  background:var(--sunk);border:1px solid var(--rule);border-radius:10px;
+  padding:10px 8px 8px;cursor:pointer;text-align:left;min-width:0;height:100%;
+  font:inherit;color:inherit;display:flex;flex-direction:column;gap:2px;
+  transition:border-color .12s, background .12s;box-shadow:none;
+}
+.cal-daycard:hover{border-color:var(--accent)}
+.cal-daycard.on{background:var(--card);border-color:var(--ink-3)}
+.cal-daycard .dow{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:600}
+.cal-daycard .dom{font-size:18px;font-weight:600;letter-spacing:-.02em;margin:2px 0 8px}
+.cal-daycard .foot{display:flex;align-items:center;gap:4px;min-height:18px;margin-top:auto;
+  overflow:hidden;width:100%}
+.cal-daycard .avatars{display:flex;min-height:16px;min-width:0;overflow:hidden}
+.cal-daycard .avatars span{
+  width:16px;height:16px;border-radius:50%;font-size:7px;font-weight:700;color:#fff;
+  display:grid;place-items:center;margin-left:-4px;border:1.5px solid var(--sunk);
+  font-family:"IBM Plex Mono",monospace;flex-shrink:0;
+  /* Contain hydrated logo images so they cannot spill as a banner across the week. */
+  overflow:hidden;position:relative;box-sizing:border-box;
+}
+.cal-daycard .avatars span img.logo-img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+  padding:12%;box-sizing:border-box;border-radius:inherit;display:block;
+}
+.cal-daycard .avatars span.has-logo{background:#fff!important;color:transparent!important}
+.cal-daycard.on .avatars span{border-color:var(--card)}
+.cal-daycard .avatars span:first-child{margin-left:0}
+.cal-daycard .n{font-size:10.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap}
+.cal-day-bar{padding:12px 14px 4px;flex-shrink:0}
+.cal-day-bar h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.02em}
+/* Viewport fits ~3 event rows; more events scroll inside. */
+.cal-day-list{
+  padding:2px 6px 8px;overflow-x:hidden;overflow-y:auto;flex:1;min-height:0;
+  scrollbar-gutter:stable;
+}
+.cal-ev{
+  display:flex;align-items:center;gap:10px;height:52px;padding:0 8px;
+  border-bottom:1px solid var(--rule-2);box-sizing:border-box;flex-shrink:0;
+}
+.cal-ev:last-child{border-bottom:0}
+.cal-ev .av{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:grid;
+  place-items:center;font-family:"IBM Plex Mono",monospace;font-size:10px;
+  font-weight:700;color:#fff}
+.cal-ev .body{min-width:0;flex:1}
+.cal-ev .row1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.cal-ev .sym{font-family:"IBM Plex Mono",monospace;font-weight:700;font-size:13px}
+.cal-ev .sess{font-size:11px;color:var(--ink-3);display:inline-flex;align-items:center;gap:4px}
+.cal-ev .sess svg{width:12px;height:12px}
+.cal-ev .meta{font-size:11.5px;color:var(--ink-3);margin-top:1px;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-add{
+  flex-shrink:0;width:32px;height:32px;border-radius:8px;border:1px solid var(--rule);
+  background:var(--sunk);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;
+  padding:0;
+}
+.cal-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.cal-add svg{width:15px;height:15px}
+.cal-empty{
+  height:100%;min-height:0;padding:0 12px;display:grid;place-items:center;
+  text-align:center;color:var(--ink-3);font-size:13px;box-sizing:border-box;
+}
+
+/* Calendar subscribe modal */
+.cal-modal .modal-card{width:min(420px,94vw)}
+.cal-search{position:relative;margin-bottom:14px}
+.cal-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;color:var(--ink-3);pointer-events:none}
+.cal-search input{
+  width:100%;background:var(--sunk);border:1px solid var(--rule);border-radius:8px;
+  padding:10px 12px 10px 34px;font:inherit;font-size:13.5px;color:var(--ink);
+}
+.cal-search input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;background:var(--card)}
+.cal-ac{
+  position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;background:var(--card);
+  border:1px solid var(--rule);border-radius:8px;box-shadow:var(--shadow);
+  max-height:220px;overflow:auto;
+}
+.cal-ac button{
+  display:flex;gap:10px;align-items:center;width:100%;padding:9px 12px;border:0;
+  background:transparent;cursor:pointer;font:inherit;text-align:left;color:var(--ink);
+  border-bottom:1px solid var(--rule-2);
+}
+.cal-ac button:last-child{border-bottom:0}
+.cal-ac button:hover{background:var(--accent-soft)}
+.cal-ac b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;min-width:52px;color:var(--accent)}
+.cal-ac span{font-size:12.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cal-sub-h{font-size:13.5px;font-weight:700;margin:4px 0 10px}
+.cal-subs{display:flex;flex-direction:column;gap:2px;max-height:320px;overflow:auto}
+.cal-sub{
+  display:flex;align-items:center;gap:10px;padding:9px 4px;cursor:pointer;
+  border-radius:8px;font-size:14px;font-weight:500;color:var(--ink);user-select:none;
+}
+.cal-sub:hover{background:var(--sunk)}
+.cal-check{
+  width:22px;height:22px;border-radius:50%;border:1.5px solid var(--ink-3);
+  flex-shrink:0;display:grid;place-items:center;background:transparent;color:transparent;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.cal-sub.on .cal-check{
+  background:var(--accent);border-color:var(--accent);color:#fff;
+}
+.cal-sub.locked{cursor:default}
+.cal-sub.locked:hover{background:transparent}
+.cal-check svg{width:12px;height:12px}
+</style>
+</head>
+<body>
+<main>
+  <div id="app"><div class="note"><span class="load"></span></div></div>
+</main>
+
+<div class="modal" id="add-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="add-title">
+    <button type="button" class="modal-x" id="add-x" aria-label="Close">×</button>
+    <h2 id="add-title">Add to portfolio</h2>
+    <p class="sub" id="add-sub">Enter your current holding as of today — ticker, quantity, and average buy price. P/L is calculated from live price.</p>
+    <form id="add-form">
+      <div class="field">
+        <label for="f-symbol">Ticker</label>
+        <input id="f-symbol" name="symbol" autocomplete="off" required maxlength="10" placeholder="e.g. AAPL">
+      </div>
+      <div class="field">
+        <label for="f-date">Today's date</label>
+        <input id="f-date" name="date" type="date" required>
+      </div>
+      <div class="field">
+        <label for="f-qty">Quantity</label>
+        <input id="f-qty" name="qty" type="number" step="any" min="0" required placeholder="Shares">
+      </div>
+      <div class="field">
+        <label for="f-price">Average buy price per share</label>
+        <input id="f-price" name="price" type="number" step="any" min="0" required placeholder="USD">
+        <div class="hint" id="f-price-hint">Your cost basis per share from your brokerage.</div>
+      </div>
+      <div id="cash-fields" hidden>
+        <div class="field-check">
+          <input type="checkbox" id="f-deduct-cash" name="deductCash">
+          <div>
+            <label for="f-deduct-cash">Deduct portfolio cash for buying</label>
+            <div class="hint" id="f-deduct-hint">Reduce Cash by quantity × price. Turn off when logging a holding you already paid for outside this portfolio.</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-extra-cash">Additional cash</label>
+          <input id="f-extra-cash" name="extraCash" type="number" step="any" min="0" placeholder="0.00">
+          <div class="hint">Optional. Money you are adding now that was not logged on the platform yet — deposited to Cash before the purchase is deducted.</div>
+        </div>
+      </div>
+      <div class="err" id="add-err"></div>
+      <div class="modal-actions">
+        <div class="grow">
+          <button type="button" class="btn-danger" id="add-delete" hidden
+                  aria-label="Delete holding">
+            <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m-5 0v9.5A1.5 1.5 0 0 0 8.5 17h3a1.5 1.5 0 0 0 1.5-1.5V6M9 9v5M11 9v5"/>
+            </svg>
+            Delete
+          </button>
+        </div>
+        <button type="button" class="btn btn-ghost" id="add-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="add-save">Add holding</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="cash-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cash-title">
+    <button type="button" class="modal-x" id="cash-x" aria-label="Close">×</button>
+    <h2 id="cash-title">Edit cash</h2>
+    <p class="sub">Set your available cash balance. Buys and sells will continue to adjust Cash from this amount.</p>
+    <form id="cash-form">
+      <div class="field">
+        <label for="f-cash-amt">Cash balance (USD)</label>
+        <input id="f-cash-amt" name="cash" type="number" step="any" min="0" required placeholder="0.00">
+        <div class="hint">Current spendable cash in this portfolio.</div>
+      </div>
+      <div class="err" id="cash-err"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="cash-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="cash-save">Save cash</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="reset-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="reset-title">
+    <button type="button" class="modal-x" id="reset-x" aria-label="Close">×</button>
+    <h2 id="reset-title">Reset portfolio?</h2>
+    <p class="sub">This permanently deletes every holding, cash entry, and dividend in this portfolio. This cannot be undone.</p>
+    <div class="err" id="reset-err"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="reset-cancel">Cancel</button>
+      <button type="button" class="btn-danger" id="reset-confirm" aria-label="Reset portfolio">
+        <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 10a6.5 6.5 0 0 1 11.2-4.5M16.5 10a6.5 6.5 0 0 1-11.2 4.5"/>
+          <path d="M14.2 2.8v4.2h-4.2M5.8 17.2v-4.2h4.2"/>
+        </svg>
+        Reset portfolio
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal cal-modal" id="cal-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="cal-modal-title">
+    <button type="button" class="modal-x" id="cal-modal-x" aria-label="Close">×</button>
+    <h2 id="cal-modal-title">Edit calendars</h2>
+    <p class="sub">Subscribe to earnings and ex-dividend dates for tickers, or the U.S. economics calendar.</p>
+    <div class="cal-search">
+      <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round"><circle cx="8.5" cy="8.5" r="5.5"/>
+        <path d="m13 13 3.5 3.5"/></svg>
+      <input type="text" id="cal-q" placeholder="Search a ticker or calendar…" autocomplete="off">
+      <div class="cal-ac" id="cal-ac" hidden></div>
+    </div>
+    <div class="cal-sub-h">Subscribed Calendar</div>
+    <div class="cal-subs" id="cal-subs"></div>
+  </div>
+</div>
+
+<script>
+const CFG = window.ALPHATICKER_CONFIG || window.LEDGER_CONFIG || {};
+const HOSTED = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+const GA = window.TAnalytics || { track(){}, pageView(){} };
+const PORT_KEY = "alphaticker-portfolio";
+const WATCH_KEY = "alphaticker-watchlist";
+const MERGED_KEY = "alphaticker-portfolio-merged";
+
+const INDEXES = [
+  { sym: "SPY",  name: "S&P 500",  colour: "#2a78d6" },
+  { sym: "QQQ",  name: "NASDAQ",   colour: "#eda100" },
+  { sym: "IWM",  name: "Russell",  colour: "#1baf7a" },
+  { sym: "DIA",  name: "Dow",      colour: "#eb6834" },
+];
+
+const ETF_SET = new Set([
+  "SPY","QQQ","IWM","DIA","VOO","VTI","IVV","VEA","VWO","EFA","EEM","AGG","BND",
+  "LQD","HYG","TLT","IEF","SHY","GLD","SLV","USO","XLF","XLK","XLE","XLV","XLI",
+  "XLY","XLP","XLU","XLB","XLRE","XLC","ARKK","ARKW","TQQQ","SQQQ","UVXY","VXX",
+]);
+
+const ASSET_COLORS = {
+  Cash: "var(--s1)", Stocks: "var(--s2)", Funds: "var(--s3)",
+  ETFs: "var(--s4)", Crypto: "var(--s6)",
+};
+
+async function rpc(fn, args){
+  if (!HOSTED) throw new Error("config.js is missing, so there is no data source");
+  const send = tok => fetch(`${CFG.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: {
+      apikey: CFG.supabaseAnonKey,
+      "Content-Type": "application/json",
+      ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+    },
+    body: JSON.stringify(args || {}),
+  });
+  let tok = window.TA && window.TA.token();
+  let r = await send(tok);
+  if (r.status === 401 && tok && window.TA && window.TA.recover) {
+    r = await send(await window.TA.recover());
+  }
+  if (!r.ok) throw new Error(`${fn} failed (${r.status})`);
+  return r.json();
+}
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = v => v == null || !Number.isFinite(v) ? "—"
+  : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+/** Return % for the holdings table (e.g. +9.22% / -7.10%). */
+const retPct = v => {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+};
+const dir = v => v == null ? "" : v >= 0 ? "up" : "down";
+const money = v => {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const abs = Math.abs(v);
+  const body = abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (v < 0 ? "-" : "") + "$" + body;
+};
+const moneySigned = v => {
+  if (v == null || !Number.isFinite(v)) return "—";
+  return (v >= 0 ? "+" : "") + money(v).replace("+", "");
+};
+const priceFmt = v => v == null || !Number.isFinite(v) ? "—"
+  : v >= 1000 ? v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})
+  : v.toFixed(2);
+const signedIn = () => !!(window.TA && window.TA.signedIn && window.TA.signedIn());
+/** Open stock/ETF/crypto lots — cash alone does not count as a tracked portfolio. */
+const hasHoldings = () => (S.positions || []).some(p => p && (Number(p.quantity) || 0) > 0);
+const QUICK_ADD = [
+  { symbol: "AAPL", name: "Apple" },
+  { symbol: "MSFT", name: "Microsoft" },
+  { symbol: "NVDA", name: "NVIDIA" },
+  { symbol: "GOOGL", name: "Alphabet" },
+  { symbol: "AMZN", name: "Amazon" },
+  { symbol: "SPY", name: "S&P 500 ETF" },
+  { symbol: "QQQ", name: "Nasdaq 100 ETF" },
+];
+const todayISO = () => {
+  const d = new Date();
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+};
+const uid = () => `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
+
+const S = {
+  transactions: [],
+  positions: [],
+  view: "portfolio",
+  selected: "PORTFOLIO",
+  indexes: Object.fromEntries(INDEXES.map(i => [i.sym, i.sym === "SPY" || i.sym === "QQQ"])),
+  range: "YTD",
+  priceCache: {},
+  /** symbol → 'etf' | 'crypto' from ledger.market_symbol (or search). */
+  assetKindBySym: {},
+  busy: false,
+};
+
+/* ---- local + remote portfolio ------------------------------------------- */
+const localPort = {
+  read(){
+    try { return JSON.parse(localStorage.getItem(PORT_KEY) || "[]"); } catch { return []; }
+  },
+  write(list){
+    try { localStorage.setItem(PORT_KEY, JSON.stringify(list)); } catch {}
+  },
+  clear(){ try { localStorage.removeItem(PORT_KEY); } catch {} },
+};
+
+function positionsFromTxns(txns){
+  // Remote get_portfolio returns newest-first; average-cost accounting needs
+  // chronological order so sells reduce basis at the prior avg (avg unchanged)
+  // and only subsequent buys reweight it.
+  const ordered = sortTxnsChrono(txns);
+
+  const map = {};
+  for (const t of ordered) {
+    // Cash ledger rows (deposit/withdrawal) are not holdings.
+    if (t.kind === "deposit" || t.kind === "withdrawal") continue;
+    const sym = String(t.symbol || "").toUpperCase();
+    if (!sym || sym === "CASH") continue;
+    if (!map[sym]) map[sym] = {
+      symbol: sym, quantity: 0, costIn: 0, proceeds: 0, dividends: 0,
+      firstTrade: t.tradeDate, lastTrade: t.tradeDate,
+      unrealizedPl: null, realizedPl: 0, _hasRealized: false,
+    };
+    const p = map[sym];
+    const q = Number(t.quantity) || 0;
+    const px = Number(t.price) || 0;
+    const fee = Number(t.fee) || 0;
+    if (t.kind === "buy") {
+      p.quantity += q;
+      p.costIn += q * px + fee;
+    } else if (t.kind === "sell") {
+      // Average-cost method: remove sold shares at the current avg so the
+      // remaining avg buy price is unchanged. Only a later buy rebalances it.
+      if (p.quantity > 1e-9 && q > 0) {
+        const sold = Math.min(q, p.quantity);
+        const avg = p.costIn / p.quantity;
+        p.costIn = Math.max(0, p.costIn - avg * sold);
+      }
+      p.quantity -= q;
+      p.proceeds += q * px - fee;
+      const realized = Number(t.realizedPl);
+      if (Number.isFinite(realized)) {
+        p.realizedPl = (p._hasRealized ? p.realizedPl : 0) + realized;
+        p._hasRealized = true;
+      }
+    } else if (t.kind === "dividend") {
+      p.dividends += px || 0;
+    }
+    // Latest non-null unrealized snapshot (legacy rows).
+    if (t.unrealizedPl != null && t.unrealizedPl !== "") {
+      p.unrealizedPl = Number(t.unrealizedPl);
+    }
+    if (t.tradeDate < p.firstTrade) p.firstTrade = t.tradeDate;
+    if (t.tradeDate > p.lastTrade) p.lastTrade = t.tradeDate;
+  }
+  return Object.values(map)
+    .filter(p => Math.abs(p.quantity) > 1e-9)
+    .map(p => {
+      const { _hasRealized, ...rest } = p;
+      return {
+        ...rest,
+        avgCost: p.quantity ? p.costIn / p.quantity : null,
+        realizedPl: _hasRealized ? p.realizedPl : null,
+      };
+    });
+}
+
+/** Oldest → newest (stable). Needed for average-cost / realized P/L replay. */
+function sortTxnsChrono(txns){
+  return (txns || []).map((t, i) => ({ t, i })).sort((a, b) => {
+    const da = String(a.t.tradeDate || "");
+    const db = String(b.t.tradeDate || "");
+    if (da !== db) return da < db ? -1 : 1;
+    const ia = Number(a.t.id);
+    const ib = Number(b.t.id);
+    if (Number.isFinite(ia) && Number.isFinite(ib) && ia !== ib) return ia - ib;
+    return a.i - b.i;
+  }).map(x => x.t);
+}
+
+/**
+ * Fill missing sell realizedPl by replaying average cost. Keeps stored values.
+ * Realized = (sale price − avg buy) × qty, attributed to the sell's tradeDate.
+ */
+function withRealizedPl(txns){
+  const ordered = sortTxnsChrono(txns);
+  const lots = Object.create(null); // symbol -> { costIn, qty }
+  const realizedByKey = Object.create(null);
+
+  for (let i = 0; i < ordered.length; i++) {
+    const t = ordered[i];
+    const sym = String(t.symbol || "").toUpperCase();
+    if (!sym || sym === "CASH") continue;
+    const q = Number(t.quantity) || 0;
+    const px = Number(t.price) || 0;
+    const fee = Number(t.fee) || 0;
+    const key = t.id != null ? `id:${t.id}` : `i:${i}:${sym}:${t.tradeDate}:${t.kind}`;
+
+    if (t.kind === "buy") {
+      if (!lots[sym]) lots[sym] = { costIn: 0, qty: 0 };
+      lots[sym].qty += q;
+      lots[sym].costIn += q * px + fee;
+    } else if (t.kind === "sell") {
+      let realized = t.realizedPl != null && t.realizedPl !== ""
+        ? Number(t.realizedPl) : NaN;
+      const lot = lots[sym];
+      if (!Number.isFinite(realized) && lot && lot.qty > 1e-9 && q > 0) {
+        const avg = lot.costIn / lot.qty;
+        realized = (px - avg) * q - fee;
+      }
+      if (Number.isFinite(realized)) realizedByKey[key] = realized;
+      if (lot && lot.qty > 1e-9 && q > 0) {
+        const sold = Math.min(q, lot.qty);
+        const avg = lot.costIn / lot.qty;
+        lot.costIn = Math.max(0, lot.costIn - avg * sold);
+        lot.qty -= q;
+      } else if (lot) {
+        lot.qty -= q;
+      }
+    }
+  }
+
+  return (txns || []).map((t, i) => {
+    if (t.kind !== "sell") return t;
+    if (t.realizedPl != null && t.realizedPl !== "" && Number.isFinite(Number(t.realizedPl))) {
+      return t;
+    }
+    const key = t.id != null ? `id:${t.id}` : null;
+    // Fall back to chrono index lookup when id is missing.
+    let realized = key && realizedByKey[key] != null ? realizedByKey[key] : null;
+    if (realized == null) {
+      // Match by scanning ordered position for this object identity / fields.
+      const ordIdx = ordered.indexOf(t);
+      const fallbackKey = ordIdx >= 0
+        ? `i:${ordIdx}:${String(t.symbol || "").toUpperCase()}:${t.tradeDate}:sell`
+        : `i:${i}:${String(t.symbol || "").toUpperCase()}:${t.tradeDate}:sell`;
+      if (realizedByKey[fallbackKey] != null) realized = realizedByKey[fallbackKey];
+    }
+    return Number.isFinite(realized) ? { ...t, realizedPl: realized } : t;
+  });
+}
+
+/** Realized gains/losses whose sell date falls in [fromISO, toISO] (inclusive). */
+function realizedPlInRange(fromISO, toISO){
+  const today = todayISO();
+  const to = toISO || today;
+  let realized = 0;
+  let soldCost = 0;
+  for (const t of withRealizedPl(S.transactions)) {
+    if (t.kind !== "sell") continue;
+    const d = t.tradeDate || "";
+    if (fromISO && d < fromISO) continue;
+    if (to && d > to) continue;
+    const r = Number(t.realizedPl);
+    if (!Number.isFinite(r)) continue;
+    realized += r;
+    const proceeds = (Number(t.quantity) || 0) * (Number(t.price) || 0);
+    soldCost += Math.max(0, proceeds - r);
+  }
+  return { realized, soldCost };
+}
+
+/** Avg buy for a symbol from current open position (before a new sell). */
+function openAvgCost(symbol){
+  const pos = (S.positions || []).find(
+    p => p.symbol === String(symbol || "").toUpperCase());
+  return pos && pos.avgCost != null && Number.isFinite(pos.avgCost)
+    ? pos.avgCost : null;
+}
+
+/** Spendable cash from deposits and withdrawals (buys/sells write these). */
+function cashBalance(txns = S.transactions){
+  let c = 0;
+  for (const t of txns || []) {
+    const px = Number(t.price) || 0;
+    if (t.kind === "deposit") c += px;
+    else if (t.kind === "withdrawal") c -= Math.abs(px);
+  }
+  // Avoid noisy −0 in the UI.
+  if (Math.abs(c) < 1e-9) return 0;
+  return c;
+}
+
+function mapRemoteTxns(list){
+  return (list || []).map(t => ({
+    id: t.id,
+    symbol: t.symbol,
+    kind: t.kind,
+    tradeDate: t.tradeDate,
+    quantity: Number(t.quantity),
+    price: Number(t.price),
+    fee: Number(t.fee) || 0,
+    note: t.note,
+    unrealizedPl: t.unrealizedPl != null ? Number(t.unrealizedPl) : null,
+    realizedPl: t.realizedPl != null ? Number(t.realizedPl) : null,
+  }));
+}
+
+function mapRemotePositions(list){
+  return (list || []).map(p => {
+    const assetKind = p.assetKind || null;
+    if (assetKind && p.symbol) S.assetKindBySym[p.symbol] = assetKind;
+    return {
+      symbol: p.symbol,
+      name: p.name,
+      assetKind,
+      quantity: Number(p.quantity),
+      costIn: Number(p.costIn),
+      proceeds: Number(p.proceeds),
+      dividends: Number(p.dividends),
+      avgCost: p.avgCost != null ? Number(p.avgCost) : null,
+      firstTrade: p.firstTrade,
+      lastTrade: p.lastTrade,
+      price: p.price != null ? Number(p.price) : null,
+      changePct: p.changePct != null ? Number(p.changePct) : null,
+      previousClose: p.previousClose != null ? Number(p.previousClose) : null,
+      marketCap: p.marketCap,
+      unrealizedPl: p.unrealizedPl != null ? Number(p.unrealizedPl) : null,
+      realizedPl: p.realizedPl != null ? Number(p.realizedPl) : null,
+    };
+  });
+}
+
+function applyLocalPortfolio(){
+  S.transactions = withRealizedPl(localPort.read());
+  S.positions = positionsFromTxns(S.transactions);
+}
+
+function mirrorRemoteToLocal(remoteTx){
+  localPort.write((remoteTx || []).map(t => ({
+    id: t.id || uid(),
+    symbol: t.symbol,
+    kind: t.kind,
+    tradeDate: t.tradeDate,
+    quantity: t.quantity,
+    price: t.price,
+    fee: t.fee || 0,
+    note: t.note || null,
+    unrealizedPl: t.unrealizedPl,
+    realizedPl: t.realizedPl,
+  })));
+  // Local now matches remote — do not upload these rows again on the next visit.
+  try { sessionStorage.setItem(MERGED_KEY, "1"); } catch {}
+}
+
+async function loadPortfolio(){
+  // Portfolio is account-backed. Never surface a previous session's local
+  // mirror while signed out.
+  if (!signedIn()) {
+    S.transactions = [];
+    S.positions = [];
+    return;
+  }
+
+  const local = localPort.read();
+  try {
+    await mergeLocalIfNeeded();
+    const d = await rpc("get_portfolio");
+    if (d && !d.error) {
+      const remoteTx = mapRemoteTxns(d.transactions);
+      const remotePos = mapRemotePositions(d.positions);
+      // Remote empty but local still has drafts — keep showing local and
+      // retry merge next time rather than bouncing to the empty state.
+      if (!remotePos.length && !remoteTx.length && local.length) {
+        applyLocalPortfolio();
+        return;
+      }
+      S.transactions = withRealizedPl(remoteTx);
+      // Derive holdings from transactions in chronological order so sells keep
+      // the prior average buy price; layer live quotes / names from remote.
+      const quotes = Object.fromEntries((remotePos || []).map(p => [p.symbol, p]));
+      S.positions = positionsFromTxns(S.transactions).map(p => {
+        const q = quotes[p.symbol];
+        if (!q) return p;
+        return {
+          ...p,
+          name: q.name || p.name,
+          assetKind: q.assetKind || p.assetKind || null,
+          price: q.price,
+          changePct: q.changePct,
+          previousClose: q.previousClose,
+          marketCap: q.marketCap,
+        };
+      });
+      // Mirror remote into local so a reload before auth is ready still works.
+      if (remoteTx.length) mirrorRemoteToLocal(remoteTx);
+      return;
+    }
+  } catch (e) {
+    console.warn("[portfolio] remote load failed, using local", e);
+  }
+  applyLocalPortfolio();
+}
+
+/** Drop mirrored holdings/watchlist from this browser on sign-out. */
+function clearLocalCaches(){
+  localPort.clear();
+  try { localStorage.removeItem(WATCH_KEY); } catch {}
+  try { sessionStorage.removeItem(MERGED_KEY); } catch {}
+  S.transactions = [];
+  S.positions = [];
+  S.priceCache = {};
+  S.assetKindBySym = {};
+  S.selected = "PORTFOLIO";
+}
+
+/** True for client-only drafts. Mirrored postgres ids must never be re-merged. */
+function isLocalDraftId(id){
+  if (id == null || id === "") return true;
+  return typeof id === "string" && String(id).startsWith("local-");
+}
+
+async function mergeLocalIfNeeded(){
+  if (!signedIn()) return;
+  if (sessionStorage.getItem(MERGED_KEY)) return;
+  const local = localPort.read();
+  // Only upload unsynced drafts. Re-uploading mirrored rows (numeric ids)
+  // duplicates every other ticker — e.g. after edit/delete cleared MERGED_KEY.
+  const drafts = local.filter(t => isLocalDraftId(t.id));
+  if (!drafts.length) {
+    try { sessionStorage.setItem(MERGED_KEY, "1"); } catch {}
+    return;
+  }
+  try {
+    const d = await rpc("merge_portfolio", {
+      p_transactions: drafts.map(t => ({
+        symbol: t.symbol,
+        kind: t.kind,
+        tradeDate: t.tradeDate,
+        quantity: t.quantity,
+        price: t.price,
+        fee: t.fee || 0,
+        note: t.note || null,
+        unrealizedPl: t.unrealizedPl != null ? Number(t.unrealizedPl) : null,
+        realizedPl: t.realizedPl != null ? Number(t.realizedPl) : null,
+      })),
+    });
+    if (d && !d.error) {
+      try { sessionStorage.setItem(MERGED_KEY, "1"); } catch {}
+    }
+  } catch (e) {
+    console.warn("[portfolio] merge failed", e);
+  }
+}
+
+function writeLocalTxn(row, { allowMerge = true } = {}){
+  if (row.kind === "sell") {
+    const held = positionsFromTxns(localPort.read())
+      .find(p => p.symbol === row.symbol);
+    const q = held ? held.quantity : 0;
+    if (row.quantity > q + 1e-9) throw new Error("sell exceeds holdings");
+  }
+  const list = localPort.read();
+  list.push({ id: uid(), ...row });
+  localPort.write(list);
+  // Signed-out drafts must merge after sign-in. Signed-in saves also write
+  // remotely — do not clear MERGED_KEY or mergeLocal would duplicate them.
+  if (allowMerge) {
+    try { sessionStorage.removeItem(MERGED_KEY); } catch {}
+  }
+}
+
+async function addTransaction({ symbol, kind, tradeDate, quantity, price, fee, note,
+                                unrealizedPl = null, realizedPl = null,
+                                quiet = false, reload = true }){
+  if (!signedIn()) {
+    if (!quiet) promptSignIn();
+    throw new Error("Please log in to add and view your portfolio.");
+  }
+
+  const row = {
+    symbol: String(symbol).toUpperCase().trim(),
+    kind: kind || "buy",
+    tradeDate,
+    quantity: Number(quantity),
+    price: Number(price),
+    fee: Number(fee) || 0,
+    note: note || null,
+    unrealizedPl: unrealizedPl != null && Number.isFinite(Number(unrealizedPl))
+      ? Number(unrealizedPl) : null,
+    realizedPl: realizedPl != null && Number.isFinite(Number(realizedPl))
+      ? Number(realizedPl) : null,
+  };
+
+  // Keep a local mirror for fast reloads while signed in; remote is source of truth.
+  writeLocalTxn(row, { allowMerge: false });
+
+  try {
+    const d = await rpc("add_portfolio_transaction", {
+      p_symbol: row.symbol,
+      p_kind: row.kind,
+      p_trade_date: row.tradeDate,
+      p_quantity: row.quantity,
+      p_price: row.price,
+      p_fee: row.fee,
+      p_note: row.note,
+      p_unrealized_pl: row.unrealizedPl,
+      p_realized_pl: row.realizedPl,
+    });
+    if (d && d.error) throw new Error(d.error);
+  } catch (e) {
+    console.warn("[portfolio] remote save failed; kept local draft", e);
+    // Remote failed — allow a later merge to upload this local-* draft only
+    // (mergeLocalIfNeeded ignores already-mirrored numeric ids).
+    try { sessionStorage.removeItem(MERGED_KEY); } catch {}
+  }
+
+  if (!quiet) {
+    GA.track(row.kind === "sell" ? "portfolio_sell"
+      : row.kind === "dividend" ? "portfolio_dividend" : "portfolio_buy", {
+      ticker: row.symbol,
+    });
+  }
+  if (reload) await loadPortfolio();
+}
+
+/** Credit cash dividends on/after ex-date for holdings logged before that date. */
+async function syncDividends(positions){
+  const syms = [...new Set((positions || []).map(p => p.symbol).filter(Boolean))];
+  if (!syms.length) return false;
+
+  // Ensure the worker has been asked for prices (which also pulls dividends).
+  await Promise.all(syms.map(sym =>
+    rpc("request_prices", { p_symbol: sym }).catch(() => null)));
+
+  let events = [];
+  try {
+    const d = await rpc("get_symbol_dividends", { p_symbols: syms });
+    events = Array.isArray(d) ? d : ((d && d.items) || []);
+  } catch (e) {
+    console.warn("[portfolio] get_symbol_dividends failed", e);
+    return false;
+  }
+  if (!events.length) return false;
+
+  const today = todayISO();
+  const bySym = {};
+  for (const e of events) {
+    if (!e || !e.symbol || !e.exDate) continue;
+    const amt = Number(e.amount);
+    if (!(amt > 0)) continue;
+    (bySym[e.symbol] || (bySym[e.symbol] = [])).push({
+      exDate: e.exDate, amount: amt,
+    });
+  }
+
+  const existing = new Set(
+    (S.transactions || [])
+      .filter(t => t.kind === "dividend" && t.note)
+      .map(t => `${t.symbol}|${t.note}`));
+
+  let added = 0;
+  for (const p of positions) {
+    if (!(p.quantity > 0)) continue;
+    // Track from the holding’s as-of date forward (no backfill before log).
+    const start = p.firstTrade || today;
+    for (const ev of (bySym[p.symbol] || [])) {
+      if (ev.exDate < start || ev.exDate > today) continue;
+      const note = `ex:${ev.exDate}`;
+      const key = `${p.symbol}|${note}`;
+      if (existing.has(key)) continue;
+      const cash = Number((p.quantity * ev.amount).toFixed(4));
+      if (!(cash > 0)) continue;
+      try {
+        await addTransaction({
+          symbol: p.symbol,
+          kind: "dividend",
+          tradeDate: ev.exDate,
+          quantity: p.quantity,
+          price: cash,
+          note,
+          quiet: true,
+          reload: false,
+        });
+        existing.add(key);
+        added += 1;
+      } catch (err) {
+        console.warn("[portfolio] dividend credit failed", p.symbol, err);
+      }
+    }
+  }
+  if (added) await loadPortfolio();
+  return added > 0;
+}
+
+/* ---- quotes / historical prices ----------------------------------------- */
+async function enrichPrices(positions){
+  const syms = [...new Set(positions.map(p => p.symbol).filter(Boolean))];
+  if (!syms.length) return positions;
+
+  let by = {};
+  try {
+    const rows = await rpc("get_symbol_quotes", { p_symbols: syms });
+    const list = Array.isArray(rows) ? rows
+      : (rows && Array.isArray(rows.items) ? rows.items : []);
+    list.forEach(r => { if (r && r.symbol) by[r.symbol] = r; });
+  } catch (e) {
+    console.warn("[portfolio] get_symbol_quotes failed", e);
+  }
+
+  await Promise.all(syms.map(async sym => {
+    try {
+      if (!S.priceCache[sym] || !((S.priceCache[sym].bars || []).length)) {
+        try { await rpc("request_prices", { p_symbol: sym }); } catch {}
+        const d = await rpc("get_prices", { p_symbol: sym });
+        if (d) S.priceCache[sym] = d;
+      }
+    } catch (e) {
+      console.warn("[portfolio] get_prices failed", sym, e);
+      if (!S.priceCache[sym]) S.priceCache[sym] = { bars: [] };
+    }
+    if (!by[sym] || by[sym].price == null) {
+      const d = S.priceCache[sym] || {};
+      const q = d.quote || {};
+      const bars = d.bars || [];
+      const px = q.price ?? q.close ?? (bars.length ? bars[bars.length - 1].c : null);
+      if (px != null) {
+        by[sym] = {
+          symbol: sym,
+          name: q.name,
+          price: Number(px),
+          changePct: q.change_pct ?? q.changePct ?? null,
+          previousClose: q.previous_close ?? q.previousClose ?? null,
+        };
+      }
+    }
+  }));
+
+  return positions.map(p => {
+    const e = by[p.symbol];
+    if (!e) return p;
+    return {
+      ...p,
+      name: p.name || e.name || null,
+      price: p.price != null ? p.price : (e.price != null ? Number(e.price) : null),
+      changePct: p.changePct != null ? p.changePct
+        : (e.changePct != null ? Number(e.changePct) : null),
+      previousClose: p.previousClose != null ? p.previousClose
+        : (e.previousClose != null ? Number(e.previousClose) : null),
+    };
+  });
+}
+
+function closeOnOrBefore(bars, iso){
+  if (!bars || !bars.length || !iso) return null;
+  let best = null;
+  for (const b of bars) {
+    const d = b.d || b.date;
+    if (!d || d > iso) continue;
+    if (!best || d > (best.d || best.date)) best = b;
+  }
+  return best ? Number(best.c) : null;
+}
+
+async function lookupBuyPrice(symbol, date){
+  const sym = String(symbol || "").toUpperCase().trim();
+  if (!sym || !date) return null;
+  try { await rpc("request_prices", { p_symbol: sym }).catch(() => {}); } catch {}
+  let d = S.priceCache[sym];
+  if (!d || !(d.bars || []).length) {
+    try { d = await rpc("get_prices", { p_symbol: sym }); S.priceCache[sym] = d; }
+    catch { return null; }
+  }
+  return closeOnOrBefore((d && d.bars) || [], date);
+}
+
+/* ---- metrics ------------------------------------------------------------- */
+/** Resolve Stocks / ETFs / Crypto for the Total Assets donut. */
+function assetClass(p){
+  const symbol = typeof p === "string" ? p : (p && p.symbol) || "";
+  const name = typeof p === "object" && p ? (p.name || "") : "";
+  const kind = (typeof p === "object" && p && p.assetKind)
+    || S.assetKindBySym[symbol]
+    || null;
+  if (kind === "etf") return "ETFs";
+  if (kind === "crypto") return "Crypto";
+  if (ETF_SET.has(symbol)) return "ETFs";
+  // Crypto tickers are rare in this universe; keep the bucket for the UI.
+  if (/USD$|-USD$/.test(symbol) || ["BTC","ETH","SOL","DOGE"].includes(symbol)) return "Crypto";
+  // Soft fallback when market_symbol is not synced yet.
+  if (/\bETF\b/i.test(name) || /\bETN\b/i.test(name)) return "ETFs";
+  return "Stocks";
+}
+
+/** Attach ETF/crypto kind from ledger.market_symbol (batch, with per-symbol fallback). */
+async function enrichAssetKinds(positions){
+  const syms = [...new Set((positions || []).map(p => p.symbol).filter(Boolean))];
+  if (!syms.length) return positions || [];
+
+  const by = {};
+  try {
+    const rows = await rpc("get_market_symbols", { p_symbols: syms });
+    const list = Array.isArray(rows) ? rows
+      : (rows && Array.isArray(rows.items) ? rows.items : []);
+    list.forEach(r => {
+      if (r && r.symbol && r.kind) by[r.symbol] = { kind: r.kind, name: r.name };
+    });
+  } catch {
+    await Promise.all(syms.map(async sym => {
+      try {
+        const meta = await rpc("get_market_symbol", { p_symbol: sym });
+        if (meta && meta.kind) by[sym] = { kind: meta.kind, name: meta.name };
+      } catch {}
+    }));
+  }
+
+  return positions.map(p => {
+    const hit = by[p.symbol];
+    const assetKind = (hit && hit.kind) || p.assetKind || S.assetKindBySym[p.symbol] || null;
+    if (assetKind) S.assetKindBySym[p.symbol] = assetKind;
+    const name = p.name || (hit && hit.name) || null;
+    if (!assetKind && !name) return p;
+    return { ...p, assetKind, name: name || p.name };
+  });
+}
+
+/** Live mark when we have a quote; otherwise cost basis so the page is never blank. */
+function markPrice(p){
+  if (p.price != null && Number.isFinite(p.price)) return p.price;
+  if (p.avgCost != null && Number.isFinite(p.avgCost)) return p.avgCost;
+  return null;
+}
+
+/** Today's dollar move for one holding. */
+function todayPl(p){
+  if (!p.quantity) return null;
+  if (p.price != null && p.changePct != null && Number.isFinite(p.changePct)) {
+    const v = p.price * p.quantity;
+    return v * (p.changePct / (100 + p.changePct));
+  }
+  if (p.price != null && p.previousClose != null) {
+    return (p.price - p.previousClose) * p.quantity;
+  }
+  return null;
+}
+
+/** Cash dividends credited for this holding (USD before tax). */
+function holdingDiv(p){
+  const d = Number(p.dividends);
+  return Number.isFinite(d) && d > 0 ? d : 0;
+}
+
+/** Book P/L: stock move vs avg buy + total dividends received. */
+function holdingPl(p){
+  const px = p.price != null && Number.isFinite(p.price) ? p.price : markPrice(p);
+  const div = holdingDiv(p);
+  if (px == null || p.avgCost == null || !p.quantity) {
+    return div > 0 ? div : null;
+  }
+  return (px - p.avgCost) * p.quantity + div;
+}
+
+/** Return % on cost: (stock P/L + dividends) / (avg buy × qty). */
+function holdingRetPct(p){
+  if (p.avgCost == null || !(p.avgCost > 0) || !p.quantity) return null;
+  const pl = holdingPl(p);
+  if (pl == null) return null;
+  return (pl / (p.avgCost * p.quantity)) * 100;
+}
+
+/** Dividend as % of current market value. */
+function dividendRetPct(p){
+  const div = holdingDiv(p);
+  if (!(div > 0)) return null;
+  const px = markPrice(p);
+  if (px == null || !p.quantity) return null;
+  const mv = px * p.quantity;
+  if (!(mv > 0)) return null;
+  return (div / mv) * 100;
+}
+
+function infoTip(text){
+  return `<span class="info-tip" tabindex="0" role="img" aria-label="${esc(text)}">i<span class="tip">${esc(text)}</span></span>`;
+}
+
+/** Pin header info tips with position:fixed so .rows overflow cannot crop them. */
+function wireInfoTips(root){
+  (root || document).querySelectorAll(".info-tip").forEach(el => {
+    const tip = el.querySelector(".tip");
+    if (!tip || el.dataset.tipWired) return;
+    el.dataset.tipWired = "1";
+    const place = () => {
+      const r = el.getBoundingClientRect();
+      tip.classList.add("on");
+      // Measure after showing so width/height are real.
+      const tw = tip.offsetWidth || 220;
+      const th = tip.offsetHeight || 64;
+      let left = r.left;
+      if (left + tw > window.innerWidth - 8) left = Math.max(8, r.right - tw);
+      let top = r.bottom + 8;
+      if (top + th > window.innerHeight - 8) top = Math.max(8, r.top - th - 8);
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    };
+    const hide = () => {
+      tip.classList.remove("on");
+      tip.style.left = "";
+      tip.style.top = "";
+    };
+    el.addEventListener("mouseenter", place);
+    el.addEventListener("focus", place);
+    el.addEventListener("mousemove", place);
+    el.addEventListener("mouseleave", hide);
+    el.addEventListener("blur", hide);
+  });
+}
+
+function allocation(positions){
+  const totals = { Cash: 0, Stocks: 0, Funds: 0, ETFs: 0, Crypto: 0 };
+  let sum = 0;
+  for (const p of positions) {
+    const px = markPrice(p);
+    const v = (px || 0) * p.quantity;
+    if (!(v > 0)) continue;
+    const cls = assetClass(p);
+    totals[cls] += v;
+    sum += v;
+  }
+  const cash = Math.max(0, cashBalance());
+  totals.Cash = cash;
+  sum += cash;
+  const parts = Object.entries(totals).map(([name, value]) => ({
+    name, value, pct: sum ? (value / sum) * 100 : 0, colour: ASSET_COLORS[name],
+  }));
+  return { sum, parts, cash };
+}
+
+function dailyReturn(positions){
+  let value = 0, dayPl = 0;
+  for (const p of positions) {
+    const px = markPrice(p);
+    if (px == null || !p.quantity) continue;
+    const v = px * p.quantity;
+    value += v;
+    // Day P/L only from a live quote — cost basis is not a daily move.
+    if (p.price == null) continue;
+    if (p.changePct != null) dayPl += v * (p.changePct / (100 + p.changePct));
+    else if (p.previousClose != null) dayPl += (p.price - p.previousClose) * p.quantity;
+  }
+  // Realized gains from sells booked today count toward today's return.
+  const { realized: realizedToday } = realizedPlInRange(todayISO(), todayISO());
+  dayPl += realizedToday;
+  const hasLive = positions.some(p => p.price != null && p.quantity)
+    || Math.abs(realizedToday) > 1e-9;
+  const pctDay = hasLive && value - dayPl !== 0 ? (dayPl / (value - dayPl)) * 100 : null;
+  return { amount: hasLive ? dayPl : null, pct: pctDay, value, realized: realizedToday };
+}
+
+/** Book return: unrealized on open holdings + dividends + all realized sells. */
+function bookReturn(positions, { fromISO = null, toISO = null } = {}){
+  let cost = 0, current = 0, div = 0;
+  for (const p of positions) {
+    const px = markPrice(p);
+    if (px == null || !p.quantity || p.avgCost == null) continue;
+    cost += p.avgCost * p.quantity;
+    current += px * p.quantity;
+    div += holdingDiv(p);
+  }
+  // Period filter applies to realized gains by sell date (e.g. YTD vs 1M).
+  // Unrealized + dividends stay as of now for the open book.
+  const { realized, soldCost } = realizedPlInRange(fromISO, toISO);
+  const unrealized = current - cost;
+  const amount = unrealized + div + realized;
+  const basis = cost + soldCost;
+  const pctRet = basis > 0 ? (amount / basis) * 100 : null;
+  return {
+    amount, pct: pctRet, cost, current, dividends: div,
+    realized, soldCost, unrealized,
+  };
+}
+
+/** Volatility score 0–100 (higher = more volatile / concentrated).
+ *  65% weighted holding volatility (annualised 60d σ, capped at 50%),
+ *  35% concentration (Herfindahl–Hirschman of weights). */
+function volatilityScore(positions){
+  const valued = positions.filter(p => markPrice(p) != null && p.quantity > 0);
+  const total = valued.reduce((s, p) => s + markPrice(p) * p.quantity, 0);
+  if (!total) return null;
+
+  let wVol = 0;
+  let hhi = 0;
+  for (const p of valued) {
+    const w = (markPrice(p) * p.quantity) / total;
+    hhi += w * w;
+    const bars = ((S.priceCache[p.symbol] && S.priceCache[p.symbol].bars) || []).slice(-61);
+    const rets = [];
+    for (let i = 1; i < bars.length; i++) {
+      const a = Number(bars[i - 1].c), b = Number(bars[i].c);
+      if (a > 0 && b > 0) rets.push((b - a) / a);
+    }
+    let sigma = 0.25; // default when history is thin
+    if (rets.length >= 10) {
+      const mean = rets.reduce((s, x) => s + x, 0) / rets.length;
+      const var_ = rets.reduce((s, x) => s + (x - mean) ** 2, 0) / (rets.length - 1);
+      sigma = Math.sqrt(var_) * Math.sqrt(252);
+    }
+    wVol += w * sigma;
+  }
+  const volComponent = Math.min(100, (wVol / 0.50) * 100);
+  const score = Math.round(0.65 * volComponent + 0.35 * hhi * 100);
+  const label = score < 33 ? "Calm" : score < 66 ? "Moderate" : "Elevated";
+  return { score: Math.max(0, Math.min(100, score)), label, hhi, wVol };
+}
+
+/* ---- half-donut ---------------------------------------------------------- */
+function halfDonutSvg(parts){
+  const live = parts.filter(p => p.value > 0);
+  const R = 50, CX = 60, CY = 60, SW = 12;
+  if (!live.length) {
+    return `<svg class="donut" viewBox="0 0 120 70" aria-hidden="true">
+      <path d="M10 60 A50 50 0 0 1 110 60" fill="none" stroke="var(--rule)"
+        stroke-width="${SW}" stroke-linecap="butt"/></svg>`;
+  }
+  // Semicircle path length = πR. Dash along that arc left→right.
+  const half = Math.PI * R;
+  let offset = 0;
+  const arcs = live.map(p => {
+    const len = Math.max(0, (p.pct / 100) * half);
+    const el = `<path d="M10 60 A50 50 0 0 1 110 60" fill="none"
+      stroke="${p.colour}" stroke-width="${SW}"
+      stroke-dasharray="${len} ${half}"
+      stroke-dashoffset="${-offset}"
+      stroke-linecap="butt"/>`;
+    offset += len;
+    return el;
+  }).join("");
+  return `<svg class="donut" viewBox="0 0 120 70" aria-hidden="true">${arcs}</svg>`;
+}
+
+/* ---- render: empty helpers ---------------------------------------------- */
+function promptSignIn(){
+  if (window.TA && typeof window.TA.signIn === "function") window.TA.signIn();
+  else {
+    const btn = document.getElementById("nav-login");
+    if (btn) btn.click();
+  }
+}
+
+function pulsePlaceholderHtml(){
+  const parts = ["Cash", "Stocks", "Funds", "ETFs", "Crypto"].map(name => ({
+    name, value: 0, pct: 0, colour: ASSET_COLORS[name],
+  }));
+  return `
+      <div class="cell">
+        <div class="k">Total Assets · USD</div>
+        <div class="v num placeholder">—</div>
+        <div class="donut-wrap">
+          ${halfDonutSvg(parts)}
+          <div class="donut-legend">${parts.map(p => `
+            <span><i style="background:${p.colour}"></i>${esc(p.name)}
+              <b>—</b></span>`).join("")}</div>
+        </div>
+      </div>
+      <div class="cell">
+        <div class="k">Daily Return</div>
+        <div class="v num placeholder">—</div>
+      </div>
+      <div class="cell">
+        <div class="k">Total Return ${infoTip(
+          "Unrealized P/L on open holdings, dividends received, and realized gains/losses from sells (booked on the sell date)."
+        )}</div>
+        <div class="v num placeholder">—</div>
+      </div>
+      <div class="cell">
+        <div class="k">Volatility Score ${infoTip(
+          "0–100 score from your holdings: 65% weight on annualised 60-day price volatility (capped at 50% vol → 100), and 35% on concentration (Herfindahl–Hirschman of position weights). Calm < 33, Moderate < 66, else Elevated."
+        )}</div>
+        <div class="v placeholder">—</div>
+      </div>`;
+}
+
+function pulseLiveHtml(alloc, day, book, vol){
+  const arrow = v => v > 0 ? "▲ " : v < 0 ? "▼ " : "";
+  return `
+      <div class="cell">
+        <div class="k">Total Assets · USD</div>
+        <div class="v num">${esc(money(alloc.sum).replace("$",""))}</div>
+        <div class="donut-wrap">
+          ${halfDonutSvg(alloc.parts)}
+          <div class="donut-legend">${alloc.parts.map(p => `
+            <span><i style="background:${p.colour}"></i>${esc(p.name)}
+              <b>${p.value > 0 ? p.pct.toFixed(1) + "%" : "—"}</b></span>`).join("")}</div>
+        </div>
+      </div>
+      <div class="cell">
+        <div class="k">Daily Return</div>
+        <div class="v num ${dir(day.amount)}">${esc(moneySigned(day.amount))}</div>
+        <div class="chg ${dir(day.pct)}">${day.pct == null ? "" : esc(arrow(day.pct) + Math.abs(day.pct).toFixed(2) + "%")}</div>
+      </div>
+      <div class="cell">
+        <div class="k">Total Return ${infoTip(
+          "Unrealized P/L on open holdings, dividends received, and realized gains/losses from sells (booked on the sell date)."
+        )}</div>
+        <div class="v num ${dir(book.amount)}">${esc(moneySigned(book.amount))}</div>
+        <div class="chg ${dir(book.pct)}">${book.pct == null ? "" : esc(arrow(book.pct) + Math.abs(book.pct).toFixed(2) + "%")}</div>
+        ${Math.abs(book.realized || 0) > 1e-9
+          ? `<div class="chg mut">Realized ${esc(moneySigned(book.realized))}</div>` : ""}
+      </div>
+      <div class="cell">
+        <div class="k">Volatility Score ${infoTip(
+          "0–100 score from your holdings: 65% weight on annualised 60-day price volatility (capped at 50% vol → 100), and 35% on concentration (Herfindahl–Hirschman of position weights). Calm < 33, Moderate < 66, else Elevated."
+        )}</div>
+        <div class="v">${vol ? `${esc(String(vol.score))}<span class="dim"> /100</span>` : "—"}</div>
+        ${vol ? `<div class="scale" title="Weighted vol + concentration"><i style="left:${vol.score}%"></i></div>
+          <div class="chg mut">${esc(vol.label)}</div>` : ""}
+      </div>`;
+}
+
+/* ---- render: dashboard --------------------------------------------------- */
+function renderDashboard(){
+  const app = document.getElementById("app");
+  const live = signedIn() && hasHoldings();
+  const alloc = allocation(S.positions);
+  const day = dailyReturn(S.positions);
+  const book = bookReturn(S.positions);
+  const vol = volatilityScore(S.positions);
+  if (!live && S.selected !== "PORTFOLIO" && S.selected !== "CASH"
+      && !(S.positions || []).some(p => p.symbol === S.selected)) {
+    S.selected = "PORTFOLIO";
+  }
+
+  app.innerHTML = `
+    <div class="sumhead">
+      <h2>Portfolio Overview</h2>
+      <div class="sub"><button type="button" class="btn btn-primary" id="dash-add" style="min-height:34px;padding:0 14px;font-size:12.5px">+ Add Asset</button></div>
+    </div>
+    <div class="pulse" id="pulse">
+      ${live ? pulseLiveHtml(alloc, day, book, vol) : pulsePlaceholderHtml()}
+    </div>
+
+    <section class="panel">
+      <div class="split">
+        <div>
+          <div class="listhead">
+            <div class="seg" id="views">
+              <button data-v="portfolio" aria-pressed="${S.view === "portfolio"}">Portfolio</button>
+              <button data-v="watchlist" aria-pressed="${S.view === "watchlist"}">Watchlist</button>
+            </div>
+          </div>
+          <div class="wl-bar" id="list-search-host"></div>
+          <div class="rows" id="rows"><div class="note"><span class="load"></span></div></div>
+        </div>
+        <div class="chartwrap">
+          <div class="chead">
+            <div>
+              <div class="price"><span class="c-sym-line"><span class="tick-logo tick-logo-lg" id="c-logo" hidden aria-hidden="true"></span><b id="c-sym">Portfolio</b></span><span id="c-price" class="num"></span></div>
+              <div class="meta" id="c-meta"></div>
+            </div>
+            <div class="range" id="range">
+              <button data-r="1W" aria-pressed="${S.range==="1W"}">1W</button>
+              <button data-r="1M" aria-pressed="${S.range==="1M"}">1M</button>
+              <button data-r="YTD" aria-pressed="${S.range==="YTD"}">YTD</button>
+              <button data-r="1Y" aria-pressed="${S.range==="1Y"}">1Y</button>
+            </div>
+          </div>
+          <div id="chart"><div class="note"><span class="load"></span></div></div>
+          <div class="idx-bar" id="idx-bar" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="discover" aria-label="Discover">
+      <div class="disc-head">
+        <h2>Discover</h2>
+        <a href="news.html">All news →</a>
+      </div>
+      <div class="disc-rail">
+        <button type="button" class="disc-nav prev" id="disc-prev" aria-label="Previous stories" disabled>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5" fill="none"
+            stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="disc-viewport" id="disc-viewport">
+          <div class="disc-track" id="discover">
+            <div class="disc-empty"><span class="load"></span></div>
+          </div>
+        </div>
+        <button type="button" class="disc-nav next" id="disc-next" aria-label="Next stories" disabled>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4.5 13 10l-5.5 5.5" fill="none"
+            stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="disc-dots" id="discover-dots" role="tablist" aria-label="Discover pages"></div>
+    </section>
+
+    <section class="cal-section" aria-label="My Calendar">
+      <div class="cal-head">
+        <h2>My Calendar</h2>
+        <div class="cal-tools">
+          <button type="button" class="cal-ico" id="cal-edit" aria-label="Edit calendars" title="Edit calendars">
+            <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12.2 3.8 16.2 7.8M3.5 16.5l1.2-4.6L14.4 2.2a1.5 1.5 0 0 1 2.1 0l1.3 1.3a1.5 1.5 0 0 1 0 2.1L6.9 16.5H3.5z"/></svg>
+          </button>
+          <button type="button" class="cal-nav-btn" id="cal-prev" aria-label="Previous week">
+            <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12.5 4.5 7 10l5.5 5.5"/></svg>
+          </button>
+          <button type="button" class="cal-today" id="cal-today">Today</button>
+          <button type="button" class="cal-nav-btn" id="cal-next" aria-label="Next week">
+            <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7.5 4.5 13 10l-5.5 5.5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="cal-layout">
+        <div class="panel cal-week-wrap">
+          <div class="cal-week" id="cal-week" role="tablist" aria-label="Calendar week">
+            <div class="cal-empty"><span class="load"></span></div>
+          </div>
+        </div>
+        <div class="panel cal-day">
+          <div class="cal-day-bar"><h3 id="cal-day-label">—</h3></div>
+          <div class="cal-day-list" id="cal-day-list">
+            <div class="cal-empty"><span class="load"></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <h2 class="trades-head">Congress &amp; Insiders</h2>
+    <div class="grid2">
+      <section class="panel">
+        <div class="hmhead">
+          <div class="htitle">
+            <h3>Insider Transactions</h3>
+            <button type="button" class="info-i" aria-label="About Insider Transactions">
+              <span aria-hidden="true">i</span>
+              <span class="info-bubble">Officers and directors buying or selling stock in companies you hold, as disclosed on Form 4 over the last 7 days. Shown when the trade is above $1M or at least 1% of shares outstanding. Scroll for more.</span>
+            </button>
+          </div>
+        </div>
+        <div class="scroll" id="insiders" tabindex="0" aria-label="Insider transactions">
+          <div class="note"><span class="load"></span></div></div>
+      </section>
+      <section class="panel">
+        <div class="hmhead">
+          <div class="htitle">
+            <h3>Congress Trades</h3>
+            <button type="button" class="info-i" aria-label="About Congress Trades">
+              <span aria-hidden="true">i</span>
+              <span class="info-bubble">Trades disclosed by members of the House and Senate over the last 14 days. Amounts are the ranges they are required to report, not exact figures. Scroll for more.</span>
+            </button>
+          </div>
+        </div>
+        <div class="scroll" id="congress" tabindex="0" aria-label="Congress trades">
+          <div class="note"><span class="load"></span></div></div>
+      </section>
+    </div>`;
+
+  document.getElementById("dash-add").onclick = () => openAddModal();
+  document.querySelectorAll("#views button").forEach(b => {
+    b.onclick = () => {
+      S.view = b.dataset.v;
+      document.querySelectorAll("#views button").forEach(x =>
+        x.setAttribute("aria-pressed", String(x.dataset.v === S.view)));
+      renderList();
+      loadPortfolioDiscover();
+      loadPortfolioCalendar();
+    };
+  });
+  document.querySelectorAll("#range button").forEach(b => {
+    b.onclick = () => {
+      S.range = b.dataset.r;
+      document.querySelectorAll("#range button").forEach(x =>
+        x.setAttribute("aria-pressed", String(x.dataset.r === S.range)));
+      drawRightChart();
+    };
+  });
+  renderList();
+  drawRightChart();
+  wireDiscover();
+  loadPortfolioDiscover();
+  wirePortfolioCalendar();
+  loadPortfolioCalendar();
+  bootTrades();
+  wireInfoTips(document.getElementById("pulse"));
+}
+
+async function renderList(){
+  const host = document.getElementById("rows");
+  const searchHost = document.getElementById("list-search-host");
+  if (!host) return;
+
+  if (!signedIn()) {
+    if (searchHost) searchHost.innerHTML = "";
+    host.innerHTML = `<div class="pf-empty">
+      <h3>${S.view === "watchlist" ? "Your watchlist" : "Your portfolio"}</h3>
+      <p>${S.view === "watchlist"
+        ? "Log in to add tickers to your watchlist and track them here."
+        : "Log in to add holdings and track performance against the market."}</p>
+      <button type="button" class="btn btn-primary" id="rows-login">Log in</button>
+    </div>`;
+    const btn = document.getElementById("rows-login");
+    if (btn) btn.onclick = promptSignIn;
+    return;
+  }
+
+  if (S.view === "watchlist") {
+    searchHost.innerHTML = `
+      <form class="wl-search" id="wl-search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="text" id="wl-q" placeholder="Add a company…" autocomplete="off">
+        <div class="wl-ac" id="wl-ac"></div>
+      </form>`;
+    wireTickerSearch("wl-q", "wl-ac", "wl-search", async sym => {
+      await toggleWatch(sym);
+      renderList();
+    });
+    const items = await loadWatchlistItems();
+    if (!items.length) {
+      host.innerHTML = `<div class="note">Nothing on your watchlist yet. Search above to add one.</div>`;
+      return;
+    }
+    host.innerHTML = `<table>
+      <thead><tr>
+        <th class="idcol">Symbol</th>
+        <th class="col-num">Price</th>
+        <th class="col-num">% Change</th>
+      </tr></thead>
+      <tbody>${items.map(r => `
+        <tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
+          <td class="idcol"><a class="tsym-with-logo" href="company.html?t=${esc(encodeURIComponent(r.symbol))}&src=portfolio">
+            ${window.TickerLogos ? window.TickerLogos.chip(r.symbol) : ""}
+            <span class="tsym-text">
+              <span class="tsym-t">${esc(r.symbol)}</span>
+              <span class="tsym-n">${esc(r.name || "")}</span>
+            </span></a></td>
+          <td class="col-num num">${esc(priceFmt(r.price))}</td>
+          <td class="col-num"><span class="pill ${dir(r.changePct)}">${esc(pct(r.changePct))}</span></td>
+        </tr>`).join("")}</tbody></table>`;
+    if (window.TickerLogos) {
+      window.TickerLogos.hydrate(items.map(r => r.symbol), host);
+    }
+  } else {
+    searchHost.innerHTML = `
+      <form class="wl-search" id="wl-search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
+          stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="text" id="wl-q" placeholder="Quick-add a ticker…" autocomplete="off">
+        <div class="wl-ac" id="wl-ac"></div>
+      </form>`;
+    wireTickerSearch("wl-q", "wl-ac", "wl-search", sym => openAddModal(sym));
+
+    if (!hasHoldings()) {
+      host.innerHTML = `<div class="pf-empty">
+        <h3>Add your first holding</h3>
+        <p>Quick-add a ticker, or search above — enter quantity and average buy price to start tracking.</p>
+        <div class="pf-quick" id="pf-quick">
+          ${QUICK_ADD.map(q => `
+            <button type="button" data-qa="${esc(q.symbol)}" title="${esc(q.name)}">+ ${esc(q.symbol)}</button>`).join("")}
+        </div>
+        <button type="button" class="btn btn-primary" id="rows-add">Add Asset</button>
+      </div>`;
+      host.querySelectorAll("[data-qa]").forEach(btn => {
+        btn.onclick = () => openAddModal(btn.dataset.qa);
+      });
+      const addBtn = document.getElementById("rows-add");
+      if (addBtn) addBtn.onclick = () => openAddModal();
+      return;
+    }
+
+    const rows = S.positions.slice().sort((a, b) =>
+      ((markPrice(b) || 0) * b.quantity) - ((markPrice(a) || 0) * a.quantity));
+    const penSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
+      stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.5 3.5 16.5 7.5M4 16l.8-3.5L13.5 4a1.4 1.4 0 0 1 2 2L6.8 14.7 4 16Z"/></svg>`;
+    const resetSvg = `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none"
+      stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.5 10a6.5 6.5 0 0 1 11.2-4.5M16.5 10a6.5 6.5 0 0 1-11.2 4.5"/>
+      <path d="M14.2 2.8v4.2h-4.2M5.8 17.2v-4.2h4.2"/></svg>`;
+    const plTip = "Open holdings vs avg buy, plus dividends and realized gains from sells (by sell date).";
+    const divTip = "Dividend received (credited on the ex-dividend date if the stock was logged by then), in USD before tax.";
+    const holdingsMv = rows.reduce((s, r) => {
+      const px = markPrice(r);
+      return s + ((px != null && r.quantity) ? px * r.quantity : 0);
+    }, 0);
+    const cash = cashBalance();
+    const totalMv = holdingsMv + Math.max(0, cash);
+    let totalQty = 0, totalDay = 0, dayN = 0, totalPl = 0, plN = 0;
+    let totalCost = 0, totalDiv = 0;
+    for (const r of rows) {
+      totalQty += Number(r.quantity) || 0;
+      const day = todayPl(r);
+      if (day != null && Number.isFinite(day)) { totalDay += day; dayN++; }
+      const pl = holdingPl(r);
+      if (pl != null && Number.isFinite(pl)) { totalPl += pl; plN++; }
+      if (r.avgCost != null && r.quantity) totalCost += r.avgCost * r.quantity;
+      totalDiv += holdingDiv(r);
+    }
+    const { realized: realizedAll, soldCost } = realizedPlInRange(null, todayISO());
+    const { realized: realizedToday } = realizedPlInRange(todayISO(), todayISO());
+    if (Math.abs(realizedAll) > 1e-9) { totalPl += realizedAll; plN++; }
+    if (Math.abs(realizedToday) > 1e-9) { totalDay += realizedToday; dayN++; }
+    const totalBasis = totalCost + soldCost;
+    const totalRet = totalBasis > 0 && plN ? (totalPl / totalBasis) * 100 : null;
+    const totalDivRet = holdingsMv > 0 && totalDiv > 0 ? (totalDiv / holdingsMv) * 100 : null;
+    const cashWeight = totalMv > 0 ? (Math.max(0, cash) / totalMv) * 100 : null;
+    const dash = `<div class="stack-cell"><span class="top">—</span><span class="bot">—</span></div>`;
+    host.innerHTML = `<table>
+      <thead><tr>
+        <th class="idcol">Symbol</th>
+        <th class="col-num">MV/Qty</th>
+        <th class="col-px">Price/Cost</th>
+        <th class="col-num">%Portfolio</th>
+        <th class="col-num">Today's P/L</th>
+        <th class="col-num"><span class="th-with-tip">P/L ${infoTip(plTip)}</span></th>
+        <th class="col-num"><span class="th-with-tip">Dividend ${infoTip(divTip)}</span></th>
+        <th class="col-act">
+          <button type="button" class="icon-btn" id="pf-reset" title="Reset portfolio"
+                  aria-label="Reset portfolio">${resetSvg}</button>
+        </th>
+      </tr></thead>
+      <tbody>
+        <tr data-sym="PORTFOLIO" class="${S.selected === "PORTFOLIO" ? "on" : ""}">
+          <td class="idcol"><span class="tsym"><span class="tsym-t">Portfolio total</span>
+            <span class="tsym-n">vs indexes on the chart</span></span></td>
+          <td class="col-num"><div class="stack-cell">
+            <span class="top">${esc(money(totalMv || null))}</span>
+            <span class="bot">${esc(String(Number(totalQty.toFixed(4))))}</span>
+          </div></td>
+          <td class="col-px">${dash}</td>
+          <td class="col-num num">${totalMv > 0 ? "100.0%" : "—"}</td>
+          <td class="col-num num ${dayN ? dir(totalDay) : ""}">${dayN ? esc(moneySigned(totalDay)) : "—"}</td>
+          <td class="col-num"><div class="stack-cell">
+            <span class="top ${plN ? dir(totalPl) : ""}">${plN ? esc(moneySigned(totalPl)) : "—"}</span>
+            <span class="bot ${dir(totalRet)}">${esc(retPct(totalRet))}</span>
+          </div></td>
+          <td class="col-num"><div class="stack-cell">
+            <span class="top ${totalDiv > 0 ? "up" : ""}">${totalDiv > 0 ? esc(moneySigned(totalDiv)) : "—"}</span>
+            <span class="bot ${dir(totalDivRet)}">${totalDiv > 0 ? esc(retPct(totalDivRet)) : ""}</span>
+          </div></td>
+          <td class="col-act"></td>
+        </tr>
+        <tr data-sym="CASH" class="cash-row ${S.selected === "CASH" ? "on" : ""}">
+          <td class="idcol"><span class="tsym"><span class="tsym-t">Cash</span>
+            <span class="tsym-n">Available balance</span></span></td>
+          <td class="col-num"><div class="stack-cell">
+            <span class="top">${esc(money(cash))}</span>
+            <span class="bot">—</span>
+          </div></td>
+          <td class="col-px">${dash}</td>
+          <td class="col-num num">${cashWeight != null ? esc(cashWeight.toFixed(1) + "%") : "—"}</td>
+          <td class="col-num num">—</td>
+          <td class="col-num">${dash}</td>
+          <td class="col-num">${dash}</td>
+          <td class="col-act"><div class="row-actions">
+            <button type="button" class="icon-btn" data-act="edit-cash"
+                    title="Edit cash" aria-label="Edit cash">${penSvg}</button>
+          </div></td>
+        </tr>
+        ${rows.map(r => {
+          const livePx = r.price != null ? r.price : null;
+          const avg = r.avgCost != null ? r.avgCost : null;
+          const val = markPrice(r) != null ? markPrice(r) * r.quantity : null;
+          const weight = (val != null && totalMv > 0) ? (val / totalMv) * 100 : null;
+          const day = todayPl(r);
+          const pl = holdingPl(r);
+          const ret = holdingRetPct(r);
+          const div = holdingDiv(r);
+          const divRet = dividendRetPct(r);
+          const qtyLabel = Number(r.quantity.toFixed(4));
+          return `<tr data-sym="${esc(r.symbol)}" class="${S.selected === r.symbol ? "on" : ""}">
+            <td class="idcol"><span class="tsym-with-logo">
+              ${window.TickerLogos ? window.TickerLogos.chip(r.symbol) : ""}
+              <span class="tsym-text">
+                <span class="tsym-t">${esc(r.symbol)}</span>
+                <span class="tsym-n">${esc(r.name || "")}</span>
+              </span></span></td>
+            <td class="col-num"><div class="stack-cell">
+              <span class="top">${esc(money(val))}</span>
+              <span class="bot">${esc(String(qtyLabel))}</span>
+            </div></td>
+            <td class="col-px"><div class="stack-cell">
+              <span class="top">${esc(priceFmt(livePx != null ? livePx : markPrice(r)))}</span>
+              <span class="bot">${avg != null ? esc(priceFmt(avg)) : "—"}</span>
+            </div></td>
+            <td class="col-num num">${weight != null ? esc(weight.toFixed(1) + "%") : "—"}</td>
+            <td class="col-num num ${dir(day)}">${esc(moneySigned(day))}</td>
+            <td class="col-num"><div class="stack-cell">
+              <span class="top ${dir(pl)}">${esc(moneySigned(pl))}</span>
+              <span class="bot ${dir(ret)}">${esc(retPct(ret))}</span>
+            </div></td>
+            <td class="col-num"><div class="stack-cell">
+              <span class="top ${div > 0 ? "up" : ""}">${div > 0 ? esc(moneySigned(div)) : "—"}</span>
+              <span class="bot ${dir(divRet)}">${div > 0 ? esc(retPct(divRet)) : ""}</span>
+            </div></td>
+            <td class="col-act"><div class="row-actions">
+              <button type="button" data-act="buy" data-s="${esc(r.symbol)}">Buy</button>
+              <button type="button" data-act="sell" data-s="${esc(r.symbol)}">Sell</button>
+              <button type="button" class="icon-btn" data-act="edit" data-s="${esc(r.symbol)}"
+                      title="Edit holding" aria-label="Edit ${esc(r.symbol)}">${penSvg}</button>
+            </div></td>
+          </tr>`;
+        }).join("")}
+      </tbody></table>`;
+
+    host.querySelectorAll("[data-act]").forEach(btn => {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const act = btn.dataset.act;
+        if (act === "edit-cash") openCashModal();
+        else if (act === "edit") openEditModal(btn.dataset.s);
+        else openAddModal(btn.dataset.s, act === "sell" ? "sell" : "buy");
+      };
+    });
+    const resetBtn = document.getElementById("pf-reset");
+    if (resetBtn) resetBtn.onclick = e => {
+      e.stopPropagation();
+      openResetModal();
+    };
+    wireInfoTips(host);
+    if (window.TickerLogos) {
+      window.TickerLogos.hydrate(rows.map(r => r.symbol), host);
+    }
+  }
+
+  host.querySelectorAll("tr[data-sym]").forEach(tr => {
+    tr.onclick = e => {
+      if (e.target.closest("a,button")) return;
+      S.selected = tr.dataset.sym;
+      host.querySelectorAll("tr").forEach(x => x.classList.toggle("on", x.dataset.sym === S.selected));
+      drawRightChart();
+    };
+  });
+}
+
+async function loadWatchlistItems(){
+  if (!signedIn()) return [];
+  let items = [];
+  try {
+    const d = await rpc("get_watchlist");
+    items = ((d && d.items) || []).map(i => ({
+      symbol: i.symbol, name: i.name, price: i.price, changePct: i.changePct,
+    }));
+  } catch {}
+  const missing = items.filter(i => i.price == null).map(i => i.symbol);
+  if (missing.length) {
+    try {
+      const rows = await rpc("get_symbol_quotes", { p_symbols: missing }) || [];
+      const by = {};
+      rows.forEach(r => { if (r?.symbol) by[r.symbol] = r; });
+      items = items.map(i => by[i.symbol] ? { ...i, ...by[i.symbol] } : i);
+    } catch {}
+  }
+  return items;
+}
+
+async function toggleWatch(sym){
+  if (!signedIn()) {
+    promptSignIn();
+    return;
+  }
+  try { await rpc("toggle_watchlist", { p_symbol: sym }); } catch {}
+}
+
+/* ---- charts -------------------------------------------------------------- */
+function rangeStartISO(range){
+  const d = new Date();
+  if (range === "1W") d.setDate(d.getDate() - 7);
+  else if (range === "1M") d.setMonth(d.getMonth() - 1);
+  else if (range === "1Y") d.setFullYear(d.getFullYear() - 1);
+  else d.setMonth(0, 1); // YTD
+  return d.toISOString().slice(0, 10);
+}
+
+async function seriesForSymbol(sym, fromISO){
+  if (!S.priceCache[sym]) {
+    try {
+      await rpc("request_prices", { p_symbol: sym }).catch(() => {});
+      S.priceCache[sym] = await rpc("get_prices", { p_symbol: sym }) || { bars: [] };
+    } catch { S.priceCache[sym] = { bars: [] }; }
+  }
+  const bars = (S.priceCache[sym].bars || [])
+    .filter(b => (b.d || b.date) >= fromISO)
+    .map(b => ({ d: b.d || b.date, c: Number(b.c) }))
+    .filter(b => b.d && Number.isFinite(b.c));
+  return bars;
+}
+
+/** Portfolio NAV path for the chart: today's share counts × historical closes.
+ *  This is a simulated “current mix” path — not the user’s personal return
+ *  before they logged the portfolio. Book P/L in the table uses avg buy cost. */
+async function portfolioSeries(fromISO){
+  const positions = S.positions.filter(p => p.quantity > 0);
+  if (!positions.length) return [];
+  const series = await Promise.all(positions.map(async p => ({
+    qty: p.quantity,
+    bars: await seriesForSymbol(p.symbol, fromISO),
+  })));
+  const dates = new Set();
+  series.forEach(s => s.bars.forEach(b => dates.add(b.d)));
+  const sorted = [...dates].sort();
+  return sorted.map(d => {
+    let v = 0, ok = true;
+    for (const s of series) {
+      const bar = [...s.bars].reverse().find(b => b.d <= d);
+      if (!bar) { ok = false; break; }
+      v += bar.c * s.qty;
+    }
+    return ok ? { d, c: v } : null;
+  }).filter(Boolean);
+}
+
+function toPctSeries(bars){
+  if (!bars.length) return [];
+  const base = bars[0].c;
+  if (!base) return [];
+  return bars.map(b => ({ d: b.d, c: ((b.c / base) - 1) * 100 }));
+}
+
+async function drawRightChart(){
+  const host = document.getElementById("chart");
+  const symEl = document.getElementById("c-sym");
+  const logoEl = document.getElementById("c-logo");
+  const priceEl = document.getElementById("c-price");
+  const metaEl = document.getElementById("c-meta");
+  const idxBar = document.getElementById("idx-bar");
+  if (!host) return;
+
+  const from = rangeStartISO(S.range);
+  const setSym = (label, opts) => {
+    if (window.TickerLogos && window.TickerLogos.setHeading) {
+      window.TickerLogos.setHeading(symEl, logoEl, label, opts);
+    } else if (symEl) {
+      symEl.textContent = label || "—";
+    }
+  };
+
+  if (S.selected && S.selected !== "PORTFOLIO" && S.selected !== "CASH") {
+    idxBar.hidden = true;
+    setSym(S.selected);
+    const pos = S.positions.find(p => p.symbol === S.selected);
+    priceEl.textContent = pos && pos.price != null ? priceFmt(pos.price) : "";
+    metaEl.innerHTML = pos
+      ? `<span class="${dir(pos.changePct)}">${esc(pct(pos.changePct))}</span>
+         · ${esc(String(Number(pos.quantity.toFixed(4))))} shares
+         · avg ${esc(priceFmt(pos.avgCost))}`
+      : "";
+    // Daily bars for the selected range (1W / 1M / YTD / 1Y). Intraday is
+    // only a few sessions and was ignoring the range filter.
+    const bars = await seriesForSymbol(S.selected, from);
+    drawLineChart(host, [{ id: S.selected, colour: "var(--accent)", points: bars }], { unit: "price" });
+    return;
+  }
+
+  // Portfolio vs indexes (percentage). Without holdings, indexes only.
+  idxBar.hidden = false;
+  idxBar.innerHTML = INDEXES.map(i => `
+    <button type="button" class="idx-chip" data-sym="${i.sym}"
+      aria-pressed="${!!S.indexes[i.sym]}">
+      <i style="background:${i.colour}"></i>${esc(i.name)}
+    </button>`).join("");
+  idxBar.querySelectorAll("button").forEach(b => {
+    b.onclick = () => {
+      S.indexes[b.dataset.sym] = !S.indexes[b.dataset.sym];
+      b.setAttribute("aria-pressed", String(!!S.indexes[b.dataset.sym]));
+      drawRightChart();
+    };
+  });
+
+  const live = signedIn() && hasHoldings();
+  const alloc = allocation(S.positions);
+  const lines = [];
+
+  if (live && S.selected === "CASH") {
+    setSym("Cash", { logo: false });
+    priceEl.textContent = money(alloc.cash).replace("$", "");
+    metaEl.innerHTML = `${alloc.sum > 0 ? ((alloc.cash / alloc.sum) * 100).toFixed(1) : "0.0"}% of total assets`;
+  } else if (live) {
+    setSym("Portfolio", { logo: false });
+    priceEl.textContent = money(alloc.sum).replace("$", "");
+    const book = bookReturn(S.positions);
+    const rangeBook = bookReturn(S.positions, { fromISO: from });
+    const rangeLabel = S.range === "YTD" ? "YTD" : S.range;
+    metaEl.innerHTML =
+      `Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span>` +
+      ` · ${esc(rangeLabel)} realized <span class="${dir(rangeBook.realized)}">${esc(moneySigned(rangeBook.realized))}</span>` +
+      ` · chart = current mix (simulated) vs indexes`;
+  } else {
+    setSym("Market", { logo: false });
+    priceEl.textContent = "";
+    metaEl.innerHTML = signedIn()
+      ? "Market indexes · add a holding to compare your portfolio"
+      : "Market indexes · log in to track your portfolio here";
+  }
+
+  if (live) {
+    const portBars = toPctSeries(await portfolioSeries(from));
+    if (portBars.length) {
+      lines.push({ id: "Portfolio", colour: "#38b37d", points: portBars });
+    }
+  }
+  for (const ix of INDEXES) {
+    if (!S.indexes[ix.sym]) continue;
+    const bars = toPctSeries(await seriesForSymbol(ix.sym, from));
+    lines.push({ id: ix.sym, colour: ix.colour, points: bars });
+  }
+  drawLineChart(host, lines, { unit: "pct" });
+}
+
+const CHART_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun",
+                      "Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function formatChartDate(iso){
+  if (!iso || iso.length < 10) return iso || "";
+  const y = iso.slice(0, 4), m = +iso.slice(5, 7), day = iso.slice(8, 10);
+  const mon = CHART_MONTHS[m - 1] || iso.slice(5, 7);
+  // Include time when the key is an intraday timestamp.
+  const time = iso.length >= 16 ? `  ${iso.slice(11, 16)}` : "";
+  return `${day} ${mon} '${y.slice(2)}${time}`;
+}
+
+function formatChartValue(v, unit){
+  if (v == null || !Number.isFinite(v)) return "—";
+  if (unit === "pct") return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+  return Number(v).toFixed(2);
+}
+
+function drawLineChart(host, lines, { unit }){
+  // Tall viewBox + none: chart fills the pane; generous pads keep axis text readable.
+  const W = 900, H = 520, pad = { l: 72, r: 64, t: 20, b: 48 };
+  const all = lines.flatMap(l => l.points);
+  if (!all.length) {
+    host.innerHTML = `<div class="note">No price history yet — it will appear once daily bars are available.</div>`;
+    return;
+  }
+  // Use chronological index per series; align by date string order.
+  const dates = [...new Set(all.map(p => p.d))].sort();
+  const ys = all.map(p => p.c);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const span = maxY - minY || 1;
+  const yMin = minY - span * 0.08, yMax = maxY + span * 0.08;
+
+  const xAt = d => {
+    const i = dates.indexOf(d);
+    return pad.l + (i / Math.max(1, dates.length - 1)) * (W - pad.l - pad.r);
+  };
+  const yAt = v => pad.t + (1 - (v - yMin) / (yMax - yMin || 1)) * (H - pad.t - pad.b);
+
+  const grid = [];
+  for (let i = 0; i <= 4; i++) {
+    const v = yMin + (i / 4) * (yMax - yMin);
+    const y = yAt(v);
+    const label = formatChartValue(v, unit);
+    grid.push(`<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}"
+      stroke="var(--rule-2)" stroke-width="1"/>
+      <text x="${pad.l - 10}" y="${y + 4}" text-anchor="end" fill="var(--ink-3)"
+        font-size="12" font-weight="500"
+        font-family="IBM Plex Mono,ui-monospace,monospace">${esc(label)}</text>`);
+  }
+
+  const paths = lines.map(l => {
+    if (l.points.length < 2) return "";
+    const d = l.points.map((p, i) =>
+      `${i ? "L" : "M"}${xAt(p.d).toFixed(1)},${yAt(p.c).toFixed(1)}`).join(" ");
+    return `<path d="${d}" fill="none" stroke="${l.colour}" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"/>`;
+  }).join("");
+
+  const xLabels = [dates[0], dates[Math.floor(dates.length / 2)], dates[dates.length - 1]]
+    .filter(Boolean)
+    .map((d, idx, arr) => {
+      const x = xAt(d);
+      // Keep end labels from clipping off the plot edges.
+      const anchor = idx === 0 ? "start" : idx === arr.length - 1 ? "end" : "middle";
+      const tx = idx === 0 ? pad.l : idx === arr.length - 1 ? (W - pad.r) : x;
+      return `<text x="${tx}" y="${H - 12}" text-anchor="${anchor}" fill="var(--ink-3)"
+        font-size="12" font-weight="500"
+        font-family="IBM Plex Mono,ui-monospace,monospace">${esc(formatChartDate(d))}</text>`;
+    }).join("");
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%"
+    preserveAspectRatio="none" role="img" aria-label="Performance chart">
+    ${grid.join("")}
+    ${unit === "pct" ? `<line x1="${pad.l}" y1="${yAt(0)}" x2="${W - pad.r}" y2="${yAt(0)}"
+      stroke="var(--ink-3)" stroke-dasharray="4 4" stroke-width="1" opacity=".5"/>` : ""}
+    ${paths}${xLabels}
+    <g id="pf-cross" style="display:none;pointer-events:none">
+      <line id="pf-cx" y1="${pad.t}" y2="${H - pad.b}" stroke="var(--ink-3)"
+            stroke-width="1" stroke-dasharray="4 4"></line>
+      <line id="pf-cy" x1="${pad.l}" x2="${W - pad.r}" stroke="var(--ink-3)"
+            stroke-width="1" stroke-dasharray="4 4"></line>
+      <circle id="pf-dot" r="4" fill="var(--ink-2)" stroke="var(--card)" stroke-width="2"></circle>
+      <g id="pf-plab">
+        <rect x="${W - pad.r + 2}" width="56" height="18" rx="4" fill="var(--ink)"></rect>
+        <text x="${W - pad.r + 30}" text-anchor="middle" font-size="11"
+              font-family="IBM Plex Mono,monospace" fill="var(--card)" font-weight="600"></text>
+      </g>
+      <g id="pf-tlab">
+        <rect height="18" rx="4" fill="var(--ink)"></rect>
+        <text text-anchor="middle" font-size="11"
+              font-family="IBM Plex Mono,monospace" fill="var(--card)" font-weight="600"></text>
+      </g>
+    </g>
+    <rect id="pf-hit" x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}"
+          height="${H - pad.t - pad.b}" fill="transparent" style="cursor:crosshair"></rect>
+  </svg>
+  <div id="chart-tip" role="status" aria-live="polite"></div>`;
+
+  wirePortfolioCrosshair({ host, lines, dates, xAt, yAt, W, H, pad, unit });
+}
+
+/** Crosshair + date/price readout, matching the Markets chart interaction. */
+function wirePortfolioCrosshair({ host, lines, dates, xAt, yAt, W, H, pad, unit }){
+  const svg = host.querySelector("svg");
+  const hit = svg && svg.querySelector("#pf-hit");
+  const cross = svg && svg.querySelector("#pf-cross");
+  const tip = host.querySelector("#chart-tip");
+  if (!svg || !hit || !cross || !dates.length) return;
+
+  const cx = svg.querySelector("#pf-cx");
+  const cy = svg.querySelector("#pf-cy");
+  const dot = svg.querySelector("#pf-dot");
+  const pRect = svg.querySelector("#pf-plab rect");
+  const pText = svg.querySelector("#pf-plab text");
+  const tRect = svg.querySelector("#pf-tlab rect");
+  const tText = svg.querySelector("#pf-tlab text");
+
+  const byLine = lines.map(l => {
+    const map = new Map(l.points.map(p => [p.d, p.c]));
+    return { id: l.id, colour: l.colour, map };
+  });
+
+  // Map pointer → viewBox coords (works with preserveAspectRatio meet).
+  const toLocalX = ev => {
+    const ctm = svg.getScreenCTM();
+    if (!ctm) {
+      const b = svg.getBoundingClientRect();
+      return (ev.clientX - b.left) * (W / Math.max(1, b.width));
+    }
+    const pt = svg.createSVGPoint();
+    pt.x = ev.clientX; pt.y = ev.clientY;
+    return pt.matrixTransform(ctm.inverse()).x;
+  };
+
+  const hide = () => {
+    cross.style.display = "none";
+    if (tip) tip.classList.remove("on");
+  };
+
+  hit.addEventListener("mousemove", ev => {
+    const px = toLocalX(ev);
+    const step = (W - pad.l - pad.r) / Math.max(1, dates.length - 1);
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round((px - pad.l) / step)));
+    const d = dates[i];
+    const X = xAt(d);
+
+    // Prefer the first series (ticker or Portfolio) for the Y crosshair.
+    let primary = null;
+    for (const l of byLine) {
+      if (l.map.has(d)) { primary = { id: l.id, colour: l.colour, c: l.map.get(d) }; break; }
+    }
+    if (!primary) { hide(); return; }
+
+    const Y = yAt(primary.c);
+    cross.style.display = "";
+    cx.setAttribute("x1", X); cx.setAttribute("x2", X);
+    cy.setAttribute("y1", Y); cy.setAttribute("y2", Y);
+    dot.setAttribute("cx", X); dot.setAttribute("cy", Y);
+    dot.setAttribute("fill", primary.colour || "var(--ink-2)");
+
+    const valLabel = formatChartValue(primary.c, unit);
+    const pw = Math.max(56, valLabel.length * 7.2 + 12);
+    pRect.setAttribute("width", pw);
+    pRect.setAttribute("x", W - pad.r + 2);
+    pRect.setAttribute("y", Y - 9);
+    pText.setAttribute("x", W - pad.r + 2 + pw / 2);
+    pText.setAttribute("y", Y + 4);
+    pText.textContent = valLabel;
+
+    const dateLabel = formatChartDate(d);
+    const tw = Math.max(96, dateLabel.length * 6.2);
+    const lx = Math.min(Math.max(X - tw / 2, pad.l), W - pad.r - tw);
+    tRect.setAttribute("x", lx); tRect.setAttribute("width", tw);
+    tRect.setAttribute("y", H - pad.b + 2);
+    tText.setAttribute("x", lx + tw / 2);
+    tText.setAttribute("y", H - pad.b + 15);
+    tText.textContent = dateLabel;
+
+    if (tip && byLine.length > 1) {
+      const rows = byLine
+        .filter(l => l.map.has(d))
+        .map(l => `<div class="r"><span><i class="sw" style="background:${l.colour}"></i>${esc(l.id)}</span>
+          <span>${esc(formatChartValue(l.map.get(d), unit))}</span></div>`);
+      tip.innerHTML = `<b>${esc(dateLabel)}</b>${rows.join("")}`;
+      tip.classList.add("on");
+      const hostBox = host.getBoundingClientRect();
+      const svgBox = svg.getBoundingClientRect();
+      const tipW = tip.offsetWidth || 140;
+      const tipH = tip.offsetHeight || 60;
+      const ox = svgBox.left - hostBox.left;
+      const oy = svgBox.top - hostBox.top;
+      let left = ox + (X / W) * svgBox.width + 12;
+      let top = oy + (Y / H) * svgBox.height - tipH / 2;
+      if (left + tipW > hostBox.width - 8) left = ox + (X / W) * svgBox.width - tipW - 12;
+      tip.style.left = Math.max(8, left) + "px";
+      tip.style.top = Math.max(8, Math.min(hostBox.height - tipH - 8, top)) + "px";
+    } else if (tip) {
+      tip.classList.remove("on");
+    }
+  });
+
+  hit.addEventListener("mouseleave", hide);
+}
+
+/* ---- add / sell / edit modal -------------------------------------------- */
+let addKind = "buy"; // buy | sell | edit
+let editSymbol = null;
+
+function setModalMode(kind, symbol, prefill){
+  addKind = kind;
+  editSymbol = kind === "edit" ? symbol : null;
+  const modal = document.getElementById("add-modal");
+  const title = document.getElementById("add-title");
+  const sub = document.getElementById("add-sub");
+  const save = document.getElementById("add-save");
+  const del = document.getElementById("add-delete");
+  const priceHint = document.getElementById("f-price-hint");
+  const symEl = document.getElementById("f-symbol");
+  const cashFields = document.getElementById("cash-fields");
+  const deduct = document.getElementById("f-deduct-cash");
+  const extra = document.getElementById("f-extra-cash");
+  const deductHint = document.getElementById("f-deduct-hint");
+
+  if (kind === "edit") {
+    title.textContent = "Edit holding";
+    sub.textContent = "Update this ticker’s quantity and average buy price. P/L updates from the live quote. Delete removes it from your portfolio.";
+    save.textContent = "Save changes";
+    del.hidden = false;
+    symEl.readOnly = true;
+  } else if (kind === "sell") {
+    title.textContent = "Sell shares";
+    sub.textContent = "Record a sale. Proceeds (quantity × price) are added to Cash. Quantity cannot exceed what you currently hold.";
+    save.textContent = "Record sale";
+    del.hidden = true;
+    symEl.readOnly = false;
+  } else {
+    title.textContent = "Add to portfolio";
+    sub.textContent = "Enter ticker, quantity, and buy price. Optionally fund the purchase from Cash or add money you are bringing in now.";
+    save.textContent = "Add holding";
+    del.hidden = true;
+    symEl.readOnly = false;
+  }
+
+  document.querySelector('label[for="f-price"]').textContent =
+    kind === "sell" ? "Sale price per share" : "Average buy price per share";
+  priceHint.textContent = kind === "sell"
+    ? "Price you sold at. Sale proceeds go to Cash."
+    : "Your cost basis per share from your brokerage.";
+
+  // Cash funding controls only apply when buying / adding.
+  const showCash = kind === "buy";
+  if (cashFields) cashFields.hidden = !showCash;
+  if (deduct) {
+    const bal = cashBalance();
+    deduct.checked = showCash && bal > 0;
+    if (deductHint) {
+      deductHint.textContent = bal > 0
+        ? `Reduce Cash by quantity × price. Available now: ${money(bal)}.`
+        : "Reduce Cash by quantity × price. Turn off when logging a holding you already paid for outside this portfolio.";
+    }
+  }
+  if (extra) extra.value = "";
+
+  symEl.value = (prefill && prefill.symbol) || symbol || "";
+  document.getElementById("f-date").value = (prefill && prefill.tradeDate) || todayISO();
+  document.getElementById("f-date").max = todayISO();
+  document.getElementById("f-qty").value =
+    prefill && prefill.quantity != null ? String(prefill.quantity) : "";
+  document.getElementById("f-price").value =
+    prefill && prefill.price != null ? String(prefill.price) : "";
+  document.getElementById("add-err").textContent = "";
+  modal.hidden = false;
+  if (kind === "edit" || symbol) document.getElementById("f-qty").focus();
+  else symEl.focus();
+}
+
+function openAddModal(symbol, kind){
+  if (!signedIn()) { promptSignIn(); return; }
+  setModalMode(kind === "sell" ? "sell" : "buy", symbol, null);
+}
+
+function openEditModal(symbol){
+  if (!signedIn()) { promptSignIn(); return; }
+  const pos = S.positions.find(p => p.symbol === symbol);
+  if (!pos) return;
+  setModalMode("edit", symbol, {
+    symbol: pos.symbol,
+    tradeDate: todayISO(),
+    quantity: Number(pos.quantity.toFixed(4)),
+    price: pos.avgCost != null ? Number(Number(pos.avgCost).toFixed(4)) : null,
+  });
+}
+
+function openCashModal(){
+  if (!signedIn()) { promptSignIn(); return; }
+  const modal = document.getElementById("cash-modal");
+  const input = document.getElementById("f-cash-amt");
+  const err = document.getElementById("cash-err");
+  const cur = cashBalance();
+  input.value = Number.isFinite(cur) ? String(Number(cur.toFixed(2))) : "0";
+  err.textContent = "";
+  modal.hidden = false;
+  input.focus();
+  input.select();
+}
+
+function closeCashModal(){
+  document.getElementById("cash-modal").hidden = true;
+}
+
+function openResetModal(){
+  if (!signedIn()) { promptSignIn(); return; }
+  const modal = document.getElementById("reset-modal");
+  document.getElementById("reset-err").textContent = "";
+  modal.hidden = false;
+  document.getElementById("reset-cancel").focus();
+}
+
+function closeResetModal(){
+  document.getElementById("reset-modal").hidden = true;
+}
+
+/** Adjust the cash ledger so the balance equals ``target`` (USD). */
+async function setCashBalance(target){
+  const next = Number(target);
+  if (!Number.isFinite(next) || next < 0) throw new Error("Enter a valid cash amount.");
+  const cur = cashBalance();
+  const delta = next - cur;
+  if (Math.abs(delta) < 1e-9) return;
+  const tradeDate = todayISO();
+  if (delta > 0) {
+    await addTransaction({
+      symbol: "CASH",
+      kind: "deposit",
+      tradeDate,
+      quantity: 1,
+      price: delta,
+      note: "adjust:set",
+      quiet: true,
+    });
+  } else {
+    await addTransaction({
+      symbol: "CASH",
+      kind: "withdrawal",
+      tradeDate,
+      quantity: 1,
+      price: Math.abs(delta),
+      note: "adjust:set",
+      quiet: true,
+    });
+  }
+  GA.track("portfolio_cash_edit");
+}
+
+/** Wipe every transaction in the portfolio (remote + local mirror). */
+async function resetPortfolio(){
+  if (!signedIn()) {
+    promptSignIn();
+    throw new Error("Please log in to reset your portfolio.");
+  }
+
+  let cleared = false;
+  try {
+    const d = await rpc("clear_portfolio");
+    if (d && d.error) throw new Error(d.error);
+    cleared = !!(d && d.cleared);
+  } catch (e) {
+    // Migration not applied yet — fall back to per-row deletes.
+    console.warn("[portfolio] clear_portfolio unavailable, deleting rows", e);
+    const txns = [...(S.transactions || [])];
+    for (const t of txns) {
+      const id = Number(t.id);
+      if (!Number.isFinite(id)) continue;
+      try {
+        const d = await rpc("delete_portfolio_transaction", { p_id: id });
+        if (d && d.error) console.warn("[portfolio] delete failed", d.error);
+      } catch (ex) {
+        console.warn("[portfolio] delete failed", ex);
+      }
+    }
+    cleared = true;
+  }
+
+  localPort.clear();
+  try { sessionStorage.setItem(MERGED_KEY, "1"); } catch {}
+  S.transactions = [];
+  S.positions = [];
+  S.priceCache = {};
+  S.assetKindBySym = {};
+  S.selected = "PORTFOLIO";
+  GA.track("portfolio_reset", { ok: cleared });
+}
+
+function closeAddModal(){
+  document.getElementById("add-modal").hidden = true;
+  editSymbol = null;
+}
+
+/** Remove transactions for a ticker (local + remote).
+ *  keepDividends: used by edit/replace so credited dividends are not wiped. */
+async function deleteSymbolHoldings(symbol, { keepDividends = false } = {}){
+  const sym = String(symbol || "").toUpperCase();
+  const drop = t => t.symbol === sym && !(keepDividends && t.kind === "dividend");
+  const txns = (S.transactions || []).filter(drop);
+  localPort.write(localPort.read().filter(t => !drop(t)));
+  // Signed-in deletes go through the API. Remaining local rows are mirrors of
+  // remote — clearing MERGED_KEY would re-upload them and double quantities.
+  if (!signedIn()) {
+    try { sessionStorage.removeItem(MERGED_KEY); } catch {}
+  }
+
+  if (signedIn()) {
+    for (const t of txns) {
+      const id = Number(t.id);
+      if (!Number.isFinite(id)) continue;
+      try {
+        const d = await rpc("delete_portfolio_transaction", { p_id: id });
+        if (d && d.error) console.warn("[portfolio] delete failed", d.error);
+      } catch (e) {
+        console.warn("[portfolio] delete failed", e);
+      }
+    }
+  }
+  if (!keepDividends) GA.track("portfolio_delete", { ticker: sym });
+  await loadPortfolio();
+}
+
+/** Replace a ticker’s holdings with a single updated buy snapshot. */
+async function replaceHolding(fields){
+  await deleteSymbolHoldings(fields.symbol, { keepDividends: true });
+  // deleteSymbolHoldings already reloaded; addTransaction appends the new row.
+  await addTransaction({
+    symbol: fields.symbol,
+    kind: "buy",
+    tradeDate: fields.tradeDate,
+    quantity: fields.quantity,
+    price: fields.price,
+  });
+}
+
+function wireModal(){
+  const modal = document.getElementById("add-modal");
+  document.getElementById("add-x").onclick = closeAddModal;
+  document.getElementById("add-cancel").onclick = closeAddModal;
+  modal.addEventListener("click", e => { if (e.target === modal) closeAddModal(); });
+
+  const cashModal = document.getElementById("cash-modal");
+  document.getElementById("cash-x").onclick = closeCashModal;
+  document.getElementById("cash-cancel").onclick = closeCashModal;
+  cashModal.addEventListener("click", e => { if (e.target === cashModal) closeCashModal(); });
+  document.getElementById("cash-form").onsubmit = async e => {
+    e.preventDefault();
+    const err = document.getElementById("cash-err");
+    err.textContent = "";
+    const amt = Number(document.getElementById("f-cash-amt").value);
+    if (!Number.isFinite(amt) || amt < 0) {
+      err.textContent = "Enter a cash amount of 0 or more.";
+      return;
+    }
+    const save = document.getElementById("cash-save");
+    save.disabled = true;
+    try {
+      await setCashBalance(amt);
+      closeCashModal();
+      toast(`Cash set to ${money(amt)}`);
+      await boot(false);
+    } catch (ex) {
+      err.textContent = ex.message || "Could not update cash.";
+    } finally {
+      save.disabled = false;
+    }
+  };
+
+  const resetModal = document.getElementById("reset-modal");
+  document.getElementById("reset-x").onclick = closeResetModal;
+  document.getElementById("reset-cancel").onclick = closeResetModal;
+  resetModal.addEventListener("click", e => { if (e.target === resetModal) closeResetModal(); });
+  document.getElementById("reset-confirm").onclick = async () => {
+    const err = document.getElementById("reset-err");
+    const btn = document.getElementById("reset-confirm");
+    err.textContent = "";
+    btn.disabled = true;
+    try {
+      await resetPortfolio();
+      closeResetModal();
+      toast("Portfolio reset");
+      await boot(false);
+    } catch (ex) {
+      err.textContent = ex.message || "Could not reset portfolio.";
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (!modal.hidden) closeAddModal();
+    else if (!cashModal.hidden) closeCashModal();
+    else if (!resetModal.hidden) closeResetModal();
+  });
+
+  document.getElementById("add-delete").onclick = async () => {
+    const symbol = editSymbol || document.getElementById("f-symbol").value.trim().toUpperCase();
+    if (!symbol) return;
+    if (!confirm(`Remove ${symbol} from your portfolio? This deletes its transactions.`)) return;
+    const btn = document.getElementById("add-delete");
+    btn.disabled = true;
+    try {
+      await deleteSymbolHoldings(symbol);
+      closeAddModal();
+      toast(`Removed ${symbol}`);
+      await boot(false);
+    } catch (ex) {
+      document.getElementById("add-err").textContent = ex.message || "Could not delete.";
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  document.getElementById("add-form").onsubmit = async e => {
+    e.preventDefault();
+    const err = document.getElementById("add-err");
+    err.textContent = "";
+    const symbol = document.getElementById("f-symbol").value.trim().toUpperCase();
+    const tradeDate = document.getElementById("f-date").value || todayISO();
+    const quantity = Number(document.getElementById("f-qty").value);
+    const price = Number(document.getElementById("f-price").value);
+    if (!/^[A-Z][A-Z.\-]{0,9}$/.test(symbol) || symbol === "CASH") {
+      err.textContent = "Enter a valid ticker.";
+      return;
+    }
+    if (!(quantity > 0) || !(price >= 0)) {
+      err.textContent = addKind === "sell"
+        ? "Quantity and sale price are required."
+        : "Quantity and average buy price are required.";
+      return;
+    }
+    const save = document.getElementById("add-save");
+    save.disabled = true;
+    try {
+      if (addKind === "edit") {
+        await replaceHolding({ symbol, tradeDate, quantity, price });
+        closeAddModal();
+        toast(`Updated ${symbol}`);
+      } else if (addKind === "sell") {
+        const proceeds = quantity * price;
+        const avg = openAvgCost(symbol);
+        const realized = avg != null ? (price - avg) * quantity : null;
+        await addTransaction({
+          symbol, kind: "sell", tradeDate, quantity, price,
+          realizedPl: realized,
+          reload: false,
+        });
+        // Sale proceeds become spendable cash.
+        if (proceeds > 0) {
+          await addTransaction({
+            symbol: "CASH",
+            kind: "deposit",
+            tradeDate,
+            quantity: 1,
+            price: proceeds,
+            note: realized != null
+              ? `proceeds:${symbol};realized:${Number(realized.toFixed(4))}`
+              : `proceeds:${symbol}`,
+            quiet: true,
+            reload: false,
+          });
+        }
+        await loadPortfolio();
+        closeAddModal();
+        const realizedNote = realized != null
+          ? ` · realized ${moneySigned(realized)}`
+          : "";
+        toast(`Sold ${quantity} ${symbol} · ${money(proceeds)} to Cash${realizedNote}`);
+      } else {
+        const deduct = !!(document.getElementById("f-deduct-cash")
+          && document.getElementById("f-deduct-cash").checked);
+        const extraRaw = document.getElementById("f-extra-cash")
+          ? document.getElementById("f-extra-cash").value : "";
+        const extraCash = Number(extraRaw);
+        const extra = Number.isFinite(extraCash) && extraCash > 0 ? extraCash : 0;
+        const cost = quantity * price;
+
+        if (deduct) {
+          const available = cashBalance() + extra;
+          if (cost > available + 1e-6) {
+            err.textContent = `Not enough cash. Need ${money(cost)}, have ${money(available)}`
+              + (extra ? " including additional cash." : ". Add additional cash or turn off deduct.");
+            return;
+          }
+        }
+
+        // Optional top-up before the buy so the withdrawal can cover the cost.
+        if (extra > 0) {
+          await addTransaction({
+            symbol: "CASH",
+            kind: "deposit",
+            tradeDate,
+            quantity: 1,
+            price: extra,
+            note: `funding:${symbol}`,
+            quiet: true,
+            reload: false,
+          });
+        }
+
+        await addTransaction({
+          symbol, kind: "buy", tradeDate, quantity, price, reload: false,
+        });
+
+        if (deduct && cost > 0) {
+          await addTransaction({
+            symbol: "CASH",
+            kind: "withdrawal",
+            tradeDate,
+            quantity: 1,
+            price: cost,
+            note: `buy:${symbol}`,
+            quiet: true,
+            reload: false,
+          });
+        }
+
+        await loadPortfolio();
+        closeAddModal();
+        toast(deduct
+          ? `Bought ${quantity} ${symbol} · ${money(cost)} from Cash`
+          : `Added ${quantity} ${symbol}`);
+      }
+      await boot(false);
+    } catch (ex) {
+      err.textContent = ex.message || "Could not save.";
+    } finally {
+      save.disabled = false;
+    }
+  };
+}
+
+function wireTickerSearch(inputId, acId, formId, onPick){
+  const q = document.getElementById(inputId);
+  const ac = document.getElementById(acId);
+  const form = document.getElementById(formId);
+  if (!q || !ac) return;
+  let timer = null;
+  const close = () => { ac.innerHTML = ""; ac.classList.remove("open"); };
+  q.addEventListener("input", () => {
+    clearTimeout(timer);
+    const term = q.value.trim();
+    if (!term) return close();
+    timer = setTimeout(async () => {
+      let items = [];
+      try { items = await rpc("search_companies", { q: term }) || []; } catch {}
+      if (!items.length) return close();
+      ac.innerHTML = items.slice(0, 6).map(x => {
+        const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
+        const kAttr = (x.kind === "etf" || x.kind === "crypto")
+          ? ` data-kind="${esc(x.kind)}"` : "";
+        return `<div data-s="${esc(x.ticker)}"${kAttr}><b>${esc(x.ticker)}</b>` +
+          `<span>${esc(x.name)}${esc(kind)}</span></div>`;
+      }).join("");
+      ac.classList.add("open");
+      ac.querySelectorAll("[data-s]").forEach(d => {
+        d.onmousedown = e => {
+          e.preventDefault();
+          GA.track("search", { search_term: term, source: "portfolio" });
+          if (d.dataset.kind === "etf" || d.dataset.kind === "crypto") {
+            S.assetKindBySym[d.dataset.s] = d.dataset.kind;
+          }
+          close();
+          q.value = "";
+          onPick(d.dataset.s);
+        };
+      });
+    }, 140);
+  });
+  q.addEventListener("blur", () => setTimeout(close, 150));
+  if (form) form.onsubmit = e => {
+    e.preventDefault();
+    const sym = q.value.trim().toUpperCase();
+    if (!sym) return;
+    GA.track("search", { search_term: sym, source: "portfolio" });
+    close();
+    q.value = "";
+    onPick(sym);
+  };
+}
+
+function toast(msg){
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+/* ---- Discover (filtered to portfolio / watchlist tickers) ---------------- */
+const DISC = { items: [], page: 0, per: 3, wired: false };
+const AVATAR = ["--accent","#eb6834","#1baf7a","#eda100","#e87ba4","#4a3aa7","#2a78d6","#e34948"];
+const avatarColour = s => {
+  let h = 0; for (const ch of String(s || "")) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const c = AVATAR[h % AVATAR.length];
+  return c.startsWith("--") ? `var(${c})` : c;
+};
+const ago = iso => {
+  if (!iso) return "";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${Math.max(1, m)}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 48) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+};
+
+function discoverPerPage(){
+  if (matchMedia("(max-width:720px)").matches) return 2;
+  if (matchMedia("(max-width:980px)").matches) return 3;
+  if (matchMedia("(max-width:1280px)").matches) return 4;
+  return 5;
+}
+
+function discoverMatchSymbols(a, syms){
+  if (!syms || !syms.size) return false;
+  if (a.symbol && syms.has(String(a.symbol).toUpperCase())) return true;
+  const text = `${a.title || ""} ${a.summary || ""}`;
+  for (const s of syms) {
+    if (!s || s.length < 2) continue;
+    if (new RegExp(`(^|[^A-Za-z])${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Za-z]|$)`).test(text))
+      return true;
+  }
+  return false;
+}
+
+async function activeDiscoverSymbols(){
+  if (S.view === "watchlist") {
+    const items = await loadWatchlistItems();
+    return [...new Set((items || []).map(i => String(i.symbol || "").toUpperCase()).filter(Boolean))];
+  }
+  return [...new Set(
+    (S.positions || []).filter(p => p.quantity > 0).map(p => String(p.symbol || "").toUpperCase()).filter(Boolean)
+  )];
+}
+
+async function loadPortfolioDiscover(){
+  const track = document.getElementById("discover");
+  if (!track) return;
+  const symbols = await activeDiscoverSymbols();
+  const symSet = new Set(symbols);
+  if (!symSet.size) {
+    renderDiscover([], !signedIn()
+      ? "Log in to see news about your tickers here."
+      : S.view === "watchlist"
+        ? "Add tickers to your watchlist to see related news here."
+        : "Add holdings to see news about your tickers here.");
+    return;
+  }
+
+  const byUrl = new Map();
+  const merge = list => {
+    for (const a of list || []) {
+      if (!a || !a.url || byUrl.has(a.url)) continue;
+      if (discoverMatchSymbols(a, symSet)) byUrl.set(a.url, a);
+    }
+  };
+
+  try {
+    const [feed, news] = await Promise.all([
+      rpc("get_news_feed", { p_hours: 168, p_limit: 80 }).catch(() => []),
+      rpc("get_news", { p_limit: 80, p_offset: 0 }).catch(() => null),
+    ]);
+    merge(feed);
+    merge((news && news.articles) || []);
+  } catch {}
+
+  // Fill gaps with per-ticker lookups (best for sparse portfolios).
+  const missing = symbols.filter(s =>
+    ![...byUrl.values()].some(a => String(a.symbol || "").toUpperCase() === s));
+  await Promise.all(missing.slice(0, 8).map(async s => {
+    try {
+      const d = await rpc("get_news", { p_q: s, p_limit: 6, p_offset: 0 });
+      merge((d && d.articles) || []);
+    } catch {}
+  }));
+
+  const rows = [...byUrl.values()].sort((a, b) => {
+    const ai = a.image ? 0 : 1, bi = b.image ? 0 : 1;
+    if (ai !== bi) return ai - bi;
+    return (b.published || "").localeCompare(a.published || "");
+  }).slice(0, 12);
+
+  renderDiscover(rows, S.view === "watchlist"
+    ? "No recent news for your watchlist tickers."
+    : "No recent news for your portfolio tickers.");
+}
+
+function renderDiscover(articles, emptyMsg){
+  const track = document.getElementById("discover");
+  const dots = document.getElementById("discover-dots");
+  if (!track || !dots) return;
+  DISC.items = Array.isArray(articles) ? articles : [];
+  DISC.page = 0;
+  DISC.per = discoverPerPage();
+
+  if (!DISC.items.length) {
+    track.innerHTML = `<div class="disc-empty">${esc(emptyMsg || "No stories right now.")}
+      <a href="news.html" style="color:var(--accent)">Browse all news →</a></div>`;
+    dots.innerHTML = "";
+    syncDiscoverNav();
+    return;
+  }
+
+  track.innerHTML = DISC.items.map(a => {
+    const pub = a.publisher || "Source";
+    const initial = (pub.replace(/^the\s+/i, "").trim()[0] || "?").toUpperCase();
+    const img = a.image
+      ? `<span class="ph"><img src="${esc(a.image)}" alt="" loading="lazy"
+           onerror="this.parentNode.classList.add('blank');this.remove()"></span>`
+      : `<span class="ph blank">Market</span>`;
+    return `<a class="disc-card" href="${esc(a.url)}" target="_blank" rel="noopener"
+        data-ta-news="portfolio_feed"${a.symbol ? ` data-ta-ticker="${esc(a.symbol)}"` : ""}>
+      ${img}
+      <div class="body">
+        <h3>${esc(a.title)}</h3>
+        <div class="disc-meta">
+          <span class="disc-src">
+            <span class="av" style="background:${avatarColour(pub)}">${esc(initial)}</span>
+            <span class="who">${esc(pub)}${a.published ? ` · ${esc(ago(a.published))}` : ""}</span>
+          </span>
+          ${a.symbol ? `<span class="tag">${esc(a.symbol)}</span>` : ""}
+        </div>
+      </div>
+    </a>`;
+  }).join("");
+
+  paintDiscoverDots();
+  goDiscover(0);
+  requestAnimationFrame(() => goDiscover(DISC.page));
+}
+
+function discoverMax(){
+  return Math.max(0, DISC.items.length - DISC.per);
+}
+
+function paintDiscoverDots(){
+  const dots = document.getElementById("discover-dots");
+  if (!dots) return;
+  const pages = discoverMax() + 1;
+  dots.innerHTML = Array.from({ length: pages }, (_, i) =>
+    `<button type="button" aria-label="Page ${i + 1}" ${i === DISC.page ? 'aria-current="true"' : ""}></button>`
+  ).join("");
+  dots.querySelectorAll("button").forEach((b, i) => { b.onclick = () => goDiscover(i); });
+}
+
+function goDiscover(page){
+  const track = document.getElementById("discover");
+  if (!track || !DISC.items.length) return;
+  DISC.page = Math.max(0, Math.min(discoverMax(), page));
+  const card = track.querySelector(".disc-card");
+  const gap = 12;
+  const w = card ? card.getBoundingClientRect().width + gap : 0;
+  track.style.transform = `translateX(${-(DISC.page * w)}px)`;
+  paintDiscoverDots();
+  syncDiscoverNav();
+}
+
+function syncDiscoverNav(){
+  const prev = document.getElementById("disc-prev");
+  const next = document.getElementById("disc-next");
+  if (!prev || !next) return;
+  const empty = !DISC.items.length;
+  prev.disabled = empty || DISC.page <= 0;
+  next.disabled = empty || DISC.page >= discoverMax();
+}
+
+function wireDiscover(){
+  const prev = document.getElementById("disc-prev");
+  const next = document.getElementById("disc-next");
+  if (!prev || !next) return;
+  prev.onclick = () => goDiscover(DISC.page - 1);
+  next.onclick = () => goDiscover(DISC.page + 1);
+  if (DISC.wired) return;
+  DISC.wired = true;
+  addEventListener("resize", () => {
+    const per = discoverPerPage();
+    if (per !== DISC.per) {
+      DISC.per = per;
+      paintDiscoverDots();
+    }
+    goDiscover(DISC.page);
+  });
+}
+
+/* ---- Portfolio Calendar (earnings + ex-div + US economics) --------------- */
+const CAL_PREFS_KEY = "ta.calendar.subs.v1";
+const CAL_DOWS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const CAL = {
+  weekStart: null, // Sunday ISO of the visible week
+  selected: null,
+  events: [],
+  wired: false,
+  prefs: null,
+  defaultsApplied: false,
+};
+
+function isoDate(y, m, d){
+  return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+}
+function parseISODate(s){
+  const [y, m, d] = String(s || "").split("-").map(Number);
+  return { y, m: m - 1, d };
+}
+function dateFromISO(s){
+  const { y, m, d } = parseISODate(s);
+  return new Date(y, m, d);
+}
+function toISODate(d){
+  return isoDate(d.getFullYear(), d.getMonth(), d.getDate());
+}
+function sundayOf(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - x.getDay());
+  return x;
+}
+function weekDays(weekStartISO){
+  const start = dateFromISO(weekStartISO);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    return { date: d, iso: toISODate(d), dow: CAL_DOWS[i] };
+  });
+}
+function defaultCalPrefs(){
+  // U.S. Economics is always on; portfolio/watchlist turn on only when the
+  // signed-in user actually has those sources (see applyCalPrefsDefaults).
+  return { portfolio: false, watchlist: false, economics: true, tickers: [] };
+}
+function loadCalPrefs(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || "null");
+    if (!raw || typeof raw !== "object") return defaultCalPrefs();
+    return {
+      portfolio: !!raw.portfolio,
+      watchlist: !!raw.watchlist,
+      // Always keep the U.S. economics calendar selected.
+      economics: true,
+      tickers: [...new Set((raw.tickers || []).map(s => String(s).toUpperCase()).filter(Boolean))],
+    };
+  } catch {
+    return defaultCalPrefs();
+  }
+}
+function saveCalPrefs(p){
+  CAL.prefs = { ...p, economics: true };
+  try { localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(CAL.prefs)); } catch {}
+}
+
+/** Seed calendar checkboxes from login + holdings/watchlist presence. */
+async function applyCalPrefsDefaults(){
+  const saved = loadCalPrefs();
+  let hasWl = false;
+  if (signedIn()) {
+    try { hasWl = (await loadWatchlistItems()).length > 0; } catch {}
+  }
+  const prefs = {
+    economics: true,
+    portfolio: !!(signedIn() && hasHoldings()),
+    watchlist: !!(signedIn() && hasWl),
+    tickers: saved.tickers || [],
+  };
+  saveCalPrefs(prefs);
+  return prefs;
+}
+
+async function calendarSymbols(){
+  const prefs = CAL.prefs || loadCalPrefs();
+  CAL.prefs = prefs;
+  const set = new Set(prefs.tickers || []);
+  if (prefs.portfolio) {
+    (S.positions || []).filter(p => (p.quantity || 0) > 0).forEach(p => {
+      if (p.symbol) set.add(String(p.symbol).toUpperCase());
+    });
+  }
+  if (prefs.watchlist) {
+    try {
+      const items = await loadWatchlistItems();
+      (items || []).forEach(i => { if (i.symbol) set.add(String(i.symbol).toUpperCase()); });
+    } catch {}
+  }
+  return [...set];
+}
+
+function calFmtMoney(v){
+  if (v == null || !Number.isFinite(Number(v))) return "—";
+  const n = Number(v);
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n / 1e9).toFixed(2) + "B";
+  if (abs >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (abs >= 1e3) return (n / 1e3).toFixed(2) + "K";
+  return n.toFixed(2);
+}
+function calSession(time){
+  const t = String(time || "").toLowerCase();
+  if (t.includes("bmo") || t.includes("before") || t.includes("pre"))
+    return { label: "Pre-Mkt", icon: "sun" };
+  if (t.includes("amc") || t.includes("after") || t.includes("post"))
+    return { label: "Post-Mkt", icon: "moon" };
+  if (t) return { label: t.toUpperCase(), icon: null };
+  return { label: "—", icon: null };
+}
+function sunIcon(){
+  return `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6">
+    <circle cx="10" cy="10" r="3"/><path stroke-linecap="round" d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.5 4.5l1.4 1.4M14.1 14.1l1.4 1.4M15.5 4.5l-1.4 1.4M5.9 14.1l-1.4 1.4"/></svg>`;
+}
+function moonIcon(){
+  return `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6">
+    <path stroke-linejoin="round" d="M14.5 11.2A5.5 5.5 0 0 1 8.2 4.9 5.8 5.8 0 1 0 14.5 11.2z"/></svg>`;
+}
+function calAddIcon(){
+  return `<svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8h13M7 3v3M13 3v3M10 11v3.5M8.25 12.75h3.5"/></svg>`;
+}
+
+function unifyCalEvents(raw, prefs){
+  const out = [];
+  for (const e of (raw && raw.earnings) || []) {
+    out.push({
+      ...e, kind: "earnings", date: String(e.date).slice(0, 10),
+      key: `e:${e.date}:${e.symbol}`,
+    });
+  }
+  for (const e of (raw && raw.dividends) || []) {
+    out.push({
+      ...e, kind: "dividend", date: String(e.date || e.exDate).slice(0, 10),
+      key: `d:${e.date || e.exDate}:${e.symbol}`,
+    });
+  }
+  if (prefs.economics) {
+    for (const e of (raw && raw.economics) || []) {
+      // Prefer high/medium impact so the week strip stays readable.
+      const impact = String(e.impact || "").toLowerCase();
+      if (impact && impact !== "high" && impact !== "medium") continue;
+      out.push({
+        ...e, kind: "economics", date: String(e.date).slice(0, 10),
+        symbol: "ECON", name: e.event,
+        key: `x:${e.date}:${e.event}`,
+      });
+    }
+  }
+  out.sort((a, b) => (a.date + a.kind + (a.symbol || "")).localeCompare(b.date + b.kind + (b.symbol || "")));
+  return out;
+}
+
+function eventsForDay(iso){
+  return CAL.events.filter(e => e.date === iso);
+}
+
+function weekAvatars(iso){
+  const day = eventsForDay(iso);
+  const chips = [];
+  const seen = new Set();
+  for (const e of day) {
+    if (e.kind === "economics") {
+      if (seen.has("ECON")) continue;
+      seen.add("ECON");
+      chips.push({ letter: "EC", colour: "var(--ink-3)" });
+    } else {
+      const sym = String(e.symbol || "").toUpperCase();
+      if (!sym || seen.has(sym)) continue;
+      seen.add(sym);
+      chips.push({ letter: sym.slice(0, 2), colour: avatarColour(sym), symbol: sym });
+    }
+    if (chips.length >= 4) break;
+  }
+  return { chips, total: day.length };
+}
+
+function renderCalWeek(){
+  const host = document.getElementById("cal-week");
+  if (!host || !CAL.weekStart) return;
+  const days = weekDays(CAL.weekStart);
+  const logoSyms = [];
+  host.innerHTML = days.map(day => {
+    const { chips, total } = weekAvatars(day.iso);
+    const on = day.iso === CAL.selected;
+    const countLabel = total === 1 ? "1 event" : `${total} events`;
+    return `<button type="button" class="cal-daycard${on ? " on" : ""}" data-iso="${day.iso}"
+        role="tab" aria-selected="${on}" aria-pressed="${on}">
+      <div class="dow">${day.dow}</div>
+      <div class="dom">${day.date.getDate()}</div>
+      <div class="foot">
+        <div class="avatars">${chips.map(c => {
+          if (c.symbol) logoSyms.push(c.symbol);
+          const logo = c.symbol ? ` data-logo="${esc(c.symbol)}"` : "";
+          return `<span class="av"${logo} style="background:${c.colour}">${esc(c.letter)}</span>`;
+        }).join("")}</div>
+        ${total ? `<span class="n">${esc(countLabel)}</span>` : ""}
+      </div>
+    </button>`;
+  }).join("");
+  if (window.TickerLogos && logoSyms.length) {
+    window.TickerLogos.hydrate(logoSyms, host);
+  }
+  host.querySelectorAll(".cal-daycard").forEach(btn => {
+    btn.onclick = () => {
+      CAL.selected = btn.dataset.iso;
+      renderCalWeek();
+      renderCalDay();
+    };
+  });
+}
+
+function eventTitle(ev){
+  if (ev.kind === "earnings") return `${ev.symbol} earnings`;
+  if (ev.kind === "dividend") return `${ev.symbol} ex-dividend`;
+  return ev.event || "Economic release";
+}
+function eventDetails(ev){
+  if (ev.kind === "earnings") {
+    const sess = calSession(ev.time);
+    return {
+      title: ev.symbol,
+      sess,
+      meta: `Revenue: Est. ${calFmtMoney(ev.revenueEstimated)} Act. ${calFmtMoney(ev.revenueActual)}`,
+      href: `company.html?t=${encodeURIComponent(ev.symbol)}`,
+    };
+  }
+  if (ev.kind === "dividend") {
+    return {
+      title: ev.symbol,
+      sess: { label: "Ex-Div", icon: null },
+      meta: `Dividend: $${Number(ev.amount || 0).toFixed(4)}${ev.yield != null ? ` · Yield ${(Number(ev.yield) * (ev.yield < 1 ? 100 : 1)).toFixed(2)}%` : ""}`,
+      href: `company.html?t=${encodeURIComponent(ev.symbol)}`,
+    };
+  }
+  const bits = [];
+  if (ev.estimate != null) bits.push(`Est. ${ev.estimate}`);
+  if (ev.actual != null) bits.push(`Act. ${ev.actual}`);
+  else if (ev.previous != null) bits.push(`Prev. ${ev.previous}`);
+  if (ev.impact) bits.push(ev.impact);
+  return {
+    title: ev.event || "Economics",
+    sess: { label: ev.time || "US", icon: null },
+    meta: bits.join(" · ") || "U.S. economic release",
+    href: null,
+  };
+}
+
+function icsEscape(s){
+  return String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+}
+function downloadIcs(ev){
+  const day = String(ev.date).replace(/-/g, "");
+  const title = eventTitle(ev);
+  const detail = eventDetails(ev);
+  const desc = detail.meta;
+  const uid = `${ev.key || title}@tickeralpha`;
+  const ics = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Ticker Alpha//Calendar//EN",
+    "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "BEGIN:VEVENT",
+    `UID:${uid}`, `DTSTAMP:${day}T120000Z`,
+    `DTSTART;VALUE=DATE:${day}`, `DTEND;VALUE=DATE:${day}`,
+    `SUMMARY:${icsEscape(title)}`, `DESCRIPTION:${icsEscape(desc)}`,
+    "END:VEVENT", "END:VCALENDAR",
+  ].join("\r\n");
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${(ev.symbol || "event").toLowerCase()}-${day}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function googleCalUrl(ev){
+  const day = String(ev.date).replace(/-/g, "");
+  const title = eventTitle(ev);
+  const detail = eventDetails(ev);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    dates: `${day}/${day}`,
+    details: detail.meta,
+  });
+  return `https://calendar.google.com/calendar/render?${params}`;
+}
+function addEventToDevice(ev){
+  // Offer Google Calendar in a new tab; also drop an .ics for Apple/Outlook.
+  try { window.open(googleCalUrl(ev), "_blank", "noopener"); } catch {}
+  downloadIcs(ev);
+  toast("Opened Google Calendar and downloaded an .ics for Apple Calendar");
+}
+
+function renderCalDay(){
+  const label = document.getElementById("cal-day-label");
+  const list = document.getElementById("cal-day-list");
+  if (!label || !list) return;
+  const iso = CAL.selected || todayISO();
+  const { y, m, d } = parseISODate(iso);
+  const dt = new Date(y, m, d);
+  label.textContent = dt.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+  const all = eventsForDay(iso);
+  if (!all.length) {
+    list.innerHTML = `<div class="cal-empty">No subscribed events on this day.</div>`;
+    return;
+  }
+  // Fixed 3-row viewport scrolls when there are more than 3 events.
+  list.innerHTML = all.map(ev => {
+    const det = eventDetails(ev);
+    const colour = ev.kind === "economics" ? "var(--ink-3)" : avatarColour(ev.symbol);
+    const letter = ev.kind === "economics" ? "E" : String(ev.symbol || "?").slice(0, 2);
+    const sessIcon = det.sess.icon === "sun" ? sunIcon()
+      : det.sess.icon === "moon" ? moonIcon() : "";
+    const titleHtml = det.href
+      ? `<a class="sym" href="${det.href}">${esc(det.title)}</a>`
+      : `<span class="sym">${esc(det.title)}</span>`;
+    return `<div class="cal-ev" data-key="${esc(ev.key)}">
+      <span class="av"${ev.kind !== "economics" && ev.symbol ? ` data-logo="${esc(ev.symbol)}"` : ""} style="background:${colour}">${esc(letter)}</span>
+      <div class="body">
+        <div class="row1">${titleHtml}
+          <span class="sess">${sessIcon}${esc(det.sess.label)}</span></div>
+        <div class="meta">${esc(det.meta)}</div>
+      </div>
+      <button type="button" class="cal-add" data-key="${esc(ev.key)}"
+              aria-label="Add to calendar" title="Add to Apple or Google Calendar">${calAddIcon()}</button>
+    </div>`;
+  }).join("");
+  if (window.TickerLogos) {
+    window.TickerLogos.hydrate(
+      all.filter(e => e.kind !== "economics" && e.symbol).map(e => e.symbol),
+      list);
+  }
+  list.querySelectorAll(".cal-add").forEach(btn => {
+    btn.onclick = () => {
+      const ev = all.find(e => e.key === btn.dataset.key);
+      if (ev) addEventToDevice(ev);
+    };
+  });
+}
+
+async function loadPortfolioCalendar(){
+  const host = document.getElementById("cal-week");
+  if (!host) return;
+  if (!CAL.selected) CAL.selected = todayISO();
+  if (!CAL.weekStart) CAL.weekStart = toISODate(sundayOf(dateFromISO(CAL.selected)));
+
+  // Keep selected day inside the visible week when paging.
+  const days = weekDays(CAL.weekStart).map(d => d.iso);
+  if (!days.includes(CAL.selected)) {
+    const t = todayISO();
+    CAL.selected = days.includes(t) ? t : days[0];
+  }
+
+  if (!CAL.defaultsApplied) {
+    await applyCalPrefsDefaults();
+    CAL.defaultsApplied = true;
+  } else {
+    CAL.prefs = loadCalPrefs();
+  }
+  const syms = await calendarSymbols();
+  const from = days[0];
+  const to = days[6];
+  try {
+    const raw = await rpc("get_portfolio_calendar", {
+      p_from: from, p_to: to, p_symbols: syms,
+    }) || { earnings: [], dividends: [], economics: [] };
+    CAL.events = unifyCalEvents(raw, CAL.prefs);
+  } catch (err) {
+    console.warn("calendar load failed", err);
+    CAL.events = [];
+    host.innerHTML = `<div class="cal-empty">Calendar unavailable right now.</div>`;
+    const list = document.getElementById("cal-day-list");
+    if (list) list.innerHTML = `<div class="cal-empty">Calendar unavailable right now.</div>`;
+    return;
+  }
+  renderCalWeek();
+  renderCalDay();
+}
+
+function renderCalSubs(){
+  const host = document.getElementById("cal-subs");
+  if (!host) return;
+  const prefs = CAL.prefs || loadCalPrefs();
+  CAL.prefs = { ...prefs, economics: true };
+  const rows = [
+    { id: "portfolio", label: "My Portfolio", pinned: true, on: prefs.portfolio },
+    { id: "watchlist", label: "My Watchlist", pinned: true, on: prefs.watchlist },
+    { id: "economics", label: "U.S. Economics Calendar", pinned: true, on: true, locked: true },
+    ...prefs.tickers.map(t => ({ id: `t:${t}`, label: t, pinned: false, on: true, symbol: t })),
+  ];
+  host.innerHTML = rows.map(r => `
+    <label class="cal-sub${r.on ? " on" : ""}${r.locked ? " locked" : ""}" data-id="${esc(r.id)}"
+      ${r.locked ? 'title="U.S. Economics Calendar is always on"' : ""}>
+      <span class="cal-check" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round"><path d="m5 10.5 3.2 3.2L15 6.5"/></svg>
+      </span>
+      <span>${esc(r.label)}</span>
+    </label>`).join("");
+  host.querySelectorAll(".cal-sub").forEach(el => {
+    el.onclick = e => {
+      e.preventDefault();
+      const id = el.dataset.id;
+      if (id === "economics") return; // always selected
+      const p = { ...CAL.prefs, tickers: [...CAL.prefs.tickers], economics: true };
+      if (id === "portfolio") p.portfolio = !p.portfolio;
+      else if (id === "watchlist") p.watchlist = !p.watchlist;
+      else if (id.startsWith("t:")) {
+        const sym = id.slice(2);
+        // Unchecking a ticker removes it from the subscribed list.
+        p.tickers = p.tickers.filter(t => t !== sym);
+      }
+      saveCalPrefs(p);
+      renderCalSubs();
+      loadPortfolioCalendar();
+    };
+  });
+}
+
+function subscribeCalTicker(sym, name){
+  const s = String(sym || "").toUpperCase();
+  if (!s) return;
+  const p = { ...(CAL.prefs || loadCalPrefs()), tickers: [...(CAL.prefs?.tickers || [])] };
+  if (!p.tickers.includes(s)) p.tickers.push(s);
+  saveCalPrefs(p);
+  renderCalSubs();
+  loadPortfolioCalendar();
+  toast(`Subscribed to ${s}${name ? ` (${name})` : ""}`);
+}
+
+function wireCalSearch(){
+  const q = document.getElementById("cal-q");
+  const ac = document.getElementById("cal-ac");
+  if (!q || !ac || q.dataset.wired) return;
+  q.dataset.wired = "1";
+  let timer = null;
+  const close = () => { ac.hidden = true; ac.innerHTML = ""; };
+  q.addEventListener("input", () => {
+    clearTimeout(timer);
+    const term = q.value.trim();
+    if (term.length < 1) { close(); return; }
+    timer = setTimeout(async () => {
+      let items = [];
+      try { items = await rpc("search_companies", { q: term }) || []; } catch {}
+      const builtins = [
+        { symbol: "PORTFOLIO", name: "My Portfolio", kind: "cal" },
+        { symbol: "WATCHLIST", name: "My Watchlist", kind: "cal" },
+        { symbol: "ECONOMICS", name: "U.S. Economics Calendar", kind: "cal" },
+      ].filter(b =>
+        b.name.toLowerCase().includes(term.toLowerCase()) ||
+        b.symbol.toLowerCase().includes(term.toLowerCase()));
+      const rows = [
+        ...builtins,
+        ...items.slice(0, 8).map(i => ({
+          symbol: String(i.symbol || i.ticker || "").toUpperCase(),
+          name: i.name || "",
+          kind: "ticker",
+        })),
+      ].filter(r => r.symbol);
+      if (!rows.length) {
+        ac.innerHTML = `<button type="button" disabled>No matches</button>`;
+        ac.hidden = false;
+        return;
+      }
+      ac.innerHTML = rows.map(r =>
+        `<button type="button" data-s="${esc(r.symbol)}" data-k="${esc(r.kind)}" data-n="${esc(r.name)}">
+          <b>${esc(r.symbol === "ECONOMICS" ? "ECON" : r.symbol === "PORTFOLIO" ? "PORT" : r.symbol === "WATCHLIST" ? "WATCH" : r.symbol)}</b>
+          <span>${esc(r.name)}</span>
+        </button>`).join("");
+      ac.hidden = false;
+      ac.querySelectorAll("button[data-s]").forEach(btn => {
+        btn.onmousedown = e => {
+          e.preventDefault();
+          const kind = btn.dataset.k;
+          const sym = btn.dataset.s;
+          const p = { ...(CAL.prefs || loadCalPrefs()), tickers: [...(CAL.prefs?.tickers || [])] };
+          if (kind === "cal") {
+            if (sym === "PORTFOLIO") p.portfolio = true;
+            else if (sym === "WATCHLIST") p.watchlist = true;
+            else if (sym === "ECONOMICS") p.economics = true;
+            saveCalPrefs(p);
+            renderCalSubs();
+            loadPortfolioCalendar();
+            toast(`Subscribed to ${btn.dataset.n}`);
+          } else {
+            subscribeCalTicker(sym, btn.dataset.n);
+          }
+          q.value = "";
+          close();
+        };
+      });
+    }, 140);
+  });
+  q.addEventListener("blur", () => setTimeout(close, 150));
+}
+
+function openCalModal(){
+  const modal = document.getElementById("cal-modal");
+  if (!modal) return;
+  CAL.prefs = loadCalPrefs();
+  renderCalSubs();
+  wireCalSearch();
+  modal.hidden = false;
+  const q = document.getElementById("cal-q");
+  if (q) setTimeout(() => q.focus(), 50);
+}
+function closeCalModal(){
+  const modal = document.getElementById("cal-modal");
+  if (modal) modal.hidden = true;
+}
+
+function wirePortfolioCalendar(){
+  CAL.wired = true;
+  const prev = document.getElementById("cal-prev");
+  const next = document.getElementById("cal-next");
+  const todayBtn = document.getElementById("cal-today");
+  const edit = document.getElementById("cal-edit");
+  if (prev) prev.onclick = () => {
+    const start = dateFromISO(CAL.weekStart || toISODate(sundayOf(new Date())));
+    start.setDate(start.getDate() - 7);
+    CAL.weekStart = toISODate(start);
+    loadPortfolioCalendar();
+  };
+  if (next) next.onclick = () => {
+    const start = dateFromISO(CAL.weekStart || toISODate(sundayOf(new Date())));
+    start.setDate(start.getDate() + 7);
+    CAL.weekStart = toISODate(start);
+    loadPortfolioCalendar();
+  };
+  if (todayBtn) todayBtn.onclick = () => {
+    const t = todayISO();
+    CAL.selected = t;
+    CAL.weekStart = toISODate(sundayOf(dateFromISO(t)));
+    CAL.showAll = false;
+    loadPortfolioCalendar();
+  };
+  if (edit) edit.onclick = () => openCalModal();
+  const modal = document.getElementById("cal-modal");
+  const x = document.getElementById("cal-modal-x");
+  if (x) x.onclick = closeCalModal;
+  if (modal && !modal.dataset.wired) {
+    modal.dataset.wired = "1";
+    modal.addEventListener("click", e => { if (e.target === modal) closeCalModal(); });
+    addEventListener("keydown", e => {
+      if (e.key === "Escape" && modal && !modal.hidden) closeCalModal();
+    });
+  }
+  if (!CAL.selected) CAL.selected = todayISO();
+  if (!CAL.weekStart) CAL.weekStart = toISODate(sundayOf(dateFromISO(CAL.selected)));
+}
+
+/* ---- Congress & Insiders ------------------------------------------------- */
+const shares = v => !v ? "—"
+  : v >= 1e6 ? (v/1e6).toFixed(2) + "M" : v >= 1e3 ? (v/1e3).toFixed(1) + "K" : String(Math.round(v));
+const amount = v => {
+  if (v === null || v === undefined || !v) return "—";
+  const a = Math.abs(v), sign = v < 0 ? "−" : "";
+  return sign + (a >= 1e9 ? `$${(a/1e9).toFixed(2)}B`
+       : a >= 1e6 ? `$${(a/1e6).toFixed(2)}M`
+       : a >= 1e3 ? `$${(a/1e3).toFixed(0)}K` : `$${a.toFixed(0)}`);
+};
+const tradeSymLink = (s, name) =>
+  `<a class="tsym" href="company.html?t=${encodeURIComponent(s)}&src=portfolio">
+     <span class="tsym-t">${esc(s)}</span>
+     ${name ? `<span class="tsym-n">${esc(name)}</span>` : ""}
+   </a>`;
+const peopleStack = (title, person, fallback = "Insider") => {
+  const role = (title || "").trim() || fallback;
+  const who = (person || "").trim();
+  return `<div class="ppl" title="${esc(who ? `${role} · ${who}` : role)}">
+     <span class="ppl-t">${esc(role)}</span>
+     ${who ? `<span class="ppl-n">${esc(who)}</span>` : ""}
+   </div>`;
+};
+const congressRole = chamber => {
+  const c = String(chamber || "").toLowerCase();
+  if (c.includes("senate")) return "Senator";
+  if (c.includes("house")) return "Representative";
+  return "Member";
+};
+const sidePill = side => {
+  const raw = String(side || "").trim();
+  const s = raw.toLowerCase();
+  let label = raw || "—", cls = "";
+  if (/^(buy|purchase|receive)/.test(s) || s.includes("purchase") || s.includes("receive")) {
+    label = "Buy"; cls = "buy";
+  } else if (/^(sell|sale)/.test(s) || s.includes("sale") || s.includes("sell") || s.includes("exchange")) {
+    label = "Sell"; cls = "sell";
+  }
+  return `<span class="side ${cls}">${esc(label)}</span>`;
+};
+const range = raw => {
+  if (!raw) return "—";
+  const nums = String(raw).match(/[\d,]+/g);
+  if (!nums || !nums.length) return String(raw);
+  const short = n => {
+    const v = +n.replace(/,/g, "");
+    return v >= 1e6 ? `${(v/1e6).toFixed(v % 1e6 ? 1 : 0)}M`
+         : v >= 1e3 ? `${Math.round(v/1e3)}K` : String(v);
+  };
+  return nums.length > 1 ? `${short(nums[0])}–${short(nums[1])}` : short(nums[0]);
+};
+
+const TRADES = {
+  page: 20,
+  insider:  { days: 7,  rows: [], total: 0, loading: false, done: false, wired: false },
+  congress: { days: 14, rows: [], total: 0, loading: false, done: false, wired: false },
+};
+
+/** Tickers the user currently holds (quantity > 0). */
+function heldSymbols(){
+  return [...new Set(
+    (S.positions || [])
+      .filter(p => p && p.symbol && Number(p.quantity) > 0)
+      .map(p => String(p.symbol).toUpperCase())
+  )];
+}
+
+const insiderRow = r =>
+  `<tr><td>${esc(r.filed || "")}</td>
+       <td class="idcol">${tradeSymLink(r.symbol, r.name)}</td>
+       <td class="idcol">${peopleStack(r.title, r.person)}</td>
+       <td>${sidePill(r.side)}</td>
+       <td>${esc(shares(r.shares))}</td>
+       <td>${esc(amount(r.amount))}</td></tr>`;
+
+const congressRow = r =>
+  `<tr><td>${esc(r.disclosed || "")}</td>
+       <td class="idcol">${tradeSymLink(r.symbol, r.name)}</td>
+       <td class="idcol">${peopleStack(congressRole(r.chamber), r.person)}</td>
+       <td>${sidePill(r.side)}</td>
+       <td title="${esc(r.amount || "")}">${esc(range(r.amount))}</td></tr>`;
+
+function resetTrades(){
+  for (const key of ["insider", "congress"]) {
+    const b = TRADES[key];
+    b.rows = []; b.total = 0; b.loading = false; b.done = false; b.wired = false;
+  }
+}
+
+function renderTradePanel(kind){
+  const isIns = kind === "insider";
+  const host = document.getElementById(isIns ? "insiders" : "congress");
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (!host) return;
+
+  if (!bucket.rows.length) {
+    const held = heldSymbols();
+    host.innerHTML = bucket.loading
+      ? `<div class="note"><span class="load"></span></div>`
+      : `<div class="note">${!signedIn()
+          ? "Log in and add holdings to see filings for your tickers."
+          : !held.length
+            ? "Add holdings to see filings for your tickers."
+            : isIns
+              ? "No insider filings for your holdings in the last 7 days."
+              : "No congressional disclosures for your holdings in the last 14 days."}</div>`;
+    return;
+  }
+
+  const head = isIns
+    ? `<th>Filed</th><th class="idcol">Ticker</th><th class="idcol">People</th>
+       <th>Side</th><th>Shares</th><th>Amount</th>`
+    : `<th>Disclosed</th><th class="idcol">Ticker</th>
+       <th class="idcol">People</th><th>Side</th><th>Amount</th>`;
+  const body = bucket.rows.map(isIns ? insiderRow : congressRow).join("");
+  const more = bucket.loading
+    ? `<div class="trade-more"><span class="load"></span>Loading more…</div>`
+    : bucket.done ? ""
+    : `<div class="trade-more">Scroll for more · ${bucket.rows.length} of ${bucket.total}</div>`;
+  const top = host.scrollTop;
+  host.innerHTML = `<table class="mini"><thead><tr>${head}</tr></thead>
+                    <tbody>${body}</tbody></table>${more}`;
+  host.scrollTop = top;
+  wireTradeScroll(kind);
+}
+
+function wireTradeScroll(kind){
+  const isIns = kind === "insider";
+  const host = document.getElementById(isIns ? "insiders" : "congress");
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (!host || bucket.wired) return;
+  bucket.wired = true;
+  host.addEventListener("scroll", () => {
+    if (bucket.loading || bucket.done) return;
+    if (host.scrollTop + host.clientHeight < host.scrollHeight - 48) return;
+    loadTrades(kind);
+  }, { passive: true });
+}
+
+async function loadTrades(kind){
+  const isIns = kind === "insider";
+  const bucket = TRADES[isIns ? "insider" : "congress"];
+  if (bucket.loading || bucket.done) return;
+  const held = heldSymbols();
+  if (!held.length) {
+    bucket.done = true;
+    bucket.rows = [];
+    bucket.total = 0;
+    renderTradePanel(kind);
+    return;
+  }
+  bucket.loading = true;
+  if (bucket.rows.length) renderTradePanel(kind);
+  try {
+    const args = {
+      p_limit: TRADES.page,
+      p_offset: bucket.rows.length,
+      p_days: bucket.days,
+      p_kind: isIns ? "insider" : "congress",
+      p_symbols: held,
+    };
+    let d;
+    try {
+      d = await rpc("get_trades", args);
+    } catch (e) {
+      // Migration 0044 not applied yet — fetch unfiltered and filter client-side.
+      d = await rpc("get_trades", {
+        p_limit: Math.min(100, TRADES.page * 5),
+        p_offset: 0,
+        p_days: bucket.days,
+        p_kind: isIns ? "insider" : "congress",
+      });
+      const key = isIns ? "insiders" : "congress";
+      const set = new Set(held);
+      const all = ((d && d[key]) || []).filter(r => r && set.has(String(r.symbol || "").toUpperCase()));
+      bucket.rows = all;
+      bucket.total = all.length;
+      bucket.done = true;
+      return;
+    }
+    const key = isIns ? "insiders" : "congress";
+    const totalKey = isIns ? "insidersTotal" : "congressTotal";
+    const chunk = (d && d[key]) || [];
+    bucket.total = (d && d[totalKey]) || 0;
+    bucket.rows = bucket.rows.concat(chunk);
+    bucket.done = !chunk.length
+      || chunk.length < TRADES.page
+      || (bucket.total > 0 && bucket.rows.length >= bucket.total);
+  } catch {
+    if (!bucket.rows.length) bucket.done = true;
+  } finally {
+    bucket.loading = false;
+    renderTradePanel(kind);
+  }
+}
+
+function bootTrades(){
+  resetTrades();
+  loadTrades("insider");
+  loadTrades("congress");
+  wirePanelInfoTips();
+}
+
+/** Pin .info-i bubbles on document.body so panel/button overflow cannot crop them. */
+function wirePanelInfoTips(root){
+  (root || document).querySelectorAll(".info-i").forEach(btn => {
+    const tip = btn.querySelector(".info-bubble");
+    if (!tip || btn.dataset.tipWired) return;
+    btn.dataset.tipWired = "1";
+    document.body.appendChild(tip);
+    const place = () => {
+      tip.classList.add("on");
+      const r = btn.getBoundingClientRect();
+      const tw = tip.offsetWidth || 280;
+      const th = tip.offsetHeight || 72;
+      let left = r.left;
+      if (left + tw > window.innerWidth - 8) left = Math.max(8, r.right - tw);
+      let top = r.bottom + 8;
+      if (top + th > window.innerHeight - 8) top = Math.max(8, r.top - th - 8);
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    };
+    const hide = () => {
+      tip.classList.remove("on");
+      tip.style.left = "";
+      tip.style.top = "";
+    };
+    btn.addEventListener("mouseenter", place);
+    btn.addEventListener("focus", place);
+    btn.addEventListener("mousemove", place);
+    btn.addEventListener("mouseleave", hide);
+    btn.addEventListener("blur", hide);
+  });
+}
+
+/* ---- boot ---------------------------------------------------------------- */
+let _wasSignedIn = null;
+
+async function boot(showLoading = true){
+  if (showLoading) {
+    document.getElementById("app").innerHTML =
+      `<div class="note"><span class="load"></span></div>`;
+  }
+
+  const isIn = signedIn();
+  // Leaving an account: drop mirrored holdings so the next visitor cannot see them.
+  if (_wasSignedIn === true && !isIn) clearLocalCaches();
+  _wasSignedIn = isIn;
+  // Re-seed calendar sources whenever auth (or the account) changes.
+  CAL.defaultsApplied = false;
+
+  if (!isIn) {
+    S.transactions = [];
+    S.positions = [];
+    S.selected = "PORTFOLIO";
+    renderDashboard();
+    return;
+  }
+
+  await loadPortfolio();
+  if (S.positions.length) {
+    S.positions = await enrichPrices(S.positions);
+    S.positions = await enrichAssetKinds(S.positions);
+    // Credit any ex-date dividends that have arrived since the holding was logged.
+    const credited = await syncDividends(S.positions);
+    if (credited) {
+      S.positions = await enrichPrices(S.positions);
+      S.positions = await enrichAssetKinds(S.positions);
+    }
+    // Prefetch history used by vol score / chart.
+    await Promise.all(S.positions.map(p => seriesForSymbol(p.symbol, rangeStartISO("1Y"))));
+    renderDashboard();
+    // Quotes / dividends sometimes arrive a beat late after request_prices.
+    if (S.positions.some(p => p.price == null) || !credited) {
+      setTimeout(async () => {
+        if (!signedIn()) return;
+        S.priceCache = {};
+        S.positions = await enrichPrices(S.positions);
+        S.positions = await enrichAssetKinds(S.positions);
+        const again = await syncDividends(S.positions);
+        if (again) {
+          S.positions = await enrichPrices(S.positions);
+          S.positions = await enrichAssetKinds(S.positions);
+        }
+        if (S.positions.some(p => p.price != null) || again) renderDashboard();
+      }, 2000);
+    }
+  } else {
+    S.selected = "PORTFOLIO";
+    renderDashboard();
+  }
+}
+
+wireModal();
+</script>
+<!-- nav.js must load before boot so window.TA / session exist. Previously boot
+     ran first, skipped onAuthChange registration, and signed-in holdings never
+     reloaded — the empty state came back on every visit. -->
+<script src="nav.js"></script>
+<script>
+(async function start(){
+  if (window.TA && window.TA.onAuthChange) {
+    window.TA.onAuthChange(() => boot(false));
+  } else {
+    addEventListener("ta-auth", () => boot(false));
+  }
+  await boot(true);
+})();
+</script>
+</body>
+</html>
