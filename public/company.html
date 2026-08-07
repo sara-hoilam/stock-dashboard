@@ -1203,7 +1203,7 @@ const HELP = {
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
-  drawdown:  "Percent below the index's last all-time high (the running peak in available price history). The line sits at 0% on new highs and falls as the index pulls back; the shaded area is the depth of that pullback. Dotted grey lines mark drawdown depths that were reached or exceeded on about 1%, 3%, 5%, 10%, 20%, 30%, and 50% of trading days over the last 25 years (or as much history as is cached). The left axis labels those probabilities; the right axis shows drawdown percent.",
+  drawdown:  "Percent below the index's last all-time high (the running peak in available price history). The line sits at 0% on new highs and falls as the index pulls back; the shaded area is the depth of that pullback. Dotted grey lines mark drawdown depths that were reached or exceeded on about 1%, 10%, 20%, 30%, and 50% of trading days over the last 25 years (or as much history as is cached). The left axis labels those probabilities; the right axis shows drawdown percent.",
 };
 
 const helpIcon = k => HELP[k]
@@ -2135,8 +2135,8 @@ const INDEX_PE = {
   range: "1Y",
   interval: "daily",
 };
-const INDEX_DD = { range: "1Y", interval: "daily" };
-const INDEX_DD_PROBS = [1, 3, 5, 10, 20, 30, 50];
+const INDEX_DD = { range: "5Y", interval: "daily" };
+const INDEX_DD_PROBS = [1, 10, 20, 30, 50];
 const INDEX_CHART_RANGES = ["1W", "1M", "YTD", "1Y", "5Y", "10Y", "ALL"];
 const INDEX_INTERVALS = [
   ["Daily", "daily"], ["Weekly", "weekly"], ["Monthly", "monthly"], ["Annual", "annual"],
@@ -2154,9 +2154,14 @@ function indexRangeStartISO(range){
   return d.toISOString().slice(0, 10);
 }
 
-/** ≤1Y → daily; 5Y/10Y/ALL → annual. */
+/** PE chart: ≤1Y → daily; 5Y/10Y/ALL → annual. */
 function indexDefaultInterval(range){
   return (range === "5Y" || range === "10Y" || range === "ALL") ? "annual" : "daily";
+}
+
+/** Drawdown chart: prefer daily; annual only for 10Y/ALL density. */
+function indexDdDefaultInterval(range){
+  return (range === "10Y" || range === "ALL") ? "annual" : "daily";
 }
 
 function indexIntervalKey(d, interval){
@@ -2208,7 +2213,7 @@ function openIndexSymbol(ticker, meta){
   INDEX_PE.on = { SPX: true, IXIC: true, DJI: true, RUT: false };
   INDEX_PE.range = "1Y";
   INDEX_PE.interval = indexDefaultInterval("1Y");
-  INDEX_DD.range = "1Y";
+  INDEX_DD.range = "5Y";
   INDEX_DD.interval = "daily";
 
   const holdTitle = c.ticker === "IXIC" ? "Holdings & industry (Nasdaq-100)" : "Holdings & industry";
@@ -2278,7 +2283,7 @@ function openIndexSymbol(ticker, meta){
           <div class="idx-chart-tools">
             <div class="ranges" id="idx-dd-range" role="group" aria-label="Drawdown chart range">
               ${INDEX_CHART_RANGES.map(r =>
-                `<button type="button" data-r="${r}" aria-pressed="${r === "1Y"}">${r}</button>`
+                `<button type="button" data-r="${r}" aria-pressed="${r === "5Y"}">${r}</button>`
               ).join("")}
             </div>
             <div class="ptools" id="idx-dd-time"></div>
@@ -2626,7 +2631,7 @@ async function loadIndexPE(focusSymbol){
     drawIndexPE();
   };
   const ddRangeChange = () => {
-    INDEX_DD.interval = indexDefaultInterval(INDEX_DD.range);
+    INDEX_DD.interval = indexDdDefaultInterval(INDEX_DD.range);
     renderIndexTimeMenu("idx-dd-time",
       () => INDEX_DD.interval, v => { INDEX_DD.interval = v; }, drawIndexDrawdown);
     drawIndexDrawdown();
