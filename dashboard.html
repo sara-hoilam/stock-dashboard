@@ -126,13 +126,19 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 .ident-with-logo{display:flex;flex-direction:row;align-items:flex-start;gap:12px;min-width:0}
 /* Locked until generated reports ship. Reads as a real control so the offer
    registers, but muted so nobody thinks it failed when it does not unlock. */
-.ident>.unlockbtn{margin-left:auto;align-self:center}
+/* Its own line at the foot of the identity block, left edge flush with the
+   price chart card below it. */
+/* The wrapper claims the whole line so the button drops below the title block;
+   the button itself stays content-sized and starts at the row's left edge,
+   flush with the price chart card beneath it. Clamping the button directly
+   instead let it fit back onto the first line and float right. */
+.unlockrow{flex-basis:100%;order:3;margin-top:2px}
 .unlockbtn{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
   padding:7px 13px;border:1px dashed var(--rule);border-radius:8px;
   background:var(--sunk);color:var(--ink-2);text-decoration:none;
-  font-size:12.5px;font-weight:600;letter-spacing:-.005em;cursor:pointer;
-  transition:border-color .15s ease,color .15s ease,background .15s ease}
-.unlockbtn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+  font-size:12.5px;font-weight:600;letter-spacing:-.005em;font-family:inherit;
+  cursor:default}
+.unlockbtn[disabled]{opacity:.9}
 .unlockbtn svg{width:15px;height:15px;flex-shrink:0}
 .unlockbtn em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.06em;
   text-transform:uppercase;padding:2px 6px;border-radius:99px;
@@ -2100,7 +2106,7 @@ function marketOnly(ticker, company, why){
         </div>
         </div>
       </div>
-      ${unlockReportBtn(c.ticker || ticker)}
+      <div class="unlockrow">${unlockReportBtn(c.ticker || ticker)}</div>
     </div>
 
     <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
@@ -2253,15 +2259,14 @@ const retClass = v => (v == null || Number.isNaN(+v)) ? "" : (+v > 0 ? "up" : +v
 
 /** Locked "Unlock report" button for the identity row.
 
-    Generated research is not shipping yet, so the control is genuinely
-    disabled -- aria-disabled, no submit, a padlock and a Soon pill. It is not
-    inert, though: pressing it opens the sample library, because someone who
-    just tried to buy the thing is exactly who should see what it looks like.
-    A dead button teaches nothing about the product. */
+    Generated research is not shipping yet, so this is a genuinely disabled
+    button rather than a link dressed as one -- nothing to click through, no
+    href for a crawler to follow, and `disabled` so the keyboard skips it
+    instead of offering a control that does nothing. */
 function unlockReportBtn(ticker){
   const t = String(ticker || "").toUpperCase();
-  return `<a class="unlockbtn" href="reports.html" aria-disabled="true"
-     title="Instant research reports are coming. See a finished example."
+  return `<button type="button" class="unlockbtn" disabled
+     title="Instant research reports for any company are coming soon."
      data-ticker="${esc(t)}">
     <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
          stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -2270,7 +2275,7 @@ function unlockReportBtn(ticker){
     </svg>
     <span>Unlock report</span>
     <em>Soon</em>
-  </a>`;
+  </button>`;
 }
 
 /** Major index page: price chart, holdings+industry, PE vs peers, seasonality. */
@@ -3570,7 +3575,7 @@ function render(){
         </div>
         </div>
       </div>
-      ${unlockReportBtn(c.ticker)}
+      <div class="unlockrow">${unlockReportBtn(c.ticker)}</div>
       <div class="period">
         <div class="qpick" id="qpick"></div>
         <div class="small">
