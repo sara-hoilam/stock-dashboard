@@ -447,9 +447,13 @@ tbody tr:hover td{background:var(--sunk)}
   display:flex;flex-direction:column;gap:12px;padding:16px 16px 14px;
   overflow:hidden;min-height:0;
 }
+.idx-pie-title{
+  font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--ink-3);margin:0;
+}
 .idx-pie-wrap{
   display:flex;align-items:center;justify-content:center;padding:4px 0 0;
-  position:relative;overflow:hidden;
+  position:relative;overflow:visible;min-height:220px;
 }
 .idx-pie-wrap svg{display:block;max-width:100%;height:auto;overflow:visible}
 .idx-pie-wrap svg path{cursor:pointer;transition:opacity .12s}
@@ -2391,14 +2395,16 @@ async function loadIndexHoldings(symbol){
       YTD from cached daily bars when available. Scroll for full holdings.</p>`;
   requestAnimationFrame(() => fitHoldingsRows());
 
-  const byInd = new Map();
+  // Prefer GICS-style sector for the donut (fewer, clearer slices). Fall back
+  // to industry when sector is missing so older caches still chart.
+  const byBucket = new Map();
   rows.forEach(r => {
-    const w = r.weightPct != null ? +r.weightPct : 0;
+    const w = r.weightPct != null ? +r.weightPct : +(r.weight_pct || 0);
     if (!w) return;
-    const key = (r.industry || "").trim() || "Other / unlisted";
-    byInd.set(key, (byInd.get(key) || 0) + w);
+    const key = (r.sector || r.industry || "").trim() || "Other / unlisted";
+    byBucket.set(key, (byBucket.get(key) || 0) + w);
   });
-  const slices = [...byInd.entries()]
+  const slices = [...byBucket.entries()]
     .map(([label, weight]) => ({ label, weight }))
     .sort((a, b) => b.weight - a.weight);
   let top = slices.slice(0, 9);
@@ -2407,20 +2413,46 @@ async function loadIndexHoldings(symbol){
     top.push({ label: "Other", weight: rest.reduce((a, s) => a + s.weight, 0) });
   }
   const total = top.reduce((a, s) => a + s.weight, 0) || 1;
-  // Keep the donut and industry labels inside one white card border.
+  const onlyOther = top.length === 1
+    && /^other/i.test(top[0].label);
+  // Keep the donut and labels inside one card border.
   indHost.innerHTML = `
     <section class="card panel idx-pie-card">
+      <div class="idx-pie-title">Sector breakdown</div>
       <div class="idx-pie-wrap" id="idx-pie"></div>
-      <div class="idx-pie-legend">${top.map((s, i) => {
-        const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
-        const share = (100 * s.weight / total).toFixed(1);
-        return `<span data-i="${i}"><i style="background:${colour}"></i>
-          <em title="${esc(s.label)}">${esc(s.label)}</em>
-          <b>${esc(share)}%</b></span>`;
-      }).join("")}</div>
+      ${onlyOther
+        ? `<div class="note" style="text-align:left;padding:0">Sector weights are still warming up — they fill in after the next index holdings refresh.</div>`
+        : `<div class="idx-pie-legend">${top.map((s, i) => {
+            const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
+            const share = (100 * s.weight / total).toFixed(1);
+            return `<span data-i="${i}"><i style="background:${colour}"></i>
+              <em title="${esc(s.label)}">${esc(s.label)}</em>
+              <b>${esc(share)}%</b></span>`;
+          }).join("")}</div>`}
     </section>`;
-  drawIndexPie(document.getElementById("idx-pie"), top, total);
+  if (!onlyOther) drawIndexPie(document.getElementById("idx-pie"), top, total);
   requestAnimationFrame(() => fitHoldingsRows());
+}
+
+/** Donut slice path. Full rings use two semicircles — SVG drops a single
+ *  arc whose start and end points are identical (100% slice). */
+function indexDonutSlicePath(cx, cy, r, r0, a0, a1){
+  const sweep = a1 - a0;
+  if (sweep >= Math.PI * 2 - 1e-6) {
+    return `M${(cx + r).toFixed(2)},${cy.toFixed(2)}
+      A${r},${r} 0 1 1 ${(cx - r).toFixed(2)},${cy.toFixed(2)}
+      A${r},${r} 0 1 1 ${(cx + r).toFixed(2)},${cy.toFixed(2)}
+      M${(cx + r0).toFixed(2)},${cy.toFixed(2)}
+      A${r0},${r0} 0 1 0 ${(cx - r0).toFixed(2)},${cy.toFixed(2)}
+      A${r0},${r0} 0 1 0 ${(cx + r0).toFixed(2)},${cy.toFixed(2)} Z`;
+  }
+  const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+  const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+  const xi0 = cx + r0 * Math.cos(a0), yi0 = cy + r0 * Math.sin(a0);
+  const xi1 = cx + r0 * Math.cos(a1), yi1 = cy + r0 * Math.sin(a1);
+  const large = sweep > Math.PI ? 1 : 0;
+  return `M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1}
+          L${xi1},${yi1} A${r0},${r0} 0 ${large} 0 ${xi0},${yi0} Z`;
 }
 
 function drawIndexPie(host, slices, total){
@@ -2437,17 +2469,11 @@ function drawIndexPie(host, slices, total){
     const a1 = angle + frac * Math.PI * 2;
     angle = a1;
     if (frac <= 0) return;
-    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
-    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
-    const xi0 = cx + r0 * Math.cos(a0), yi0 = cy + r0 * Math.sin(a0);
-    const xi1 = cx + r0 * Math.cos(a1), yi1 = cy + r0 * Math.sin(a1);
-    const large = (a1 - a0) > Math.PI ? 1 : 0;
     const colour = `var(${INDEX_PIE[i % INDEX_PIE.length]})`;
-    const d = `M${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1}
-               L${xi1},${yi1} A${r0},${r0} 0 ${large} 0 ${xi0},${yi0} Z`;
+    const d = indexDonutSlicePath(cx, cy, r, r0, a0, a1);
     const share = 100 * frac;
     meta[i] = { label: s.label, share, weight: s.weight };
-    parts.push(`<path d="${d}" fill="${colour}" data-i="${i}"></path>`);
+    parts.push(`<path d="${d}" fill="${colour}" fill-rule="evenodd" data-i="${i}"></path>`);
 
     // Label larger slices inside the ring so names stay within the chart border.
     if (share >= 7) {
@@ -2463,7 +2489,7 @@ function drawIndexPie(host, slices, total){
     }
   });
   host.innerHTML = `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"
-    role="img" aria-label="Industry breakdown">${parts.join("")}${labels.join("")}</svg>`;
+    role="img" aria-label="Sector breakdown">${parts.join("")}${labels.join("")}</svg>`;
 
   const svg = host.querySelector("svg");
   svg.querySelectorAll("path[data-i]").forEach(path => {
