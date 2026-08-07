@@ -501,6 +501,21 @@ tbody tr:hover td{background:var(--sunk)}
 /* ---- industry benchmark, seasonality, bollinger, news -------------------- */
 .grouphead{font-family:"IBM Plex Serif",Georgia,serif;font-size:19px;font-weight:600;
   letter-spacing:-.015em;margin:26px 0 12px}
+/* Ticker box for the correlation panel. Sits between the header and the plot
+   so the plot keeps the same box as the drawdown chart beside it. */
+.corr-search{display:flex;gap:7px;padding:2px 14px 8px}
+.corr-search input{
+  flex:1;min-width:0;background:var(--sunk);border:1px solid var(--rule);
+  border-radius:8px;padding:7px 11px;font:inherit;font-size:12.5px;color:var(--ink);
+  text-transform:uppercase}
+.corr-search input::placeholder{color:var(--ink-3);text-transform:none}
+.corr-search input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.corr-search button{
+  background:var(--accent);color:#fff;border:0;border-radius:8px;padding:7px 14px;
+  font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;flex-shrink:0}
+.corr-search button:hover{filter:brightness(1.08)}
+.corr-search button[disabled]{opacity:.5;cursor:not-allowed}
+
 .pairrow{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:4px}
 .pairrow>.panel{margin-bottom:16px}
 
@@ -1208,6 +1223,7 @@ const HELP = {
   statement: "The income statement for the selected quarter, against the same quarter a year earlier and the quarter immediately before it. Figures are as filed; a line marked derived was computed from the lines around it.",
   builder:   "Plot any line the company reports, on your own choice of chart. Only lines present in this company's filings are offered.",
   price:     "Daily open, high, low and close, with volume beneath and a fifty-day average through the middle. Market data from Financial Modeling Prep, not from the filings.",
+  corr:      "A scatter of this company's daily percentage change against another ticker's, one dot per shared trading day. r is the Pearson correlation: 1 means they moved together every day, 0 means no relationship, -1 means they moved opposite ways. Beta is the slope of the fitted line -- how far this company tended to move for each 1% move in the other. Returns are used rather than prices because two rising stocks correlate near 1 on price whatever they do day to day, which says only that both went up.",
   bench:     "This company against its sector, both rebased to 100 at the start of the window, so the lines show relative performance rather than price. The sector is represented by its SPDR sector fund, because no per-industry price index is published.",
   pe:        "Price to earnings from Financial Modeling Prep (the same source as the P/E in the price panel). The solid line is the company's quarterly P/E; when history has not been fetched yet, the chart follows the share price against today's trailing P/E. The dashed line is the current average for this company's industry — a reference level, not a series.",
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
@@ -2088,6 +2104,10 @@ function marketOnly(ticker, company, why){
   document.getElementById("pricerow").classList.add("waiting");
   PRICE.symbol = null; PRICE.bars = []; PRICE.view = null;
   PRICE.flipped = false; PRICE.descOpen = false;
+  // A comparison chosen for the last company means nothing for this one.
+  clearTimeout(CORR.poll);
+  CORR.other = null; CORR.bars = null; CORR.state = "idle"; CORR.range = "1Y";
+  CO_DD.range = "5Y"; CO_DD.interval = "daily";
   wireStar();
   loadPrices();
   loadAnalyst();          // coverage exists even where filings do not
@@ -2807,9 +2827,18 @@ const DD_PROB_BAND_FILL = {
   deep: "var(--dd-band-deep)",
 };
 
-/** Underwater chart: % off last all-time high with historical probability bands. */
-function drawIndexDrawdown(){
-  const host = document.getElementById("idx-dd-chart");
+/** Underwater chart: % off last all-time high with historical probability bands.
+
+    Parameterised so the company page can draw the same chart for one stock.
+    The maths does not care what the series is -- indexCloseSeries() already
+    merges EXTRA monthly history with PRICE daily bars, and both pages fill
+    those -- so only the host, its state, and the ids of the hover elements
+    differ. Defaults keep the index page's call sites unchanged. */
+function drawIndexDrawdown(hostId, state, idPrefix){
+  hostId = hostId || "idx-dd-chart";
+  state = state || INDEX_DD;
+  idPrefix = idPrefix || "idxdd";
+  const host = document.getElementById(hostId);
   if (!host) return;
 
   const closes = indexCloseSeries();
@@ -2820,8 +2849,8 @@ function drawIndexDrawdown(){
 
   const full = indexAthDrawdownSeries(closes);
   const probs = indexDrawdownProbLevels(full);
-  const from = indexRangeStartISO(INDEX_DD.range);
-  const interval = INDEX_DD.interval || "daily";
+  const from = indexRangeStartISO(state.range);
+  const interval = state.interval || "daily";
   let pts = full.filter(p => p.d >= from);
   if (pts.length < 2) pts = full.slice();
   pts = bucketAthDrawdown(pts, interval);
@@ -2919,7 +2948,7 @@ function drawIndexDrawdown(){
       <polyline points="${linePts}" fill="none" stroke="var(--dd)"
         stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
       ${avgSvg}${dates}
-      <g id="idxdd-cross" style="display:none">
+      <g id="${idPrefix}-cross" style="display:none">
         <line class="xh" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)"
           stroke-width="1" stroke-dasharray="3 3"/>
         <line class="yh" x1="${ml}" x2="${W - mr}" stroke="var(--ink-3)"
@@ -2932,15 +2961,15 @@ function drawIndexDrawdown(){
       <span><i class="dd-prob-swatch" aria-hidden="true"></i>Hist. probability</span>
       ${probs.length ? "" : `<span class="note" style="margin:0">Probability bands need more history</span>`}
     </div>
-    <div class="lread" id="idxdd-read">Hover to read date and drawdown depth.${
+    <div class="lread" id="${idPrefix}-read">Hover to read date and drawdown depth.${
       yearsUsed ? ` Guides use ~${yearsUsed}y of cached history.` : ""}</div>`;
 
   const svg = host.querySelector("svg");
-  const cross = host.querySelector("#idxdd-cross");
+  const cross = host.querySelector("#" + idPrefix + "-cross");
   const xh = cross.querySelector(".xh");
   const yh = cross.querySelector(".yh");
   const hit = host.querySelector(".hit");
-  const read = host.querySelector("#idxdd-read");
+  const read = host.querySelector("#" + idPrefix + "-read");
 
   const showAt = (clientX) => {
     const r = svg.getBoundingClientRect();
@@ -2968,6 +2997,204 @@ function drawIndexDrawdown(){
         yearsUsed ? ` Guides use ~${yearsUsed}y of cached history.` : ""}`;
     }
   });
+}
+
+/* ---- company page: drawdown + correlation ---------------------------------
+   The drawdown chart is the index page's, drawn against this company's own
+   close series. The correlation chart is new. Both share the drawdown's box so
+   the pair reads as one row. */
+const CO_DD = { range: "5Y", interval: "daily" };
+const CORR = { range: "1Y", other: null, bars: null, state: "idle", poll: null };
+
+function drawCompanyDrawdown(){
+  drawIndexDrawdown("co-dd-chart", CO_DD, "codd");
+}
+
+/** Daily returns keyed by date, from a bars array. */
+function returnsByDate(bars){
+  const clean = (bars || [])
+    .filter(b => b && b.d && b.c != null && +b.c > 0)
+    .map(b => ({ d: String(b.d).slice(0, 10), c: +b.c }))
+    .sort((a, b) => a.d < b.d ? -1 : 1);
+  const out = new Map();
+  for (let i = 1; i < clean.length; i++)
+    out.set(clean[i].d, clean[i].c / clean[i - 1].c - 1);
+  return out;
+}
+
+/** Pearson correlation over paired samples. */
+function pearson(xs, ys){
+  const n = xs.length;
+  if (n < 3) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx, dy = ys[i] - my;
+    sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
+  }
+  if (sxx <= 0 || syy <= 0) return null;
+  return { r: sxy / Math.sqrt(sxx * syy), slope: sxy / sxx, mx, my };
+}
+
+async function loadCorrelation(sym){
+  sym = String(sym || "").toUpperCase().trim();
+  if (!/^[A-Z][A-Z.\-]{0,9}$/.test(sym)) {
+    CORR.state = "bad"; return drawCorrelation();
+  }
+  if (sym === (S.ticker || "").toUpperCase()) {
+    CORR.state = "self"; return drawCorrelation();
+  }
+  clearTimeout(CORR.poll);
+  CORR.other = sym; CORR.bars = null; CORR.state = "loading";
+  drawCorrelation();
+
+  let d = null;
+  try { d = await API.prices(sym); } catch {}
+  if (CORR.other !== sym) return;                 // another ticker was asked for
+
+  if (d && (d.bars || []).length) {
+    CORR.bars = d.bars; CORR.state = "ok";
+    return drawCorrelation();
+  }
+  // Nobody has opened this company before: queue it and wait, the same way
+  // the price panel does.
+  try { await API.requestPrices(sym); } catch {}
+  if (CORR.other !== sym) return;
+  CORR.state = "fetching"; drawCorrelation();
+
+  let tries = 0;
+  const tick = async () => {
+    if (CORR.other !== sym) return;
+    if (tries++ > 30) { CORR.state = "timeout"; return drawCorrelation(); }
+    let r = null;
+    try { r = await API.prices(sym); } catch {}
+    if (CORR.other !== sym) return;
+    if (r && (r.bars || []).length) {
+      CORR.bars = r.bars; CORR.state = "ok";
+      return drawCorrelation();
+    }
+    CORR.poll = setTimeout(tick, 3000);
+  };
+  CORR.poll = setTimeout(tick, 2000);
+}
+
+function corrNote(msg){
+  const host = document.getElementById("corr-chart");
+  if (host) host.innerHTML = `<div class="note">${msg}</div>`;
+}
+
+/** Scatter of this company's daily returns against another ticker's.
+
+    Returns, not price levels: two rising stocks correlate near 1 on price
+    whatever they do day to day, which says only that both went up. Returns
+    answer the question actually being asked -- do they move together. */
+function drawCorrelation(){
+  const host = document.getElementById("corr-chart");
+  if (!host) return;
+
+  if (CORR.state === "idle")
+    return corrNote("Enter a ticker above to plot it against " + esc(S.ticker || "this company") + ".");
+  if (CORR.state === "bad")     return corrNote("That does not look like a ticker.");
+  if (CORR.state === "self")    return corrNote("Pick a different company to compare against.");
+  if (CORR.state === "loading") return corrNote(`<span class="load"></span> &nbsp;Loading ${esc(CORR.other)}…`);
+  if (CORR.state === "fetching")
+    return corrNote(`<span class="load"></span> &nbsp;Fetching prices for ${esc(CORR.other)}…`);
+  if (CORR.state === "timeout")
+    return corrNote(`Prices for ${esc(CORR.other)} are still being fetched. Try again in a minute.`);
+
+  const mine = returnsByDate(PRICE.bars || []);
+  const theirs = returnsByDate(CORR.bars || []);
+  if (!mine.size) return corrNote("Correlation appears once this company's price history is loaded.");
+
+  const from = indexRangeStartISO(CORR.range);
+  const days = [...mine.keys()].filter(d => d >= from && theirs.has(d)).sort();
+  if (days.length < 10)
+    return corrNote(`Only ${days.length} overlapping trading day${days.length === 1 ? "" : "s"} in this window. Pick a longer range.`);
+
+  const ys = days.map(d => mine.get(d));          // this company, vertical
+  const xs = days.map(d => theirs.get(d));        // the comparison, horizontal
+  const fit = pearson(xs, ys);
+  if (!fit) return corrNote("Not enough variation in this window to measure correlation.");
+
+  // Same box as the drawdown chart beside it, so the pair matches.
+  const W = 620;
+  const H = MOBILE_MQ.matches ? 280 : 240;
+  const ml = 40, mr = 58, mt = 16, mb = 34;
+  const pw = W - ml - mr, ph = H - mt - mb;
+
+  const span = v => { const m = Math.max(...v.map(Math.abs)) || 0.01; return m * 1.08; };
+  const xm = span(xs), ym = span(ys);
+  const X = v => ml + ((v + xm) / (2 * xm)) * pw;
+  const Y = v => mt + ph - ((v + ym) / (2 * ym)) * ph;
+
+  const parts = [];
+  const pct = v => (v * 100).toFixed(v === 0 ? 0 : 1) + "%";
+  for (let i = 0; i <= 4; i++) {
+    const vx = -xm + (2 * xm) * i / 4, vy = -ym + (2 * ym) * i / 4;
+    parts.push(`<text x="${X(vx).toFixed(1)}" y="${H - mb + 15}" class="ax"
+        text-anchor="middle">${pct(vx)}</text>
+      <text x="${W - mr + 6}" y="${(Y(vy) + 3.5).toFixed(1)}" class="ax"
+        text-anchor="start">${pct(vy)}</text>`);
+  }
+  // Zero lines: the quadrants are the reading. Points in the lower-right and
+  // upper-left are days the two moved opposite ways.
+  parts.push(`<line x1="${X(0)}" y1="${mt}" x2="${X(0)}" y2="${mt + ph}" stroke="var(--rule)"/>
+    <line x1="${ml}" y1="${Y(0)}" x2="${W - mr}" y2="${Y(0)}" stroke="var(--rule)"/>`);
+
+  days.forEach((d, i) => {
+    parts.push(`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(ys[i]).toFixed(1)}" r="2.1"
+      fill="var(--accent)" fill-opacity=".5"><title>${esc(d)} · ${
+      esc(CORR.other)} ${pct(xs[i])} · ${esc(S.ticker || "")} ${pct(ys[i])}</title></circle>`);
+  });
+
+  // Least-squares line, clipped to the plot.
+  const b = fit.my - fit.slope * fit.mx;
+  const ends = [-xm, xm].map(vx => ({ vx, vy: fit.slope * vx + b }));
+  const clamp = p => Math.max(-ym, Math.min(ym, p));
+  parts.push(`<line x1="${X(ends[0].vx).toFixed(1)}" y1="${Y(clamp(ends[0].vy)).toFixed(1)}"
+    x2="${X(ends[1].vx).toFixed(1)}" y2="${Y(clamp(ends[1].vy)).toFixed(1)}"
+    stroke="var(--dd)" stroke-width="1.6" opacity=".85"/>`);
+
+  parts.push(`<text x="${ml + pw / 2}" y="${H - 3}" text-anchor="middle" class="ax"
+      >${esc(CORR.other)} daily return</text>
+    <text transform="translate(11,${mt + ph / 2}) rotate(-90)" text-anchor="middle" class="ax"
+      >${esc(S.ticker || "")} daily return</text>`);
+
+  const r = fit.r;
+  const strength = Math.abs(r) >= 0.8 ? "very strong" : Math.abs(r) >= 0.6 ? "strong"
+    : Math.abs(r) >= 0.4 ? "moderate" : Math.abs(r) >= 0.2 ? "weak" : "little to no";
+  host.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
+       aria-label="Daily returns of ${esc(S.ticker || "")} against ${esc(CORR.other)}">
+       ${parts.join("")}</svg>
+     <div class="lkey">
+       <span><b style="font-size:13px;color:var(--ink)">r = ${r.toFixed(2)}</b></span>
+       <span>${esc(strength)} ${r < 0 ? "inverse " : ""}relationship</span>
+       <span>β ${fit.slope.toFixed(2)}</span>
+       <span>${days.length} shared days</span>
+     </div>
+     <div class="lread">Each dot is one trading day. The line is the least-squares
+       fit; β is its slope.</div>`;
+}
+
+function wireCorrelation(){
+  const input = document.getElementById("corr-q");
+  const go = document.getElementById("corr-go");
+  if (!input || !go) return;
+  const submit = () => {
+    const v = input.value.trim();
+    if (v) loadCorrelation(v);
+  };
+  go.onclick = submit;
+  input.onkeydown = ev => { if (ev.key === "Enter") { ev.preventDefault(); submit(); } };
+
+  wireIndexRange("corr-range", () => CORR.range, r => { CORR.range = r; }, drawCorrelation);
+  wireIndexRange("co-dd-range", () => CO_DD.range, r => {
+    CO_DD.range = r;
+    CO_DD.interval = indexDdDefaultInterval(r);
+  }, drawCompanyDrawdown);
+  drawCorrelation();
 }
 
 async function load(ticker, source){
@@ -3313,6 +3540,43 @@ function render(){
               <h2>P/E vs industry ${helpIcon("pe")}</h2>
             </div></div>
             <div class="lwrap" id="pe-chart"></div>
+          </section>
+        </div>
+
+        <div class="pairrow">
+          <section class="card panel">
+            <div class="phead">
+              <div><h2>Correlation ${helpIcon("corr")}</h2>
+                <p>Daily returns against another ticker</p></div>
+              <div class="idx-chart-tools">
+                <div class="ranges" id="corr-range" role="group" aria-label="Correlation chart range">
+                  ${INDEX_CHART_RANGES.map(r =>
+                    `<button type="button" data-r="${r}" aria-pressed="${r === "1Y"}">${r}</button>`
+                  ).join("")}
+                </div>
+              </div>
+            </div>
+            <div class="corr-search">
+              <input type="text" id="corr-q" placeholder="Compare with a ticker…"
+                     autocomplete="off" aria-label="Ticker to correlate against">
+              <button type="button" id="corr-go">Plot</button>
+            </div>
+            <div class="lwrap idx-dd-chart" id="corr-chart"></div>
+          </section>
+          <section class="card panel">
+            <div class="phead">
+              <div><h2>Drawdown ${helpIcon("drawdown")}</h2>
+                <p>% off last all-time high</p></div>
+              <div class="idx-chart-tools">
+                <div class="ranges" id="co-dd-range" role="group" aria-label="Drawdown chart range">
+                  ${INDEX_CHART_RANGES.map(r =>
+                    `<button type="button" data-r="${r}" aria-pressed="${r === "5Y"}">${r}</button>`
+                  ).join("")}
+                </div>
+                <div class="ptools" id="co-dd-time"></div>
+              </div>
+            </div>
+            <div class="lwrap idx-dd-chart" id="co-dd-chart"></div>
           </section>
         </div>
 
@@ -4732,6 +4996,11 @@ function marketPanels(){
   document.getElementById("extras").hidden = false;
   drawBenchmark();
   drawPE();
+  drawCompanyDrawdown();
+  // Wired once; redrawn on every pass so a later price fetch fills the plot
+  // for a comparison already chosen.
+  if (!CORR.wired) { CORR.wired = true; wireCorrelation(); }
+  else drawCorrelation();
   wireHelp();
 }
 
