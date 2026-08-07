@@ -129,10 +129,10 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 /* Its own line at the foot of the identity block, left edge flush with the
    price chart card below it. */
 /* The wrapper claims the whole line so the button drops below the title block;
-   the button itself stays content-sized and starts at the row's left edge,
-   flush with the price chart card beneath it. Clamping the button directly
-   instead let it fit back onto the first line and float right. */
-.unlockrow{flex-basis:100%;order:3;margin-top:2px}
+   the button itself stays content-sized and sits at the row's right edge,
+   under the fiscal-year pickers. Clamping the button directly instead of
+   wrapping it let it fit back onto the first line. */
+.unlockrow{flex-basis:100%;order:3;margin-top:2px;display:flex;justify-content:flex-end}
 .unlockbtn{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
   padding:7px 13px;border:1px dashed var(--rule);border-radius:8px;
   background:var(--sunk);color:var(--ink-2);text-decoration:none;
