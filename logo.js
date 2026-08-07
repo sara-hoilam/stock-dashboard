@@ -24,11 +24,15 @@
     var s = document.createElement("style");
     s.id = "ticker-logos-css";
     s.textContent = [
-      /* Initials avatars — logo replaces monogram when present */
-      ".dot.has-logo,.av.has-logo{",
+      /* Initials avatars — logo replaces monogram when present.
+         Match any hydrated [data-logo] chip (not .tick-logo), so calendar
+         week avatars and similar spans contain the image instead of
+         letting a full-size logo spill across the layout. */
+      ".dot.has-logo,.av.has-logo,[data-logo].has-logo:not(.tick-logo){",
       "  background:#fff!important;color:transparent!important;",
       "  overflow:hidden;position:relative}",
-      ".dot img.logo-img,.av img.logo-img{",
+      ".dot img.logo-img,.av img.logo-img,",
+      "[data-logo].has-logo:not(.tick-logo) > img.logo-img{",
       "  position:absolute;inset:0;width:100%;height:100%;",
       "  object-fit:contain;padding:15%;box-sizing:border-box;",
       "  border-radius:inherit;display:block}",

@@ -590,13 +590,21 @@ tr.on td{background:var(--accent-soft)}
 .cal-daycard .dow{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--ink-3);font-weight:600}
 .cal-daycard .dom{font-size:18px;font-weight:600;letter-spacing:-.02em;margin:2px 0 8px}
-.cal-daycard .foot{display:flex;align-items:center;gap:4px;min-height:18px;margin-top:auto}
-.cal-daycard .avatars{display:flex;min-height:16px}
+.cal-daycard .foot{display:flex;align-items:center;gap:4px;min-height:18px;margin-top:auto;
+  overflow:hidden;width:100%}
+.cal-daycard .avatars{display:flex;min-height:16px;min-width:0;overflow:hidden}
 .cal-daycard .avatars span{
   width:16px;height:16px;border-radius:50%;font-size:7px;font-weight:700;color:#fff;
   display:grid;place-items:center;margin-left:-4px;border:1.5px solid var(--sunk);
-  font-family:"IBM Plex Mono",monospace;
+  font-family:"IBM Plex Mono",monospace;flex-shrink:0;
+  /* Contain hydrated logo images so they cannot spill as a banner across the week. */
+  overflow:hidden;position:relative;box-sizing:border-box;
 }
+.cal-daycard .avatars span img.logo-img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+  padding:12%;box-sizing:border-box;border-radius:inherit;display:block;
+}
+.cal-daycard .avatars span.has-logo{background:#fff!important;color:transparent!important}
 .cal-daycard.on .avatars span{border-color:var(--card)}
 .cal-daycard .avatars span:first-child{margin-left:0}
 .cal-daycard .n{font-size:10.5px;color:var(--ink-3);margin-left:auto;white-space:nowrap}
@@ -3448,7 +3456,7 @@ function renderCalWeek(){
         <div class="avatars">${chips.map(c => {
           if (c.symbol) logoSyms.push(c.symbol);
           const logo = c.symbol ? ` data-logo="${esc(c.symbol)}"` : "";
-          return `<span${logo} style="background:${c.colour}">${esc(c.letter)}</span>`;
+          return `<span class="av"${logo} style="background:${c.colour}">${esc(c.letter)}</span>`;
         }).join("")}</div>
         ${total ? `<span class="n">${esc(countLabel)}</span>` : ""}
       </div>
