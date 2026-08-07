@@ -38,8 +38,11 @@
 
   --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
   --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
-  /* Underwater / % off high drawdown chart */
-  --dd:#c73d8a; --dd-fill:#c73d8a33; --dd-soft:#f7e6ef;
+  /* Underwater / % off high drawdown chart + pastel probability bands
+     (lighter = more common / higher probability). */
+  --dd:#c73d8a; --dd-fill:#c73d8acc; --dd-soft:#f7e6ef;
+  --dd-band-50:#e5f3e4; --dd-band-25:#d0e9cf; --dd-band-10:#b7dcb6;
+  --dd-band-5:#9ccf9b; --dd-band-1:#7fbe80; --dd-band-deep:#63ad68;
 
   --shadow:0 1px 2px rgba(17,24,32,.06), 0 6px 20px -12px rgba(17,24,32,.22);
   --r:10px;
@@ -58,7 +61,9 @@
 
   --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
   --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
-  --dd:#e85aa3; --dd-fill:#e85aa340; --dd-soft:#3a1a2c;
+  --dd:#e85aa3; --dd-fill:#e85aa3c0; --dd-soft:#3a1a2c;
+  --dd-band-50:#1e3224; --dd-band-25:#23402c; --dd-band-10:#274c33;
+  --dd-band-5:#2b583a; --dd-band-1:#306644; --dd-band-deep:#35744e;
 
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.8);
 }
@@ -476,16 +481,10 @@ tbody tr:hover td{background:var(--sunk)}
 .idx-valrow .lwrap{flex:1}
 .idx-dd-chart{position:relative}
 .idx-dd-chart .lkey{padding:2px 0 4px}
-.idx-dd-chart .lkey i.dash{
-  height:0;width:14px;border-radius:0;align-self:center;
-  border-top:2px dashed currentColor;background:none!important;
+.idx-dd-chart .dd-prob-swatch{
+  width:14px;height:10px;border-radius:2px;flex-shrink:0;
+  background:linear-gradient(to bottom, var(--dd-band-50), var(--dd-band-deep));
 }
-.idx-dd-tip{
-  position:absolute;z-index:5;min-width:148px;padding:8px 10px;border-radius:8px;
-  background:var(--card);border:1px solid var(--rule);box-shadow:var(--shadow);
-  pointer-events:none;
-}
-.idx-dd-tip[hidden]{display:none}
 @media (max-width:980px){
   .idx-split{grid-template-columns:1fr}
 }
@@ -1203,7 +1202,7 @@ const HELP = {
   season:    "Every month's total return, one row per year. Green is a month that finished higher than it started. The bottom rows average the column, which is what people mean by a seasonal pattern.",
   news:      "Recent stories mentioning this company or its industry, newest first.",
   houses:    "The most recent action from each institution covering the company. One row per firm, newest first, so a bank that reiterates weekly does not crowd out the rest.",
-  drawdown:  "Percent below the index's last all-time high (the running peak in available price history). The line sits at 0% on new highs and falls as the index pulls back; the shaded area is the depth of that pullback. Dotted grey lines mark drawdown depths that were reached or exceeded on about 1%, 10%, 20%, 30%, and 50% of trading days over the last 25 years (or as much history as is cached). The left axis labels those probabilities; the right axis shows drawdown percent.",
+  drawdown:  "Percent below the index's last all-time high (the running peak in available price history). The pink line sits at 0% on new highs and falls as the index pulls back. Pastel green bands behind the line mark drawdown depths that were reached or exceeded on about 1%, 5%, 10%, 25%, and 50% of trading days over the last 25 years (or as much history as is cached): higher probability bands are lighter green, rarer deep drawdowns are darker. The left axis labels those probabilities; the right axis shows drawdown percent.",
 };
 
 const helpIcon = k => HELP[k]
@@ -2136,7 +2135,7 @@ const INDEX_PE = {
   interval: "daily",
 };
 const INDEX_DD = { range: "5Y", interval: "daily" };
-const INDEX_DD_PROBS = [1, 10, 20, 30, 50];
+const INDEX_DD_PROBS = [1, 5, 10, 25, 50];
 const INDEX_CHART_RANGES = ["1W", "1M", "YTD", "1Y", "5Y", "10Y", "ALL"];
 const INDEX_INTERVALS = [
   ["Daily", "daily"], ["Weekly", "weekly"], ["Monthly", "monthly"], ["Annual", "annual"],
@@ -2291,7 +2290,7 @@ function openIndexSymbol(ticker, meta){
         </div>
         <div class="lwrap idx-dd-chart" id="idx-dd-chart"><div class="note"><span class="load"></span> &nbsp;Loading drawdown…</div></div>
         <p class="note" style="text-align:left;padding:4px 14px 14px;margin:0">
-          Percent below the running all-time high. Dotted lines show how often deeper drawdowns have occurred historically.
+          Percent below the running all-time high. Green bands show how often deeper drawdowns have occurred historically (lighter = more common).
         </p>
       </section>
     </div>
@@ -2764,7 +2763,17 @@ function bucketAthDrawdown(series, interval){
   return [...last.values()].sort((a, b) => a.d < b.d ? -1 : 1);
 }
 
-/** Underwater chart: % off last all-time high with historical probability guides. */
+/** Pastel green fills for probability bands (lighter = higher probability). */
+const DD_PROB_BAND_FILL = {
+  50: "var(--dd-band-50)",
+  25: "var(--dd-band-25)",
+  10: "var(--dd-band-10)",
+  5: "var(--dd-band-5)",
+  1: "var(--dd-band-1)",
+  deep: "var(--dd-band-deep)",
+};
+
+/** Underwater chart: % off last all-time high with historical probability bands. */
 function drawIndexDrawdown(){
   const host = document.getElementById("idx-dd-chart");
   if (!host) return;
@@ -2795,31 +2804,48 @@ function drawIndexDrawdown(){
   const last = pts[pts.length - 1];
   const W = 620;
   const H = MOBILE_MQ.matches ? 280 : 240;
-  const ml = 40, mr = 52, mt = 16, mb = 34;
+  // Extra right margin so drawdown % labels sit outside the plot (no overlap).
+  const ml = 40, mr = 58, mt = 16, mb = 34;
   const pw = W - ml - mr, ph = H - mt - mb;
-  // Always pin 0% at the top; deepen the floor for probability lines in view.
+  // Always pin 0% at the top; deepen the floor for probability bands in view.
   const floor = Math.min(low, ...probs.map(l => l.dd), -5);
   const y0 = floor * 1.08 - 0.5;
   const y1 = 0;
   const y = v => mt + ph - (v - y0) / (y1 - y0) * ph;
   const x = i => ml + (pts.length < 2 ? pw / 2 : (i / (pts.length - 1)) * pw);
+  const clampY = v => Math.max(y0, Math.min(y1, v));
 
+  // Right-axis labels only — no solid horizontal grid lines across the plot.
   const ticks = bandTicks(y0, y1, 5).filter(t => t <= 0.0001);
-  const grid = ticks.map(t => `
-    <line x1="${ml}" x2="${W - mr}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"
-      stroke="var(--rule-2)" stroke-width="1"/>
-    <text x="${W - mr - 4}" y="${(y(t) + 3.5).toFixed(1)}" class="ax" text-anchor="end">${
+  const yLabels = ticks.map(t => `
+    <text x="${W - mr + 6}" y="${(y(t) + 3.5).toFixed(1)}" class="ax" text-anchor="start">${
       t.toFixed(0)}%</text>`).join("");
 
-  // Probability guides: dotted grey lines + left-axis probability labels.
-  const probSvg = probs.map(l => {
+  // Green probability bands behind the pink series.
+  // Sorted shallow→deep (50% → 1%); lighter green for higher probability.
+  const byP = Object.fromEntries(probs.map(l => [l.p, l.dd]));
+  const bandEdges = [
+    { top: 0, bot: byP[50], fill: DD_PROB_BAND_FILL[50], p: 50 },
+    { top: byP[50], bot: byP[25], fill: DD_PROB_BAND_FILL[25], p: 25 },
+    { top: byP[25], bot: byP[10], fill: DD_PROB_BAND_FILL[10], p: 10 },
+    { top: byP[10], bot: byP[5], fill: DD_PROB_BAND_FILL[5], p: 5 },
+    { top: byP[5], bot: byP[1], fill: DD_PROB_BAND_FILL[1], p: 1 },
+    { top: byP[1], bot: y0, fill: DD_PROB_BAND_FILL.deep, p: null },
+  ];
+  const bandsSvg = probs.length ? bandEdges.map(b => {
+    if (b.top == null || b.bot == null || !Number.isFinite(b.top) || !Number.isFinite(b.bot)) return "";
+    const top = clampY(b.top), bot = clampY(b.bot);
+    if (!(bot < top - 1e-6)) return "";
+    const yTop = y(top), yBot = y(bot);
+    return `<rect x="${ml}" y="${yTop.toFixed(1)}" width="${pw}" height="${Math.max(0, yBot - yTop).toFixed(1)}"
+      fill="${b.fill}" stroke="none"/>`;
+  }).join("") : "";
+
+  // Left-axis probability labels at each threshold (no dotted lines).
+  const probLabels = probs.map(l => {
     if (l.dd < y0 || l.dd > y1) return "";
-    const yy = y(l.dd);
-    return `
-      <line x1="${ml}" x2="${W - mr}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}"
-        stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>
-      <text x="${ml - 6}" y="${(yy + 3.5).toFixed(1)}" class="ax" text-anchor="end"
-        fill="var(--ink-3)">${l.p}%</text>`;
+    return `<text x="${ml - 6}" y="${(y(l.dd) + 3.5).toFixed(1)}" class="ax" text-anchor="end"
+      fill="var(--ink-3)">${l.p}%</text>`;
   }).join("");
 
   const linePts = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.dd).toFixed(1)}`).join(" ");
@@ -2835,10 +2861,11 @@ function drawIndexDrawdown(){
       class="ax" text-anchor="middle" fill="var(--dd)">Low: ${low.toFixed(2)}%</text>` : "";
 
   const endY = y(last.dd);
+  const badgeW = 46;
   const badge = `
-    <rect x="${W - mr + 2}" y="${(endY - 9).toFixed(1)}" width="46" height="18" rx="3"
+    <rect x="${(W - mr - badgeW - 2).toFixed(1)}" y="${(endY - 9).toFixed(1)}" width="${badgeW}" height="18" rx="3"
       fill="var(--dd)"/>
-    <text x="${W - mr + 25}" y="${(endY + 4).toFixed(1)}" text-anchor="middle"
+    <text x="${(W - mr - badgeW / 2 - 2).toFixed(1)}" y="${(endY + 4).toFixed(1)}" text-anchor="middle"
       font-size="10" font-weight="600" fill="#fff" font-family="IBM Plex Mono,monospace">${
         last.dd.toFixed(2)}%</text>`;
 
@@ -2858,7 +2885,7 @@ function drawIndexDrawdown(){
   host.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
       aria-label="${esc(name)} percent off all-time high">
-      ${grid}${probSvg}
+      ${bandsSvg}${probLabels}${yLabels}
       <path d="${fillD}" fill="var(--dd-fill)"/>
       <polyline points="${linePts}" fill="none" stroke="var(--dd)"
         stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
@@ -2871,11 +2898,10 @@ function drawIndexDrawdown(){
       </g>
       <rect x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="transparent" class="hit"/>
     </svg>
-    <div class="idx-dd-tip" id="idxdd-tip" hidden></div>
     <div class="lkey">
       <span><i style="background:var(--dd)"></i>% off high</span>
-      <span><i class="dash" style="color:var(--ink-3)"></i>Hist. probability</span>
-      ${probs.length ? "" : `<span class="note" style="margin:0">Probability lines need more history</span>`}
+      <span><i class="dd-prob-swatch" aria-hidden="true"></i>Hist. probability</span>
+      ${probs.length ? "" : `<span class="note" style="margin:0">Probability bands need more history</span>`}
     </div>
     <div class="lread" id="idxdd-read">Hover to read date and drawdown depth.${
       yearsUsed ? ` Guides use ~${yearsUsed}y of cached history.` : ""}</div>`;
@@ -2884,21 +2910,10 @@ function drawIndexDrawdown(){
   const cross = host.querySelector("#idxdd-cross");
   const xh = cross.querySelector(".xh");
   const yh = cross.querySelector(".yh");
-  const tip = host.querySelector("#idxdd-tip");
   const hit = host.querySelector(".hit");
   const read = host.querySelector("#idxdd-read");
 
-  const nearestProb = dd => {
-    if (!probs.length) return null;
-    let best = probs[0], bestD = Math.abs(probs[0].dd - dd);
-    for (const l of probs) {
-      const d = Math.abs(l.dd - dd);
-      if (d < bestD) { best = l; bestD = d; }
-    }
-    return bestD < 2.5 ? best : null;
-  };
-
-  const showAt = (clientX, clientY) => {
+  const showAt = (clientX) => {
     const r = svg.getBoundingClientRect();
     const px = (clientX - r.left) / r.width * W;
     const i = Math.max(0, Math.min(pts.length - 1,
@@ -2907,38 +2922,18 @@ function drawIndexDrawdown(){
     cross.style.display = "";
     xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i));
     yh.setAttribute("y1", y(p.dd)); yh.setAttribute("y2", y(p.dd));
-
-    const near = nearestProb(p.dd);
-    tip.innerHTML =
-      `<div class="ptip-h"><span class="ptip-dot" style="background:var(--dd)"></span>` +
-      `${esc(longDate(p.d))}</div>` +
-      [["Drawdown", `${p.dd.toFixed(2)}%`],
-       ["Close", p.c.toFixed(2)],
-       ["All-time high", p.peak.toFixed(2)],
-       ...(near ? [["≈ Hist. prob.", `${near.p}% of days ≤ ${near.dd.toFixed(1)}%`]] : [])]
-        .map(([k, v]) => `<div class="ptip-r"><span>${k}</span><b>${esc(v)}</b></div>`).join("");
-    tip.hidden = false;
     if (read) {
       read.innerHTML = `<b>${esc(longDate(p.d))}</b>
         <span><i style="background:var(--dd)"></i>${p.dd.toFixed(2)}% off high</span>`;
     }
-
-    const sx = r.width / W, sy = r.height / H;
-    const hostBox = host.getBoundingClientRect();
-    const left = r.left - hostBox.left + x(i) * sx;
-    const top = r.top - hostBox.top + y(p.dd) * sy;
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
-    tip.style.left = (left + 14 + tw > hostBox.width ? left - tw - 14 : left + 14) + "px";
-    tip.style.top = Math.max(0, Math.min(hostBox.height - th - 36, top - th / 2)) + "px";
   };
 
   hit.addEventListener("pointermove", e => {
     if (e.pointerType === "touch") return;
-    showAt(e.clientX, e.clientY);
+    showAt(e.clientX);
   });
   hit.addEventListener("pointerleave", () => {
     cross.style.display = "none";
-    tip.hidden = true;
     if (read) {
       read.innerHTML = `Hover to read date and drawdown depth.${
         yearsUsed ? ` Guides use ~${yearsUsed}y of cached history.` : ""}`;
