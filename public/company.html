@@ -128,11 +128,24 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
    registers, but muted so nobody thinks it failed when it does not unlock. */
 /* Its own line at the foot of the identity block, left edge flush with the
    price chart card below it. */
-/* The wrapper claims the whole line so the button drops below the title block;
-   the button itself stays content-sized and sits at the row's right edge,
-   under the fiscal-year pickers. Clamping the button directly instead of
-   wrapping it let it fit back onto the first line. */
-.unlockrow{flex-basis:100%;order:3;margin-top:2px;display:flex;justify-content:flex-end}
+/* The wrapper claims its own line so the button escapes the title block, then
+   mirrors .pricerow's grid so its right edge lands exactly on the chart card's
+   -- 292px panel plus an 18px gap in from the row's right edge. Mirroring the
+   grid rather than hard-coding 310px means the two stay together if the split
+   ever changes, including when it collapses to one column below 1080px.
+   The negative margin lifts the line back up level with the ticker chips; the
+   title block ends at ~510px and the button starts past 950, so nothing
+   collides. */
+.unlockrow{flex-basis:100%;order:3;display:grid;gap:18px;
+  grid-template-columns:minmax(0,1fr) 292px;margin-top:-34px;
+  /* .ident aligns its items to flex-end, which swallows a top margin past a
+     point -- the item's bottom stays pinned to the line. A relative offset
+     moves it regardless, and leaves the chart below exactly where it was. */
+  position:relative;top:-17px}
+.unlockrow>.unlockbtn{grid-column:1;justify-self:end}
+@media (max-width:1080px){
+  .unlockrow{grid-template-columns:1fr;margin-top:2px;top:0}
+}
 .unlockbtn{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
   padding:7px 13px;border:1px dashed var(--rule);border-radius:8px;
   background:var(--sunk);color:var(--ink-2);text-decoration:none;
