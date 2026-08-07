@@ -1273,6 +1273,22 @@ def _as_day(value) -> dt.date | None:
 # Markets Today only surfaces material trades.
 MIN_INSIDER_AMOUNT = 1_000_000       # $1M absolute Form 4 value
 MIN_INSIDER_SHARES_PCT = 0.01        # or ≥1% of shares outstanding
+
+# FMP's Form 4 feed carries some unusable `price` values -- WHLR has come
+# through at $14,515,200,000 a share, HOVR at $250,000,000, FINS at
+# $40,000,000. Left alone they produce single days of hundreds of trillions,
+# which is not merely wrong: on a linear axis one such day flattens every
+# real bar in a sixty-day chart below half a pixel, so the panel looks empty
+# rather than looking broken.
+#
+# Two guards, because one is not enough. The ceiling catches the absurd
+# outright: BRK.A is the highest-priced US listed share at a few hundred
+# thousand dollars, so a million is well clear of anything genuine. The
+# ratio test catches what the ceiling cannot -- REBN priced at $180,000 while
+# the stock trades near a dollar is under any fixed cap, and only a
+# comparison with the real price reveals it.
+MAX_PLAUSIBLE_SHARE_PRICE = 1_000_000
+MAX_PRICE_RATIO = 20                 # reported vs traded price
 # Congress: store every disclosure (no $0.5M floor). UI + get_trades match.
 MIN_CONGRESS_AMOUNT = 0
 
@@ -1386,6 +1402,8 @@ def insider_trades(days: int = 7, store_cap: int = 400,
                 continue
             shares = float(r.get("securitiesTransacted") or 0)
             price = float(r.get("price") or 0)
+            if price > MAX_PLAUSIBLE_SHARE_PRICE:
+                continue                  # see MAX_PLAUSIBLE_SHARE_PRICE
             code = (r.get("transactionType") or r.get("acquisitionOrDisposition") or "")
             buy = str(code).upper().startswith(("P", "A"))
             amount = (shares * price) * (1 if buy else -1)
@@ -1397,6 +1415,7 @@ def insider_trades(days: int = 7, store_cap: int = 400,
                 "symbol": sym,
                 "side": "Buy" if buy else "Sell",
                 "shares": shares,
+                "price": price,
                 "amount": amount,
                 "person": _insider_person_name(r.get("reportingName")),
                 "title": _insider_title(r.get("typeOfOwner")),
@@ -1418,8 +1437,38 @@ def insider_trades(days: int = 7, store_cap: int = 400,
     ranked_need = sorted(need_out, key=lambda s: -need_out[s])
     shares_out = _shares_outstanding_map(ranked_need, cap=150)
 
+    # A reported price far above the traded price is a bad field, not a large
+    # trade. Only the rows big enough to distort a chart are worth a quote --
+    # a handful per refresh -- so this checks those and leaves the rest alone.
+    suspect = {r["symbol"] for r in raw_rows if abs(r["amount"] or 0) > 1_000_000_000}
+    traded: dict[str, float] = {}
+    caps: dict[str, float] = {}
+    for sym in sorted(suspect)[:60]:
+        try:
+            q = quote(sym)
+        except MarketError:
+            continue
+        if not q:
+            continue
+        px, mc = q.get("price"), q.get("market_cap")
+        if px and float(px) > 0:
+            traded[sym] = float(px)
+        if mc and float(mc) > 0:
+            caps[sym] = float(mc)
+
     out: list[dict] = []
     for r in raw_rows:
+        px = traded.get(r["symbol"])
+        if px and float(r["price"] or 0) > px * MAX_PRICE_RATIO:
+            continue                      # see MAX_PRICE_RATIO
+        # Nobody can trade more of a company than the company is worth. This
+        # is the guard for the other corrupt field: SVRE has come through at
+        # $115bn on a plausible $6.93 price, which means 16.6 billion shares
+        # for a micro-cap -- `securitiesTransacted` is wrong, and no test on
+        # price alone can see it.
+        mc = caps.get(r["symbol"])
+        if mc and abs(r["amount"] or 0) > mc:
+            continue
         so = shares_out.get(r["symbol"])
         if so:
             r["shares_out"] = so

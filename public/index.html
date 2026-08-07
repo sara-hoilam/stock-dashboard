@@ -2729,10 +2729,17 @@ function drawFlowChart(host, rows){
   const spanYears = series.length > 1
     && series[0].day.slice(0, 4) !== series[n - 1].day.slice(0, 4);
 
+  // A day with real activity must not render as nothing. Insider flow is
+  // heavy-tailed even when the data is clean -- one mega-cap sale can be a
+  // hundred times a normal day -- so proportional height alone puts ordinary
+  // days below a pixel and the panel reads as empty rather than as quiet.
+  // Two pixels is enough to register without distorting the comparison.
+  const barH = v => (v > 0 ? Math.max(2, (v / max) * innerH) : 0);
+
   const bars = series.map((r, i) => {
     const x0 = pad.l + i * slot + (slot - (barW * 2 + gap)) / 2;
-    const inH = (r.inflow / max) * innerH;
-    const outH = (r.outflow / max) * innerH;
+    const inH = barH(r.inflow);
+    const outH = barH(r.outflow);
     const tip = `${flowDayLabel(r.day)} · in ${amount(r.inflow)} · out ${amount(r.outflow)}`;
     return `<g>
       <rect x="${x0.toFixed(2)}" y="${(pad.t + innerH - inH).toFixed(2)}"
