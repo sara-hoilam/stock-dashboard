@@ -1026,7 +1026,9 @@ const asJson = r => r.json();
 
 const API = {
   search: term => HOSTED
-    ? rpc("search_companies", { q: term })
+    ? (window.TA && window.TA.searchCompanies
+        ? window.TA.searchCompanies(term)
+        : rpc("search_companies", { q: term }))
     : fetch("/api/search?q=" + encodeURIComponent(term)).then(asJson).then(j => j.results || []),
 
   company: ticker => HOSTED
