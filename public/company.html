@@ -124,6 +124,20 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 
 .ident{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;margin-bottom:20px}
 .ident-with-logo{display:flex;flex-direction:row;align-items:flex-start;gap:12px;min-width:0}
+/* Locked until generated reports ship. Reads as a real control so the offer
+   registers, but muted so nobody thinks it failed when it does not unlock. */
+.period .unlockbtn{margin-bottom:10px}
+.unlockbtn{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
+  padding:7px 13px;border:1px dashed var(--rule);border-radius:8px;
+  background:var(--sunk);color:var(--ink-2);text-decoration:none;
+  font-size:12.5px;font-weight:600;letter-spacing:-.005em;cursor:pointer;
+  transition:border-color .15s ease,color .15s ease,background .15s ease}
+.unlockbtn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.unlockbtn svg{width:15px;height:15px;flex-shrink:0}
+.unlockbtn em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;padding:2px 6px;border-radius:99px;
+  background:var(--accent);color:#fff}
+@media (max-width:640px){ .unlockbtn span{display:none} .unlockbtn{padding:7px 10px} }
 .ident-with-logo .tick-logo{margin-top:4px}
 .ident h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:31px;font-weight:600;letter-spacing:-.018em;line-height:1.14}
 .ident .sub{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:7px;color:var(--ink-3);font-size:12.5px}
@@ -2086,6 +2100,7 @@ function marketOnly(ticker, company, why){
         </div>
         </div>
       </div>
+      <div class="period">${unlockReportBtn(c.ticker || ticker)}</div>
     </div>
 
     <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
@@ -2235,6 +2250,28 @@ const signedPct = (v, d = 2) => {
   return `${n > 0 ? "+" : ""}${n.toFixed(d)}%`;
 };
 const retClass = v => (v == null || Number.isNaN(+v)) ? "" : (+v > 0 ? "up" : +v < 0 ? "down" : "");
+
+/** Locked "Unlock report" button for the identity row.
+
+    Generated research is not shipping yet, so the control is genuinely
+    disabled -- aria-disabled, no submit, a padlock and a Soon pill. It is not
+    inert, though: pressing it opens the sample library, because someone who
+    just tried to buy the thing is exactly who should see what it looks like.
+    A dead button teaches nothing about the product. */
+function unlockReportBtn(ticker){
+  const t = String(ticker || "").toUpperCase();
+  return `<a class="unlockbtn" href="reports.html" aria-disabled="true"
+     title="Instant research reports are coming. See a finished example."
+     data-ticker="${esc(t)}">
+    <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor"
+         stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="8.5" width="12" height="8" rx="1.6"/>
+      <path d="M7 8.5V6a3 3 0 0 1 6 0v2.5"/>
+    </svg>
+    <span>Unlock report</span>
+    <em>Soon</em>
+  </a>`;
+}
 
 /** Major index page: price chart, holdings+industry, PE vs peers, seasonality. */
 function openIndexSymbol(ticker, meta){
@@ -3534,6 +3571,7 @@ function render(){
         </div>
       </div>
       <div class="period">
+        ${unlockReportBtn(c.ticker)}
         <div class="qpick" id="qpick"></div>
         <div class="small">
           ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)} ·
