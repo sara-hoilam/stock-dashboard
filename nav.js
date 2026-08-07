@@ -83,7 +83,7 @@
     </div>
     <nav class="nav"><div class="nav-in">
       <a class="nav-brand" href="index.html" aria-label="Ticker Alpha home">
-        <img class="nav-mark" id="nav-mark" src="brand-logo-light.svg" width="30" height="30" alt="">
+        <img class="nav-mark" id="nav-mark" src="brand-logo-light.png" width="30" height="30" alt="">
         <b>Ticker&nbsp;Alpha</b>
       </a>
 
@@ -125,26 +125,29 @@
   const themeBtn = document.getElementById("nav-theme");
   const ICON = { dark: "☾", light: "☀" };
   const markImg = document.getElementById("nav-mark");
-  // Favicon always uses the black mark. Browser chrome is usually light, so the
-  // white dark-mode asset disappears on the tab; the in-app theme still swaps
-  // the nav mark only.
+  // The tab follows the *browser's* theme, not the site's. A black mark
+  // vanishes on a dark tab strip and a white one vanishes on a light strip,
+  // so this tracks prefers-color-scheme rather than the in-app toggle -- and
+  // keeps tracking it, because the OS can change theme while the tab is open.
+  const tabDark = matchMedia("(prefers-color-scheme: dark)");
   function setFavicon() {
     let link = document.querySelector('link[data-ta-favicon]');
     if (!link) {
       link = document.createElement("link");
       link.rel = "icon";
-      link.type = "image/svg+xml";
+      link.type = "image/png";
       link.setAttribute("data-ta-favicon", "1");
       document.head.appendChild(link);
     }
-    link.href = "brand-logo-light.svg";
+    link.href = tabDark.matches ? "favicon-dark.png" : "favicon-light.png";
   }
   setFavicon();
+  tabDark.addEventListener("change", setFavicon);
   function setTheme(t) {
     document.documentElement.setAttribute("data-theme", t);
     themeBtn.textContent = t === "dark" ? ICON.light : ICON.dark;
     themeBtn.title = t === "dark" ? "Switch to light" : "Switch to dark";
-    if (markImg) markImg.src = t === "dark" ? "brand-logo-dark.svg" : "brand-logo-light.svg";
+    if (markImg) markImg.src = t === "dark" ? "brand-logo-dark.png" : "brand-logo-light.png";
     try { localStorage.setItem("alphaticker-theme", t); } catch {}
     window.dispatchEvent(new CustomEvent("themechange", { detail: t }));
   }
