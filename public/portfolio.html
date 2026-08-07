@@ -1395,6 +1395,11 @@ async function syncDividends(positions){
     });
   }
 
+  // Built from what is on the books. The page runs this twice on load and
+  // credits with reload:false, so S.transactions does not yet contain the first
+  // run's writes -- which is how AZN's single ex-date was credited four times
+  // across two loads. Every credit below is pushed onto S.transactions as well,
+  // so the second run sees it. A unique index backs this up in the database.
   const existing = new Set(
     (S.transactions || [])
       .filter(t => t.kind === "dividend" && t.note)
@@ -1424,6 +1429,11 @@ async function syncDividends(positions){
           reload: false,
         });
         existing.add(key);
+        // Keep the in-memory ledger in step, or the next run re-credits this.
+        (S.transactions || (S.transactions = [])).push({
+          symbol: p.symbol, kind: "dividend", tradeDate: ev.exDate,
+          quantity: p.quantity, price: cash, fee: 0, note,
+        });
         added += 1;
       } catch (err) {
         console.warn("[portfolio] dividend credit failed", p.symbol, err);

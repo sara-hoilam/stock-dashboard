@@ -41,11 +41,20 @@
          next to .dot avatars on the same screens, and a rounded square beside
          a circle reads as two different systems rather than one. */
       ".tick-logo{",
-      "  display:none;flex-shrink:0;width:22px;height:22px;",
-      "  border-radius:50%;background:#fff;overflow:hidden;",
+      "  display:inline-block;flex-shrink:0;width:22px;height:22px;",
+      "  border-radius:50%;overflow:hidden;",
       "  position:relative;box-sizing:border-box;",
       "  border:1px solid var(--rule, rgba(0,0,0,.08))}",
-      ".tick-logo.has-logo{display:inline-block}",
+      /* Initials fill the badge until an image covers them, so the row keeps
+         its alignment either way. */
+      ".tick-logo .tick-ini{",
+      "  position:absolute;inset:0;display:grid;place-items:center;",
+      "  font-style:normal;font-weight:700;font-size:8.5px;letter-spacing:.02em;",
+      "  color:#fff;font-family:inherit}",
+      ".tick-logo.tick-logo-lg .tick-ini{font-size:10.5px}",
+      ".tick-logo.tick-logo-xl .tick-ini{font-size:13px}",
+      ".tick-logo.has-logo{background:#fff!important}",
+      ".tick-logo.has-logo .tick-ini{display:none}",
       ".tick-logo.tick-logo-lg{width:28px;height:28px}",
       ".tick-logo.tick-logo-xl{width:36px;height:36px}",
       ".tick-logo img.logo-img{",
@@ -175,11 +184,26 @@
   }
 
   /** Markup for a beside-ticker logo chip (hidden until hydrate finds an image). */
+  /* Deterministic colour per symbol, so a badge keeps the same one everywhere. */
+  function initialsColour(sym) {
+    var h = 0;
+    for (var i = 0; i < sym.length; i++) h = (h * 31 + sym.charCodeAt(i)) % 360;
+    return "hsl(" + h + " 42% 38%)";
+  }
+
+  /* The chip used to be empty until a logo cached, and `display:none` with it,
+     so a symbol Logo.dev has no image for (SPYI, most small caps) collapsed and
+     shoved the ticker text left out of line with its neighbours. It now carries
+     the first two letters on a coloured circle -- the same badge the market
+     tables draw -- and the image simply covers that when one arrives. */
   function chip(symbol, sizeClass) {
     var sym = String(symbol || "").toUpperCase().trim();
     if (!sym) return "";
     var cls = "tick-logo" + (sizeClass ? " " + sizeClass : "");
-    return '<span class="' + cls + '" data-logo="' + escAttr(sym) + '" aria-hidden="true"></span>';
+    return '<span class="' + cls + '" data-logo="' + escAttr(sym) + '"'
+         + ' style="background:' + initialsColour(sym) + '"'
+         + ' aria-hidden="true"><i class="tick-ini">' + escAttr(sym.slice(0, 2))
+         + '</i></span>';
   }
 
   /**

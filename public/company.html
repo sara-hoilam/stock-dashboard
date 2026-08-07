@@ -1756,19 +1756,24 @@ async function loadTickerNews(){
   const searches = [[sym, sym], [name, name], [industryTerm, industryTerm]]
     .filter(([t], i, arr) => t && t.length > 2 && arr.findIndex(x => x[0] === t) === i);
 
+  // One round trip, not three. These searches are independent -- the symbol,
+  // the company name and the industry -- so awaiting each in turn cost three
+  // sequential trips to Supabase and was over half the ticker page's load.
+  // Results are folded back in the original order, so which article wins a
+  // duplicate URL, and the order of `scopes`, are unchanged.
   const seen = new Set(), arts = [];
   const scopes = [];
-  for (const [term, label] of searches) {
-    let d = null;
-    try { d = await rpc("get_news", { p_q: term, p_limit: 10 }); } catch { continue; }
-    const got = (d && d.articles) || [];
+  const found = await Promise.all(searches.map(([term]) =>
+    rpc("get_news", { p_q: term, p_limit: 10 }).catch(() => null)));
+  searches.forEach(([, label], i) => {
+    const got = (found[i] && found[i].articles) || [];
     if (got.length) scopes.push(label);
     for (const a of got) {
       if (seen.has(a.url)) continue;
       seen.add(a.url);
       arts.push(a);
     }
-  }
+  });
   arts.sort((a, b) => (b.published || "").localeCompare(a.published || ""));
 
   const scopeEl = document.getElementById("news-scope");
@@ -3288,9 +3293,21 @@ function wireCorrelation(){
   }, drawCompanyDrawdown);
 
   // Against the market by default: the comparison almost everyone wants first,
-  // and the one that makes beta mean what people expect it to mean.
-  if (!CORR.other) loadCorrelation(CORR_DEFAULT);
-  else drawCorrelation();
+  // and the one that makes beta mean what people expect it to mean. Deferred
+  // until the panel is actually on screen, though -- fetching SPX during the
+  // first paint added a request to a page that may never show this tab.
+  drawCorrelation();
+  if (!CORR.other) {
+    const host = document.getElementById("corr-chart");
+    if (!host) return;
+    if (typeof IntersectionObserver !== "function") return loadCorrelation(CORR_DEFAULT);
+    const io = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return;
+      io.disconnect();
+      if (!CORR.other) loadCorrelation(CORR_DEFAULT);
+    }, { rootMargin: "200px" });
+    io.observe(host);
+  }
 }
 
 async function load(ticker, source){
