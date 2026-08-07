@@ -1,0 +1,2307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Space Exploration Technologies Corp. (NASDAQ: SPCX) — Ticker Alpha Equity Research</title>
+<meta name="description" content="Eight weeks after listing the shares are 42.9% off the IPO-week high and 19.9% below the first close — a washout that has not touched the business. Starlink density and reusable…" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Space Exploration Technologies Corp. (NASDAQ: SPCX) — Ticker Alpha Equity Research" />
+<meta property="og:description" content="Eight weeks after listing the shares are 42.9% off the IPO-week high and 19.9% below the first close — a washout that has not touched the business. Starlink density and reusable…" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta property="og:image" content="https://tickeralpha.ai/reports/spcx-cover.png" />
+<meta name="twitter:image" content="https://tickeralpha.ai/reports/spcx-cover.png" />
+<meta property="og:url" content="https://tickeralpha.ai/reports/spcx.html" />
+<meta property="og:site_name" content="Ticker Alpha" />
+<link rel="canonical" href="https://tickeralpha.ai/reports/spcx.html" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Ticker Alpha — shared report stylesheet
+   Every page links this file. Page-specific markup only.
+   ============================================================ */
+
+:root {
+  --paper:      #FDFDFC;
+  --ink:        #14181D;
+  --ink-soft:   #3A4149;
+  --muted:      #797F86;
+  --faint:      #A8ADB2;
+  --rule:       #E4E2DC;
+  --rule-soft:  #EFEEE9;
+  --brass:      #A9853F;
+  --wash:       #F7F6F3;
+
+  /* Rating semantics — the only saturated colours in the report */
+  --bull:       #1E6B48;
+  --neutral:    #4A4F55;
+  --bear:       #8E2C22;
+}
+
+/* Swap this one line to re-skin the whole call: var(--bull|--neutral|--bear) */
+.page { --rating: var(--neutral); }
+
+@page { size: A4; margin: 0; }
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: #55585C;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ─────────────── Sheet ─────────────── */
+.page {
+  position: relative;
+  width: 210mm; height: 297mm;
+  margin: 24px auto;
+  padding: 15mm 16mm 10mm;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-feature-settings: "tnum" 1;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0,0,0,.35);
+}
+
+.page::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3.2mm;
+  background: linear-gradient(90deg, #14181D 0%, #14181D 62%, var(--brass) 62%, #C9A867 100%);
+}
+
+/* ─────────────── Primitives ─────────────── */
+.micro {
+  font-size: 6.2pt; letter-spacing: .15em; text-transform: uppercase;
+  font-weight: 600; color: var(--muted);
+}
+.mono { font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; }
+.pos { color: var(--bull); }
+.neg { color: var(--bear); }
+.t-bull { --tone: var(--bull); }
+.t-neutral { --tone: var(--neutral); }
+.t-bear { --tone: var(--bear); }
+.t-brass { --tone: var(--brass); }
+
+/* ─────────────── Masthead (page 1 only) ─────────────── */
+.masthead {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding-bottom: 3.5mm; border-bottom: 0.6pt solid var(--rule);
+}
+.brand { display: flex; align-items: center; gap: 3mm; }
+.seal {
+  width: 9.5mm; height: 9.5mm;
+  border: 0.8pt solid var(--brass);
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 11pt; font-weight: 600; color: var(--brass); letter-spacing: .01em;
+}
+.brand-name {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 12.5pt; font-weight: 600; letter-spacing: .16em;
+  text-transform: uppercase; line-height: 1.1;
+}
+.brand-sub {
+  font-size: 6.2pt; letter-spacing: .19em; text-transform: uppercase;
+  color: var(--muted); margin-top: 1mm;
+}
+.masthead-right { text-align: right; }
+.tag {
+  display: inline-block; border: 0.6pt solid var(--ink);
+  padding: 1.1mm 2.4mm;
+  font-size: 6.2pt; letter-spacing: .17em; text-transform: uppercase; font-weight: 600;
+}
+.masthead-meta { margin-top: 2.2mm; font-size: 6.8pt; color: var(--muted); letter-spacing: .03em; }
+
+/* ─────────────── Running header (pages 2–8) ─────────────── */
+.runhead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 3mm; border-bottom: 0.6pt solid var(--rule);
+}
+.runhead-left { display: flex; align-items: center; gap: 2.8mm; }
+.seal-sm {
+  width: 6.8mm; height: 6.8mm; flex: none;
+  border: 0.7pt solid var(--brass);
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 7.5pt; font-weight: 600; color: var(--brass);
+}
+.runhead-id {
+  font-size: 6.6pt; letter-spacing: .13em; text-transform: uppercase;
+  font-weight: 600; color: var(--muted);
+}
+.runhead-id b { color: var(--ink); font-weight: 600; }
+.runhead-right {
+  display: flex; align-items: baseline; gap: 2.2mm;
+  font-size: 6.6pt; letter-spacing: .14em; text-transform: uppercase; font-weight: 600;
+}
+.runhead-no {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 9.5pt; font-weight: 600; color: var(--brass); letter-spacing: 0;
+}
+
+/* ─────────────── Page title block (pages 2–8) ─────────────── */
+.page-title { padding-top: 6mm; }
+.page-title h2 {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 19pt; font-weight: 600; line-height: 1.05;
+  letter-spacing: -.015em; margin: 0;
+}
+.page-lede {
+  margin: 2.8mm 0 0; font-size: 8.1pt; line-height: 1.45;
+  color: var(--ink-soft); max-width: 152mm;
+}
+
+/* ─────────────── Section band ─────────────── */
+.band { margin-top: 6mm; }
+.band-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 6mm; padding-bottom: 2.2mm; border-bottom: 0.6pt solid var(--rule);
+}
+.band-title { font-size: 6.8pt; letter-spacing: .15em; text-transform: uppercase; font-weight: 600; }
+.band-note { font-size: 6.2pt; color: var(--faint); letter-spacing: .04em; text-align: right; }
+.band-body { margin-top: 3.4mm; }
+
+/* ─────────────── Column helpers ─────────────── */
+.cols-2  { display: grid; grid-template-columns: 1fr 1fr; column-gap: 10mm; align-items: start; }
+.cols-3  { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 8mm; align-items: start; }
+.cols-2u { display: grid; grid-template-columns: 1fr 64mm; column-gap: 10mm; align-items: start; }
+.cols-2w { display: grid; grid-template-columns: 1fr 78mm; column-gap: 10mm; align-items: start; }
+
+/* ─────────────── Identity (page 1) ─────────────── */
+.identity { padding-top: 7mm; }
+.ticker-line {
+  font-size: 8pt; letter-spacing: .13em; text-transform: uppercase;
+  font-weight: 600; color: var(--brass);
+}
+.company {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 31pt; font-weight: 600; line-height: 1.02;
+  letter-spacing: -.018em; margin: 2.4mm 0 0;
+}
+.classification { margin-top: 2.8mm; font-size: 7.4pt; color: var(--muted); letter-spacing: .05em; }
+.classification span { color: var(--faint); margin: 0 1.8mm; }
+.descriptor {
+  margin-top: 3mm; font-size: 8.1pt; line-height: 1.4;
+  color: var(--ink-soft); max-width: 118mm;
+}
+
+/* ─────────────── The call (page 1) ─────────────── */
+/* Row 1: thesis | valuation card.  Row 2: triggers | catalysts.
+   The grid row forces the two row-2 headings onto the same baseline. */
+.call {
+  margin-top: 7mm;
+  display: grid; grid-template-columns: 1fr 64mm;
+  column-gap: 10mm; row-gap: 5mm;
+  align-items: start;
+}
+.call-head { display: flex; align-items: baseline; }
+.ch-left { padding-right: 8mm; }
+.ch-rule { border-left: 0.6pt solid var(--rule); align-self: stretch; }
+.ch-right { padding-left: 8mm; }
+.rating-word {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 26pt; font-weight: 700; line-height: 1;
+  letter-spacing: -.01em; color: var(--rating);
+}
+.price-value {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 22pt; font-weight: 600; line-height: 1; letter-spacing: -.01em;
+}
+.ch-label {
+  margin-top: 2.6mm; font-size: 6pt; letter-spacing: .15em;
+  text-transform: uppercase; font-weight: 600; color: var(--muted); white-space: nowrap;
+}
+.price-range { margin-top: 1.6mm; font-size: 6.4pt; color: var(--faint); white-space: nowrap; }
+.rail { display: flex; margin-top: 3.4mm; width: 56mm; }
+.rail div {
+  flex: 1; text-align: center; padding: 1.5mm 0;
+  font-size: 5.9pt; letter-spacing: .15em; text-transform: uppercase; font-weight: 600;
+  border: 0.6pt solid var(--rule); border-left-width: 0; color: var(--faint);
+}
+.rail div:first-child { border-left-width: 0.6pt; }
+.rail div.on { background: var(--rating); border-color: var(--rating); color: #fff; }
+.rating-note { margin-top: 3mm; font-size: 6.8pt; color: var(--muted); letter-spacing: .04em; }
+.thesis {
+  margin-top: 5mm;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 8.1pt; line-height: 1.55; color: var(--ink-soft);
+  border-left: 1.2pt solid var(--rating); padding-left: 5mm;
+  margin-bottom: 0; max-width: 104mm;
+}
+
+/* Pull quote / verdict — same voice as the thesis, reusable anywhere */
+.pull {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 8.1pt; line-height: 1.55; color: var(--ink-soft);
+  border-left: 1.2pt solid var(--rating); padding-left: 5mm;
+  margin: 0;
+}
+.pull.tight { font-size: 7.6pt; line-height: 1.5; padding-left: 4mm; }
+
+/* ─────────────── Trigger / bullet rows ─────────────── */
+.triggers, .catalysts { padding-top: 2.6mm; border-top: 0.6pt solid var(--rule); }
+.trigger { display: flex; gap: 2.2mm; margin-top: 2mm; font-size: 7.1pt; line-height: 1.45; color: var(--ink-soft); }
+.trigger i { font-style: normal; font-weight: 700; line-height: 1.3; }
+.trigger.up i { color: var(--bull); }
+.trigger.down i { color: var(--bear); }
+.trigger.dot i { color: var(--brass); }
+.cat-row {
+  display: grid; grid-template-columns: 19mm 1fr; column-gap: 2mm;
+  margin-top: 1.5mm; font-size: 6.5pt; line-height: 1.3; color: var(--ink-soft);
+}
+.cat-date { color: var(--ink); font-weight: 600; white-space: nowrap; }
+
+/* ─────────────── Valuation card (page 1) ─────────────── */
+.valuation { border: 0.6pt solid var(--rule); background: var(--wash); padding: 3.4mm 4.2mm 3.2mm; }
+.vhead { display: flex; align-items: baseline; justify-content: space-between; }
+.vhead .sub { font-size: 5.8pt; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+
+.divider { border-top: 0.6pt solid var(--rule); margin: 3mm 0 2.4mm; }
+
+.scen { margin-top: 2.4mm; }
+.scen-row {
+  display: grid; grid-template-columns: 13mm 1fr 1fr 8mm;
+  align-items: center; column-gap: 2mm; padding: 0.9mm 0;
+}
+.scen-row.head { padding: 0 0 1mm; }
+.scen-row.head span {
+  font-size: 5.6pt; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600;
+}
+.scen-row.head span:not(:first-child) { text-align: right; }
+.scen-row.is-base {
+  background: rgba(20,24,29,.05);
+  margin: 0 -4.2mm; padding-left: 4.2mm; padding-right: 4.2mm;
+}
+.name { font-size: 7pt; font-weight: 600; display: flex; align-items: center; gap: 1.4mm; }
+.name i { width: 2.2mm; height: 0; border-top: 1.4pt solid currentColor; display: inline-block; }
+.n { font-size: 7.8pt; font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+.n.b { font-weight: 700; }
+.p { font-size: 6.4pt; color: var(--muted); text-align: right; }
+.row-bull { color: var(--bull); }
+.row-base { color: var(--ink); }
+.row-bear { color: var(--bear); }
+
+.street-line { display: flex; align-items: baseline; gap: 3mm; margin-top: 2mm; }
+.street-val { font-size: 12pt; font-weight: 700; font-family: "Source Serif 4", Georgia, serif; line-height: 1; }
+.street-up { font-size: 8.4pt; font-weight: 700; line-height: 1; }
+.street-n { font-size: 6.2pt; color: var(--muted); margin-top: 2mm; }
+.dist { display: flex; gap: 0.5mm; height: 1.5mm; margin: 2mm 0 1.4mm; }
+.dist span:nth-child(1) { background: var(--bull); }
+.dist span:nth-child(2) { background: #C6C3BC; }
+.dist span:nth-child(3) { background: var(--bear); }
+.dist-key { font-size: 6.1pt; color: var(--muted); letter-spacing: .03em; }
+.vs-street { margin-top: 2.2mm; font-size: 6.3pt; color: var(--ink-soft); letter-spacing: .02em; }
+
+/* ─────────────── Metric strip ─────────────── */
+.metrics, .statstrip {
+  border-top: 1.1pt solid var(--ink); border-bottom: 0.6pt solid var(--rule);
+  display: grid;
+}
+.metrics { margin-top: 5mm; grid-template-columns: repeat(6, 1fr); }
+.statstrip.c3 { grid-template-columns: repeat(3, 1fr); }
+.statstrip.c4 { grid-template-columns: repeat(4, 1fr); }
+.statstrip.c5 { grid-template-columns: repeat(5, 1fr); }
+.statstrip.c6 { grid-template-columns: repeat(6, 1fr); }
+.metric { padding: 3.2mm 3.2mm 3.4mm; border-left: 0.6pt solid var(--rule-soft); }
+.metric:first-child { border-left: 0; padding-left: 0; }
+.metric:last-child { padding-right: 0; }
+.metric-label {
+  font-size: 6pt; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; white-space: nowrap;
+}
+.metric-value {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 15pt; font-weight: 600; line-height: 1; margin-top: 2.5mm; letter-spacing: -.01em;
+}
+.metric-value.sm { font-size: 12.5pt; }
+.metric-sub { margin-top: 2mm; font-size: 6.3pt; color: var(--faint); letter-spacing: .02em; white-space: nowrap; }
+.metric-sub b { font-weight: 600; }
+
+/* ─────────────── Charts ─────────────── */
+.chart-block { margin-top: 5mm; }
+.chart-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2mm; }
+.chart-title { font-size: 6.8pt; letter-spacing: .15em; text-transform: uppercase; font-weight: 600; }
+.chart-note { font-size: 6.2pt; color: var(--faint); letter-spacing: .04em; }
+.chart svg { display: block; width: 100%; height: auto; }
+.legend { display: flex; gap: 4.5mm; font-size: 6.2pt; color: var(--muted); letter-spacing: .03em; }
+.legend span { display: flex; align-items: center; gap: 1.3mm; white-space: nowrap; }
+.legend i { display: inline-block; width: 3.4mm; height: 2mm; background: var(--ink); }
+.legend i.line { height: 0; border-top: 1.4pt solid var(--ink); }
+.legend i.dash { height: 0; border-top: 1.2pt dashed var(--muted); }
+
+/* ─────────────── Scorecard ─────────────── */
+.scorecard-head {
+  margin-top: 3.6mm; padding-top: 3.2mm; border-top: 0.6pt solid var(--rule);
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.scorecard { margin-top: 2.8mm; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8mm; }
+.score-label { font-size: 6pt; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.meter { display: flex; gap: 1.1mm; margin: 2.2mm 0 1.8mm; }
+.meter span { height: 1.6mm; flex: 1; background: #E4E2DC; }
+.meter span.on { background: var(--tone, var(--ink)); }
+.meter.sm span { height: 1.2mm; gap: .8mm; }
+.score-verdict { font-family: "Source Serif 4", Georgia, serif; font-size: 9.5pt; font-weight: 600; color: var(--tone, var(--ink)); }
+
+/* ─────────────── Data table ─────────────── */
+.dtable { width: 100%; border-collapse: collapse; }
+.dtable th {
+  font-size: 5.8pt; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600; text-align: right;
+  padding: 0 1.6mm 1.8mm; white-space: nowrap;
+}
+.dtable th:first-child { text-align: left; padding-left: 0; }
+.dtable th:last-child { padding-right: 0; }
+.dtable td {
+  font-size: 7.2pt; text-align: right; padding: 1.5mm 1.6mm;
+  border-top: 0.6pt solid var(--rule-soft);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.dtable td:first-child {
+  text-align: left; padding-left: 0;
+  font-size: 7pt; font-weight: 600; color: var(--ink);
+}
+.dtable td:last-child { padding-right: 0; }
+.dtable tr.em td { font-weight: 700; border-top-color: var(--rule); }
+.dtable tr.hl td { background: rgba(169,133,63,.10); border-top-color: var(--rule); }
+.dtable tr.hl td:first-child { color: var(--ink); }
+.dtable .say {
+  text-align: left; font-size: 6.3pt; color: var(--muted);
+  font-weight: 400; white-space: normal; letter-spacing: .02em;
+}
+.dtable .sub { font-size: 6.2pt; color: var(--faint); font-weight: 400; }
+.dtable.compact td { padding: 1.1mm 1.6mm; font-size: 6.9pt; }
+
+/* ─────────────── Prose (page 2 is the only long-form page) ─────────────── */
+.prose { font-size: 8.1pt; line-height: 1.55; color: var(--ink-soft); }
+.prose p { margin: 0 0 2.6mm; }
+.prose p:last-child { margin-bottom: 0; }
+.prose.two { column-count: 2; column-gap: 10mm; }
+.prose b { color: var(--ink); font-weight: 600; }
+
+/* ─────────────── Pills (named peers, tags) ─────────────── */
+.pills { margin-top: 2.6mm; }
+.pill {
+  display: inline-block; border: 0.6pt solid var(--rule);
+  padding: 0.9mm 2mm; margin: 0 1.4mm 1.4mm 0;
+  font-size: 6.2pt; letter-spacing: .05em; color: var(--ink-soft);
+}
+.pill.on { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+
+/* ─────────────── Percentile rank rows ─────────────── */
+.pctrow {
+  display: grid; grid-template-columns: 30mm 1fr 15mm;
+  align-items: center; column-gap: 3mm;
+  padding: 1.9mm 0; border-top: 0.6pt solid var(--rule-soft);
+}
+.pctrow:first-child { border-top: 0; }
+.pctlab { font-size: 6.6pt; font-weight: 600; }
+.pcttrack { position: relative; height: 2.2mm; background: var(--rule-soft); }
+.pcttrack::after {
+  content: ""; position: absolute; left: 50%; top: -0.8mm; bottom: -0.8mm;
+  width: 0.5pt; background: var(--faint);
+}
+.pctfill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--tone, var(--ink)); }
+.pctval { font-size: 6.8pt; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.pctval span { font-size: 5.4pt; font-weight: 400; color: var(--faint); }
+
+/* ─────────────── Methodology band (page 8) ─────────────── */
+.method { margin-top: 4mm; padding-top: 3mm; border-top: 0.6pt solid var(--rule); }
+.method-cols { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 8mm; margin-top: 2.6mm; }
+.method-cols h4 {
+  margin: 0 0 1.6mm; font-size: 6pt; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.method-cols p { margin: 0; font-size: 6.3pt; line-height: 1.5; color: var(--ink-soft); }
+
+/* ─────────────── Sensitivity grid ─────────────── */
+.sens { width: 100%; border-collapse: collapse; }
+.sens th {
+  font-size: 5.6pt; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600; padding: 0 0 1.6mm; text-align: center;
+}
+.sens th.corner { text-align: left; }
+.sens td {
+  font-size: 6.9pt; text-align: center; padding: 1.5mm 0.8mm;
+  border: 0.5pt solid var(--rule-soft); font-variant-numeric: tabular-nums;
+}
+.sens td.axis {
+  border: 0; text-align: right; padding-right: 2.2mm;
+  font-size: 6.2pt; color: var(--muted); font-weight: 600; white-space: nowrap;
+}
+.sens td.b1 { background: rgba(142,44,34,.10); }
+.sens td.b2 { background: rgba(142,44,34,.04); }
+.sens td.b3 { background: rgba(30,107,72,.05); }
+.sens td.b4 { background: rgba(30,107,72,.11); }
+.sens td.b5 { background: rgba(30,107,72,.18); }
+.sens td.here { outline: 1.1pt solid var(--ink); outline-offset: -1.1pt; font-weight: 700; }
+
+/* ─────────────── Risk register ─────────────── */
+.risk {
+  display: grid; grid-template-columns: 6mm 1fr 24mm 24mm;
+  column-gap: 4mm; align-items: start;
+  padding: 1.9mm 0; border-top: 0.6pt solid var(--rule-soft);
+}
+.risk:first-of-type { border-top: 0.6pt solid var(--rule); }
+.risk-no {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 10.5pt; font-weight: 600; color: var(--brass); line-height: 1;
+}
+.risk-title { font-size: 7.4pt; font-weight: 600; line-height: 1.25; }
+.risk-desc { margin-top: 1.1mm; font-size: 6.4pt; line-height: 1.4; color: var(--muted); }
+.risk-cell .score-label { font-size: 5.6pt; }
+
+/* ─────────────── Catalyst register ─────────────── */
+/* Eight rows have to fit alongside a timeline, so every stack in the row is
+   budgeted to the same ~10mm: date, title plus a two-line note, and the two
+   score cells. Lengthening a note past two lines costs the whole page. */
+.catrow {
+  display: grid; grid-template-columns: 18mm 1fr 21mm 22mm;
+  column-gap: 4mm; align-items: start;
+  padding: 1.2mm 0; border-top: 0.6pt solid var(--rule-soft);
+}
+.catrow:first-of-type { border-top: 0.6pt solid var(--rule); }
+.cat-day {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 9.5pt; font-weight: 600; line-height: 1; white-space: nowrap;
+}
+.cat-year { margin-top: 1mm; font-size: 6.2pt; color: var(--muted); }
+.cat-conf {
+  margin-top: 1.4mm; font-size: 5.4pt; letter-spacing: .12em;
+  text-transform: uppercase; font-weight: 600; color: var(--faint);
+}
+.cat-conf.fixed { color: var(--ink-soft); }
+.cat-name { font-size: 7.4pt; font-weight: 600; line-height: 1.25; }
+.cat-note { margin-top: 1mm; font-size: 6.2pt; line-height: 1.35; color: var(--muted); }
+.cat-note b { color: var(--ink-soft); font-weight: 600; }
+.cat-cell .score-label { font-size: 5.6pt; }
+.cat-cell .meter { margin: 1.9mm 0 1.3mm; }
+.cat-skew {
+  margin: 1.3mm 0 1.1mm;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 8.6pt; font-weight: 600; line-height: 1; color: var(--tone, var(--ink));
+}
+.cat-foot { font-size: 6pt; line-height: 1.3; color: var(--faint); }
+
+/* ─────────────── Callout ─────────────── */
+.callout { border: 0.6pt solid var(--rule); background: var(--wash); padding: 3.2mm 4mm; }
+.callout.plain { background: transparent; }
+.callout-body { margin-top: 2.4mm; font-size: 7pt; line-height: 1.5; color: var(--ink-soft); }
+.callout-big {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 16pt; font-weight: 600; line-height: 1; margin-top: 2mm; letter-spacing: -.01em;
+}
+
+/* Key/value rows inside a callout or card */
+.kv { display: flex; justify-content: space-between; align-items: baseline; gap: 3mm; padding: 1.3mm 0; }
+.kv + .kv { border-top: 0.6pt solid var(--rule-soft); }
+.kv dt { font-size: 6.6pt; color: var(--muted); }
+.kv dd { margin: 0; font-size: 7.4pt; font-weight: 600; font-variant-numeric: tabular-nums; }
+dl.kvlist { margin: 0; }
+
+/* ─────────────── Footer ─────────────── */
+.footer { margin-top: auto; padding-top: 3.4mm; border-top: 0.6pt solid var(--rule); }
+.footer-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8mm; }
+.footnote { font-size: 6pt; color: var(--faint); letter-spacing: .03em; line-height: 1.5; max-width: 158mm; }
+.footer-page { font-size: 6.3pt; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+@media print {
+  html, body { background: #fff; }
+  .page { margin: 0; box-shadow: none; page-break-after: always; break-after: page; }
+  .page:last-of-type { page-break-after: auto; break-after: auto; }
+}
+
+
+:root { --fit: 1; }
+body { background: #55585C; }
+.sheet {
+  width: calc(210mm * var(--fit));
+  height: calc(297mm * var(--fit));
+  margin: 0 auto 14px;
+  overflow: hidden;
+}
+.sheet > .page { margin: 0; transform: scale(var(--fit)); transform-origin: top left; }
+
+.bar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 10px 16px; margin-bottom: 14px;
+  background: #14181D; color: #FDFDFC;
+  font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.bar-id {
+  min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+}
+.bar-id b { color: #C9A867; font-weight: 600; }
+.bar-id span { color: rgba(253,253,252,.4); }
+@media (max-width: 520px) { .bar-id { letter-spacing: .04em; } }
+.ta-cta {
+  max-width: 720px; margin: 34px auto 60px; padding: 0 20px; text-align: center;
+  font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.ta-cta h2 {
+  font-family: "Source Serif 4", Georgia, serif; font-size: 25px; font-weight: 600;
+  letter-spacing: -.01em; color: var(--ink); margin: 0 0 10px;
+}
+.ta-cta p { font-size: 14.5px; line-height: 1.62; color: var(--ink-soft); margin: 0 0 20px; }
+.ta-cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.ta-btn {
+  display: inline-block; padding: 11px 20px; border-radius: 3px; text-decoration: none;
+  font-size: 13px; font-weight: 600; letter-spacing: .01em;
+  background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
+}
+.ta-btn:hover { background: #000; }
+.ta-btn.ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
+.ta-btn.ghost:hover { border-color: var(--ink); }
+.ta-cta-note { margin-top: 13px; font-size: 12px; color: var(--muted); }
+
+.bar-back { border-color: transparent !important; padding-left: 0 !important; opacity: .75; }
+.bar-back:hover { opacity: 1; }
+.bar a {
+  flex: none; padding: 7px 13px; border: 1px solid rgba(253,253,252,.32); border-radius: 2px;
+  color: #FDFDFC; text-decoration: none; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+}
+.bar a:hover { background: #FDFDFC; color: #14181D; border-color: #FDFDFC; }
+
+@media print {
+  :root { --fit: 1; }
+  .bar { display: none; }
+  .sheet { width: auto; height: auto; overflow: visible; margin: 0; }
+  .sheet > .page { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <a class="bar-back" href="../reports.html">&larr;&nbsp; All reports</a>
+  <div class="bar-id">Ticker Alpha <span>&middot;</span> <b>Space Exploration Technologies Corp.</b> <span>&middot;</span> NASDAQ: SPCX</div>
+  <a href="spcx.pdf" download>Download PDF</a>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <!-- ══════════ MASTHEAD ══════════ -->
+  <header class="masthead">
+    <div class="brand">
+      <div class="seal">TA</div>
+      <div>
+        <div class="brand-name">Ticker Alpha</div>
+        <div class="brand-sub">Independent Equity Research</div>
+      </div>
+    </div>
+    <div class="masthead-right">
+      <div class="tag">AI Research Report</div>
+      <div class="masthead-meta">7 August 2026 &nbsp;·&nbsp; Initiation of coverage</div>
+    </div>
+  </header>
+
+  <!-- ══════════ IDENTITY ══════════ -->
+  <section class="identity">
+    <div class="ticker-line">NASDAQ: SPCX</div>
+    <h1 class="company">Space Exploration Technologies Corp.</h1>
+    <div class="classification">
+      Industrials<span>/</span>Aerospace &amp; Defense<span>·</span>Mega Cap<span>·</span>Reported in USD
+    </div>
+    <p class="descriptor">
+      Launch services, the Starlink broadband constellation, and Starship heavy-lift development.
+      Listed 12 June 2026; ~22,000 employees; CEO Elon Musk.
+    </p>
+  </section>
+
+  <!-- ══════════ THE CALL ══════════ -->
+  <section class="call">
+    <div class="call-main">
+      <div class="call-head">
+        <div class="ch-left">
+          <div class="rating-word">Bullish</div>
+          <div class="rail">
+            <div>Bearish</div>
+            <div>Neutral</div>
+            <div class="on">Bullish</div>
+          </div>
+        </div>
+        <div class="ch-rule"></div>
+        <div class="ch-right">
+          <div class="price-value">$128.85</div>
+          <div class="ch-label">Last close · 7 Aug 2026</div>
+          <div class="price-range">Since IPO $104.83–$225.64</div>
+        </div>
+      </div>
+
+      <div class="rating-note">Initiation &nbsp;·&nbsp; 12-month horizon &nbsp;·&nbsp; Risk: High</div>
+
+      <p class="thesis">
+        Eight weeks after listing the shares are <b>42.9%</b> off the IPO-week high and
+        <b>19.9%</b> below the first close — a washout that has not touched the business.
+        Starlink density and reusable Falcon economics are already visible in a Q2 step-change
+        to $7.81B of revenue; Starship is the option that turns a launch contractor into a
+        platform. We are bullish on that asymmetry and <b>28.8%</b> below the Street on price.
+      </p>
+
+    </div>
+
+    <aside class="valuation">
+      <div class="vhead">
+        <div class="micro">Ticker Alpha Consensus</div>
+        <div class="sub">12-Month</div>
+      </div>
+
+      <div class="scen">
+        <div class="scen-row head">
+          <span>Scenario</span><span>Target</span><span>Return</span><span>Odds</span>
+        </div>
+        <div class="scen-row">
+          <div class="name row-bull"><i></i>Bull</div>
+          <div class="n">$292.00</div><div class="n pos">+126.6%</div><div class="p">25%</div>
+        </div>
+        <div class="scen-row is-base">
+          <div class="name row-base"><i></i>Base</div>
+          <div class="n b">$150.00</div><div class="n b pos">+16.4%</div><div class="p">50%</div>
+        </div>
+        <div class="scen-row">
+          <div class="name row-bear"><i></i>Bear</div>
+          <div class="n">$48.00</div><div class="n neg">−62.7%</div><div class="p">25%</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="vhead">
+        <div class="micro">Wall Street Consensus</div>
+        <div class="sub">35 Analysts</div>
+      </div>
+      <div class="street-line">
+        <div class="street-val">$210.70</div>
+        <div class="street-up pos">+63.5%</div>
+      </div>
+      <div class="street-n">Range $115–$401 · median $210</div>
+      <div class="dist">
+        <span style="flex:27"></span><span style="flex:6"></span><span style="flex:2"></span>
+      </div>
+      <div class="dist-key">27 Buy &nbsp;·&nbsp; 6 Hold &nbsp;·&nbsp; 2 Sell</div>
+      <div class="vs-street">Our base case is <b>28.8% below</b> the Street mean.</div>
+    </aside>
+
+    <div class="triggers">
+      <div class="micro">What Would Change Our View</div>
+      <div class="trigger up"><i>▲</i><span>Starship V3 completes a clean orbital propellant transfer before year-end</span></div>
+      <div class="trigger down"><i>▼</i><span>Lock-up expiry floods free float without a staged secondary</span></div>
+    </div>
+
+    <div class="catalysts">
+      <div class="micro">Key Catalysts</div>
+      <div class="cat-row"><span class="cat-date">Aug–Sep 2026</span><span>Starship V3 refuelling demo</span></div>
+      <div class="cat-row"><span class="cat-date">early Nov 2026</span><span>Q3 FY26 results</span></div>
+      <div class="cat-row"><span class="cat-date">9 Dec 2026</span><span>180-day lock-up expiry</span></div>
+    </div>
+  </section>
+
+  <!-- ══════════ KEY METRICS ══════════ -->
+  <section class="metrics">
+    <div class="metric">
+      <div class="metric-label">Market Cap</div>
+      <div class="metric-value">$964.8B</div>
+      <div class="metric-sub">7.49B shares out</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Enterprise Value</div>
+      <div class="metric-value">$904.2B</div>
+      <div class="metric-sub">Net cash $60.6B</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Revenue FY25</div>
+      <div class="metric-value">$18.7B</div>
+      <div class="metric-sub"><b class="pos">+33.2%</b> YoY</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Q2 FY26 Rev</div>
+      <div class="metric-value">$7.81B</div>
+      <div class="metric-sub"><b class="pos">+66.5%</b> QoQ</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Gross Margin Q2</div>
+      <div class="metric-value">55.3%</div>
+      <div class="metric-sub">Op. margin <b class="neg">−1.8%</b></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">EV / Sales FY26E</div>
+      <div class="metric-value">22.3×</div>
+      <div class="metric-sub"><b class="pos">6.3×</b> on FY28E</div>
+    </div>
+  </section>
+
+  <!-- ══════════ PRICE CHART ══════════ -->
+  <section class="chart-block">
+    <div class="chart-head">
+      <div class="chart-title">Share Price — Since IPO, 12 Months Forward</div>
+      <div class="chart-note">Daily closes since 12 June 2026, USD</div>
+    </div>
+
+    <div class="chart">
+      <!-- fig:price-path -->
+<svg viewBox="0 0 800 160" role="img" aria-label="Twelve months of weekly closes for SPCX with bull, base and bear twelve-month targets">
+<defs><linearGradient id="pp-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#14181D" stop-opacity="0.10"/><stop offset="100%" stop-color="#14181D" stop-opacity="0"/></linearGradient></defs>
+<rect x="220" y="10" width="420" height="136" fill="#F5F4F1"/>
+<rect x="220" y="10" width="420" height="96.77" fill="#797F86" fill-opacity="0.13"/>
+<text x="228" y="21" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4">Street target range $115–$401 · mean $210.7</text>
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="8" y1="140.77" x2="640" y2="140.77"/><line x1="8" y1="114.62" x2="640" y2="114.62"/><line x1="8" y1="88.46" x2="640" y2="88.46"/><line x1="8" y1="62.31" x2="640" y2="62.31"/><line x1="8" y1="36.15" x2="640" y2="36.15"/><line x1="8" y1="10" x2="640" y2="10"/></g>
+<line x1="8" y1="146" x2="640" y2="146" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="8"><text x="12" y="138.27">50</text><text x="12" y="112.12">100</text><text x="12" y="85.96">150</text><text x="12" y="59.81">200</text><text x="12" y="33.65">250</text><text x="12" y="7.5">300</text></g>
+<path d="M8,82.73 L13.58,66.23 L19.16,61.37 L24.74,66.59 L30.32,70.15 L35.89,86.06 L41.47,85.27 L47.05,86.09 L52.63,86.89 L58.21,86.77 L63.79,81.04 L69.37,77.55 L74.95,84.52 L80.53,82.18 L86.11,83.01 L91.68,88.74 L97.26,89.35 L102.84,87.33 L108.42,90.92 L114,94.14 L119.58,95.74 L125.16,96.17 L130.74,98.34 L136.32,102.07 L141.89,104.23 L147.47,102.3 L153.05,106.63 L158.63,105.07 L164.21,106.73 L169.79,107.55 L175.37,106.03 L180.95,108.05 L186.53,108.23 L192.11,110.24 L197.68,107.02 L203.26,101.37 L208.84,110.29 L214.42,106.81 L220,99.52 L220,146 L8,146 Z" fill="url(#pp-fade)"/>
+<polyline points="8,82.73 13.58,66.23 19.16,61.37 24.74,66.59 30.32,70.15 35.89,86.06 41.47,85.27 47.05,86.09 52.63,86.89 58.21,86.77 63.79,81.04 69.37,77.55 74.95,84.52 80.53,82.18 86.11,83.01 91.68,88.74 97.26,89.35 102.84,87.33 108.42,90.92 114,94.14 119.58,95.74 125.16,96.17 130.74,98.34 136.32,102.07 141.89,104.23 147.47,102.3 153.05,106.63 158.63,105.07 164.21,106.73 169.79,107.55 175.37,106.03 180.95,108.05 186.53,108.23 192.11,110.24 197.68,107.02 203.26,101.37 208.84,110.29 214.42,106.81 220,99.52" fill="none" stroke="#14181D" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M220,99.52 L640,14.18 L640,141.82 Z" fill="#14181D" fill-opacity="0.05"/>
+<line x1="220" y1="99.52" x2="640" y2="14.18" stroke="#1E6B48" stroke-width="1.1" stroke-dasharray="4 3"/>
+<line x1="220" y1="99.52" x2="640" y2="88.46" stroke="#14181D" stroke-width="1.7"/>
+<line x1="220" y1="99.52" x2="640" y2="141.82" stroke="#8E2C22" stroke-width="1.1" stroke-dasharray="4 3"/>
+<circle cx="220" cy="99.52" r="5.4" fill="#14181D" opacity="0.1"/>
+<circle cx="220" cy="99.52" r="2.6" fill="#14181D"/>
+<circle cx="640" cy="14.18" r="2.7" fill="#1E6B48"/>
+<circle cx="640" cy="88.46" r="3.1" fill="#14181D"/>
+<circle cx="640" cy="141.82" r="2.7" fill="#8E2C22"/>
+<g font-family="Inter, sans-serif"><text x="650" y="13.68" fill="#1E6B48" font-size="11" font-weight="700">$292</text><text x="650" y="23.68" fill="#797F86" font-size="7.8">Bull · +127%</text><text x="650" y="87.96" fill="#14181D" font-size="11" font-weight="700">$150</text><text x="650" y="97.96" fill="#797F86" font-size="7.8">Base · +16.4%</text><text x="650" y="141.32" fill="#8E2C22" font-size="11" font-weight="700">$48</text><text x="650" y="151.32" fill="#797F86" font-size="7.8">Bear · −62.7%</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="8"><text x="8" y="157" text-anchor="start">12 JUN</text><text x="113.33" y="157" text-anchor="middle">JUL</text><text x="218.67" y="157" text-anchor="middle" fill="#797F86" font-weight="600">TODAY</text><text x="324" y="157" text-anchor="middle">NOV</text><text x="429.33" y="157" text-anchor="middle">FEB 2027</text><text x="534.67" y="157" text-anchor="middle">MAY</text><text x="640" y="157" text-anchor="middle">AUG 2027</text></g>
+</svg>
+<!-- /fig:price-path -->
+    </div>
+  </section>
+
+  <!-- ══════════ SCORECARD ══════════ -->
+  <div class="scorecard-head">
+    <div class="micro">Ticker Alpha Scorecard</div>
+    <div class="chart-note">Scored against curated launch, satcom and defence peers · 8 weeks of public trading history</div>
+  </div>
+  <section class="scorecard">
+    <div class="t-bull">
+      <div class="score-label">Growth</div>
+      <div class="meter"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+      <div class="score-verdict">Exceptional</div>
+    </div>
+    <div class="t-bear">
+      <div class="score-label">Profitability</div>
+      <div class="meter"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div>
+      <div class="score-verdict">Still negative</div>
+    </div>
+    <div class="t-bull">
+      <div class="score-label">Balance Sheet</div>
+      <div class="meter"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+      <div class="score-verdict">Fortress cash</div>
+    </div>
+    <div class="t-neutral">
+      <div class="score-label">Valuation</div>
+      <div class="meter"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+      <div class="score-verdict">Rich trailing, fair FY28E</div>
+    </div>
+  </section>
+
+  <!-- ══════════ FOOTER ══════════ -->
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Data as of 7 August 2026 close. Prices, estimates and analyst consensus from Financial Modeling
+        Prep; fundamentals from SpaceX SEC filings. Listed 12 June 2026 — eight weeks of public price
+        history. Scenario targets are Ticker Alpha model outputs based on stated assumptions, set
+        independently of Wall Street estimates, and are not predictions. This report is generated
+        automatically and is for informational purposes only — it is not investment advice, an offer,
+        or a solicitation to buy or sell any security. Past performance does not indicate future results.
+      </div>
+      <div class="footer-page">Page 1 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>SpaceX</b> &nbsp;·&nbsp; NASDAQ: SPCX</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">02</span> Business &amp; Model</div>
+  </header>
+
+  <section class="page-title">
+    <h2>What SpaceX Actually Sells</h2>
+  </section>
+
+  <div class="prose two" style="margin-top:4mm">
+    <p>
+      Three products share one factory system. <b>Launch</b> sells seats and kilograms on Falcon and,
+      eventually, Starship. <b>Starlink</b> sells recurring broadband from a LEO constellation the
+      company builds and flies itself. <b>Starship</b> is still an R&amp;D line — and the option that
+      collapses launch cost enough to densify Starlink and open lunar and Mars contracts.
+    </p>
+    <p>
+      It is the opposite of fabless. Capex was <b>111%</b> of FY25 revenue and Q2 alone spent
+      <b>$28.5B</b> — 364% of that quarter’s sales — on vehicles, satellites and ground. Gross margin
+      can look software-like at 55% while free cash flow stays deeply negative. That is the model,
+      not a temporary glitch.
+    </p>
+  </div>
+
+  <!-- ══════════ UNIT ECONOMICS ══════════ -->
+  <section class="statstrip c6" style="margin-top:5mm">
+    <div class="metric">
+      <div class="metric-label">Revenue / Employee</div>
+      <div class="metric-value">$0.85M</div>
+      <div class="metric-sub">~22,000 staff</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">R&amp;D / Revenue</div>
+      <div class="metric-value">46.3%</div>
+      <div class="metric-sub">FY25</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Capex / Revenue</div>
+      <div class="metric-value">111%</div>
+      <div class="metric-sub">FY25 · heavy manufacturing</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Gross Margin Q2</div>
+      <div class="metric-value">55.3%</div>
+      <div class="metric-sub">Op. margin −1.8%</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Net Cash</div>
+      <div class="metric-value">$60.6B</div>
+      <div class="metric-sub">$100.0B cash · $39.4B debt</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Free Float</div>
+      <div class="metric-value">4.9%</div>
+      <div class="metric-sub">366M of 7.49B shares</div>
+    </div>
+  </section>
+
+  <!-- ══════════ QUARTERS + FLOAT / MOAT ══════════ -->
+  <section class="band cols-2w" style="margin-top:5mm">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Filed Quarters Since Listing</div>
+        <div class="band-note">Only three quarters on the public record</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:quarter-trend -->
+<svg viewBox="0 0 404.49 150" role="img" aria-label="Only three quarters have been filed since listing · gross margin on the right axis">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="30" y1="99.11" x2="370.49" y2="99.11"/><line x1="30" y1="78.22" x2="370.49" y2="78.22"/><line x1="30" y1="57.33" x2="370.49" y2="57.33"/><line x1="30" y1="36.44" x2="370.49" y2="36.44"/></g>
+<g font-family="Inter, sans-serif"><rect x="50.43" y="77.52" width="72.64" height="42.48" fill="#14181D"/><text x="86.75" y="71.52" fill="#14181D" font-size="7.8" font-weight="600" text-anchor="middle">$4.07B</text><rect x="163.93" y="70.97" width="72.64" height="49.03" fill="#14181D"/><text x="200.25" y="64.97" fill="#14181D" font-size="7.8" font-weight="600" text-anchor="middle">$4.69B</text><rect x="277.43" y="38.39" width="72.64" height="81.61" fill="#14181D"/><text x="313.75" y="32.39" fill="#14181D" font-size="7.8" font-weight="600" text-anchor="middle">$7.81B</text></g>
+<polyline points="86.75,64.54 200.25,77.23 313.75,48.09" fill="none" stroke="#A9853F" stroke-width="1.6" stroke-linejoin="round"/>
+<circle cx="86.75" cy="64.54" r="2.4" fill="#A9853F"/>
+<circle cx="200.25" cy="77.23" r="2.4" fill="#A9853F"/>
+<circle cx="313.75" cy="48.09" r="2.4" fill="#A9853F"/>
+<text x="320.75" y="51.09" fill="#A9853F" font-family="Inter, sans-serif" font-size="8" font-weight="700">55.3%</text>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.2"><text x="376.49" y="99.5">45%</text><text x="376.49" y="76">50%</text><text x="376.49" y="52.5">55%</text></g>
+<line x1="30" y1="120" x2="370.49" y2="120" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="25" y="123">0</text><text x="25" y="81.22">4B</text><text x="25" y="39.44">8B</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="86.75" y="134">Q1 25</text><text x="200.25" y="134">Q1 26</text><text x="313.75" y="134">Q2 26</text></g>
+<text x="6" y="11" fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7">Only three quarters have been filed since listing · gross margin on the right axis</text>
+</svg>
+<!-- /fig:quarter-trend -->
+      </div>
+      <p style="margin:3mm 0 0;font-size:7.1pt;line-height:1.45;color:var(--ink-soft)">
+        Q2–Q4 FY25 sit inside the S-1 annual only. The public series starts at Q1 FY25, then jumps to
+        Q1–Q2 FY26 — not a continuous run-rate, and the caption on the chart says so.
+      </p>
+    </div>
+
+    <div>
+      <div class="band-head">
+        <div class="band-title">Who Owns The Shares</div>
+        <div class="band-note">Lock-up lifts 9 Dec 2026</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:float-unlock -->
+<svg viewBox="0 0 404.49 96" role="img" aria-label="Share count split between free float, insiders and other locked pre-IPO holders">
+<g font-family="Inter, sans-serif"><rect x="0" y="30" width="19.76" height="22" fill="#A9853F"/><line x1="9.88" y1="27" x2="9.88" y2="18" stroke="#A9853F" stroke-width="1.2"/><text x="9.88" y="14" fill="#A9853F" font-size="8" font-weight="700" text-anchor="start">Free float · 4.9%</text><rect x="19.76" y="30" width="233.8" height="22" fill="#14181D"/><line x1="19.76" y1="30" x2="19.76" y2="52" stroke="#FDFDFC" stroke-width="1.2"/><text x="27.76" y="40" fill="#FDFDFC" font-size="8" font-weight="600">Insiders and directors</text><text x="27.76" y="49.5" fill="#FDFDFC" font-size="7.6" opacity="0.85">57.8%</text><rect x="253.56" y="30" width="150.88" height="22" fill="#CDD0D2"/><line x1="253.56" y1="30" x2="253.56" y2="52" stroke="#FDFDFC" stroke-width="1.2"/><text x="261.56" y="40" fill="#FDFDFC" font-size="8" font-weight="600">Other pre-IPO holders</text><text x="261.56" y="49.5" fill="#FDFDFC" font-size="7.6" opacity="0.85">37.3%</text></g>
+<text x="0" y="84" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4">366M shares trade freely today out of 7.49B outstanding. The 180-day lock-up lifts on 9 December 2026.</text>
+</svg>
+<!-- /fig:float-unlock -->
+      </div>
+
+      <div class="band-head" style="margin-top:4mm">
+        <div class="band-title">Moat Assessment</div>
+        <div class="band-note">Wide on launch · Narrower on satcom</div>
+      </div>
+      <div class="band-body t-bull">
+        <div class="meter"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div style="font-size:7.1pt;line-height:1.45;color:var(--ink-soft);margin-bottom:2.4mm">
+          Reuse and cadence are real. Capex intensity and key-person concentration are the offsets.
+        </div>
+
+        <div class="micro" style="margin-bottom:1mm">Structural Advantages</div>
+        <div class="trigger up"><i>▲</i><span>Reusable Falcon economics no peer has matched at cadence</span></div>
+        <div class="trigger up"><i>▲</i><span>Starlink density compounds coverage and ARPU leverage</span></div>
+        <div class="trigger up"><i>▲</i><span>Starship is the only vehicle sized for mass LEO refill</span></div>
+
+        <div class="micro" style="margin:2.8mm 0 1mm">Structural Weaknesses</div>
+        <div class="trigger down"><i>▼</i><span>Capex can outrun operating cash for years more</span></div>
+        <div class="trigger down"><i>▼</i><span>Launch and satcom revenue still concentrated in few programmes</span></div>
+        <div class="trigger down"><i>▼</i><span>Spectrum, debris and export rules sit outside the factory</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="micro" style="margin-top:4mm">Competes Against</div>
+  <div class="pills">
+    <span class="pill on">ULA</span><span class="pill on">Blue Origin</span><span class="pill on">Rocket Lab</span><span class="pill on">Amazon Kuiper</span><span class="pill">OneWeb</span><span class="pill">China LEO</span><span class="pill">Boeing SLS</span>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Headcount, float and balance-sheet figures from SpaceX SEC filings and share-float data via
+        Financial Modeling Prep. Revenue per employee, R&amp;D and capital-intensity ratios are Ticker
+        Alpha calculations on FY25. Segment mix is not disclosed; moat scoring and commentary are model
+        outputs, not statements of fact.
+      </div>
+      <div class="footer-page">Page 2 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>SpaceX</b> &nbsp;·&nbsp; NASDAQ: SPCX</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">03</span> Financial Performance</div>
+  </header>
+
+  <section class="page-title">
+    <h2>Has It Actually Performed?</h2>
+    <p class="page-lede">
+      Revenue has compounded at roughly a third a year for two fiscal years and Q2 jumped another
+      <b>66.5%</b> sequentially. Cash has not followed: H1 free cash flow was <b>−$34.1B</b> against
+      $12.5B of sales. Growth is not the open question. Whether the factory ever funds itself is.
+    </p>
+  </section>
+
+  <!-- ══════════ QUALITY STRIP ══════════ -->
+  <section class="statstrip c5" style="margin-top:4mm">
+    <div class="metric">
+      <div class="metric-label">2-Yr Rev CAGR</div>
+      <div class="metric-value">34.1%</div>
+      <div class="metric-sub">FY23 → FY25</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Q2 Sequential</div>
+      <div class="metric-value pos">+66.5%</div>
+      <div class="metric-sub">$7.81B on $4.69B</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">H1 Free Cash Flow</div>
+      <div class="metric-value neg">−$34.1B</div>
+      <div class="metric-sub">On $12.5B H1 revenue</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Capex / Rev Q2</div>
+      <div class="metric-value neg">364%</div>
+      <div class="metric-sub">$28.5B spent</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Net Cash</div>
+      <div class="metric-value">$60.6B</div>
+      <div class="metric-sub">Post-IPO balance sheet</div>
+    </div>
+  </section>
+
+  <!-- ══════════ THREE-YEAR SUMMARY ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">Three-Year Summary</div>
+      <div class="band-note">$B · only three fiscal years on the public record</div>
+    </div>
+    <div class="band-body">
+      <table class="dtable compact">
+        <thead>
+          <tr>
+            <th style="width:32mm">&nbsp;</th>
+            <th style="width:18mm">FY23</th>
+            <th style="width:18mm">FY24</th>
+            <th style="width:18mm">FY25</th>
+            <th style="width:72mm;text-align:left;padding-left:6mm">What it says</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Revenue</td>
+            <td>10.4</td><td>14.0</td><td><b>18.7</b></td>
+            <td class="say" style="padding-left:6mm">Near-doubled in two years, off a real base</td>
+          </tr>
+          <tr>
+            <td>Revenue growth</td>
+            <td>—</td><td>+34.9%</td><td><b>+33.2%</b></td>
+            <td class="say" style="padding-left:6mm">Steady mid-30s — not a one-year spike</td>
+          </tr>
+          <tr>
+            <td>Gross margin</td>
+            <td>41.2%</td><td>42.9%</td><td><b>49.4%</b></td>
+            <td class="say" style="padding-left:6mm">Rising with Starlink mix and Falcon cadence</td>
+          </tr>
+          <tr>
+            <td>Operating margin</td>
+            <td class="neg">−33.7%</td><td>3.3%</td><td class="neg"><b>−13.9%</b></td>
+            <td class="say" style="padding-left:6mm">FY24 blip; R&amp;D and Starship pulled it back</td>
+          </tr>
+          <tr class="em">
+            <td>Free cash flow</td>
+            <td>0.1</td><td class="neg">−5.4</td><td class="neg"><b>−14.0</b></td>
+            <td class="say" style="padding-left:6mm"><b>Capex has outrun OCF every year since FY23</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════ FINANCIAL CONDITION ══════════ -->
+  <section class="statstrip c5" style="margin-top:4mm">
+    <div class="metric">
+      <div class="metric-label">Cash &amp; Investments</div>
+      <div class="metric-value sm">$100.0B</div>
+      <div class="metric-sub">Q2 10-Q</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Total Debt</div>
+      <div class="metric-value sm">$39.4B</div>
+      <div class="metric-sub">Gross leverage low vs cash</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Net Cash</div>
+      <div class="metric-value sm pos">$60.6B</div>
+      <div class="metric-sub"><b class="pos">Fortress post-IPO</b></div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Current Ratio</div>
+      <div class="metric-value sm">5.1×</div>
+      <div class="metric-sub">Liquidity not the constraint</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Net PP&amp;E</div>
+      <div class="metric-value sm">$66.9B</div>
+      <div class="metric-sub">Factory, fleet, constellation</div>
+    </div>
+  </section>
+
+  <!-- ══════════ THREE VIEWS ══════════ -->
+  <section class="band cols-3" style="margin-top:4.5mm">
+    <div>
+      <div class="band-head"><div class="band-title">Revenue</div></div>
+      <div class="band-body chart">
+        <!-- fig:revenue -->
+<svg viewBox="0 0 242.7 132" role="img" aria-label="Revenue by fiscal year with year-on-year growth">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="28" y1="86.73" x2="238.7" y2="86.73"/><line x1="28" y1="69.45" x2="238.7" y2="69.45"/><line x1="28" y1="52.18" x2="238.7" y2="52.18"/><line x1="28" y1="34.91" x2="238.7" y2="34.91"/></g>
+<g font-family="Inter, sans-serif"><rect x="39.24" y="68.12" width="47.76" height="35.88" fill="#79838B"/><rect x="109.47" y="55.58" width="47.76" height="48.42" fill="#79838B"/><text x="133.35" y="49.58" fill="#797F86" font-size="7.4" font-weight="600" text-anchor="middle">+34.9%</text><rect x="179.7" y="39.49" width="47.76" height="64.51" fill="#14181D"/><text x="203.58" y="33.49" fill="#797F86" font-size="7.4" font-weight="600" text-anchor="middle">+33.2%</text></g>
+<line x1="28" y1="104" x2="238.7" y2="104" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="23" y="107">0</text><text x="23" y="72.45">10B</text><text x="23" y="37.91">20B</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="63.12" y="117">23</text><text x="133.35" y="117">24</text><text x="203.58" y="117">25</text></g>
+<text x="28" y="11" fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.4">$M revenue · YoY growth above</text>
+</svg>
+<!-- /fig:revenue -->
+      </div>
+    </div>
+    <div>
+      <div class="band-head"><div class="band-title">Margins</div></div>
+      <div class="band-body">
+        <div class="legend" style="margin-bottom:2mm">
+          <span><i class="line" style="border-color:#2C3238"></i>Gross</span>
+          <span><i class="line" style="border-color:#79838B"></i>Op.</span>
+          <span><i class="line" style="border-color:#A9853F"></i>FCF</span>
+        </div>
+        <div class="chart">
+          <!-- fig:margins -->
+<svg viewBox="0 0 242.7 132" role="img" aria-label="Gross, operating and free cash flow margin by fiscal year">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="28" y1="101.41" x2="206.7" y2="101.41"/><line x1="28" y1="80.73" x2="206.7" y2="80.73"/><line x1="28" y1="60.05" x2="206.7" y2="60.05"/><line x1="28" y1="39.37" x2="206.7" y2="39.37"/></g>
+<polyline points="28,38.75 117.35,37.87 206.7,34.51" fill="none" stroke="#2C3238" stroke-width="1.8" stroke-linejoin="round"/>
+<polyline points="28,77.48 117.35,58.35 206.7,67.24" fill="none" stroke="#79838B" stroke-width="1.4" stroke-linejoin="round"/>
+<polyline points="28,59.54 117.35,79.91 206.7,98.67" fill="none" stroke="#A9853F" stroke-width="1.4" stroke-linejoin="round"/>
+<circle cx="206.7" cy="34.51" r="2.6" fill="#2C3238"/>
+<circle cx="206.7" cy="67.24" r="2.6" fill="#79838B"/>
+<circle cx="206.7" cy="98.67" r="2.6" fill="#A9853F"/>
+<text x="212.7" y="37.51" fill="#2C3238" font-family="Inter, sans-serif" font-size="8" font-weight="600">49.4%</text>
+<text x="212.7" y="70.24" fill="#79838B" font-family="Inter, sans-serif" font-size="8" font-weight="600">-13.9%</text>
+<text x="212.7" y="101.67" fill="#A9853F" font-family="Inter, sans-serif" font-size="8" font-weight="600">-74.7%</text>
+<line x1="28" y1="104" x2="238.7" y2="104" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="23" y="104.41">-80%</text><text x="23" y="83.73">-40%</text><text x="23" y="63.05">0%</text><text x="23" y="42.37">40%</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="28" y="117">23</text><text x="117.35" y="117">24</text><text x="206.7" y="117">25</text></g>
+<text x="28" y="11" fill="#8E2C22" font-family="Inter, sans-serif" font-size="7.4" font-weight="600">Gross margin rising, cash margin collapsing</text>
+</svg>
+<!-- /fig:margins -->
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="band-head"><div class="band-title">Cash Deployment</div></div>
+      <div class="band-body">
+        <div class="legend" style="margin-bottom:2mm">
+          <span><i style="background:#79838B"></i>OCF</span>
+          <span><i style="background:#8E2C22"></i>Capex</span>
+        </div>
+        <div class="chart">
+          <!-- fig:cash-deployment -->
+<svg viewBox="0 0 242.7 132" role="img" aria-label="Operating cash flow against capital expenditure by fiscal year">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="28" y1="86.73" x2="238.7" y2="86.73"/><line x1="28" y1="69.45" x2="238.7" y2="69.45"/><line x1="28" y1="52.18" x2="238.7" y2="52.18"/><line x1="28" y1="34.91" x2="238.7" y2="34.91"/></g>
+<rect x="38.53" y="88.39" width="23.78" height="15.61" fill="#79838B"/><rect x="63.92" y="88.75" width="23.78" height="15.25" fill="#8E2C22"/>
+<rect x="108.77" y="84.05" width="23.78" height="19.95" fill="#79838B"/><rect x="134.15" y="65.44" width="23.78" height="38.56" fill="#8E2C22"/>
+<rect x="179" y="80.56" width="23.78" height="23.44" fill="#79838B"/><rect x="204.38" y="32.36" width="23.78" height="71.64" fill="#8E2C22"/>
+<line x1="28" y1="104" x2="238.7" y2="104" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="23" y="107">0</text><text x="23" y="72.45">10B</text><text x="23" y="37.91">20B</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="63.12" y="117">23</text><text x="133.35" y="117">24</text><text x="203.58" y="117">25</text></g>
+<text x="28" y="11" fill="#8E2C22" font-family="Inter, sans-serif" font-size="7.4" font-weight="600">Capex has outrun operating cash flow every year</text>
+</svg>
+<!-- /fig:cash-deployment -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="pull" style="margin-top:4mm">
+    <b>The burn is the growth programme.</b> Capex was 111% of FY25 revenue and 364% of Q2 sales.
+    Gross margin at 55% in the latest quarter says the unit economics work; free cash flow at
+    −$34.1B in a half-year says the build-out is still writing the cheques. Both can be true until
+    Starship cadence or Starlink ARPU changes the equation.
+  </p>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Income statement, cash flow and balance sheet from SpaceX SEC filings via Financial Modeling
+        Prep. Annual history covers only FY23–FY25; there is no public surprise series to chart. Free
+        cash flow is operating cash flow less capital expenditure; net cash is cash and short-term
+        investments less total debt as of the Q2 FY26 10-Q.
+      </div>
+      <div class="footer-page">Page 3 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>SpaceX</b> &nbsp;·&nbsp; NASDAQ: SPCX</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">04</span> Peers &amp; Relative Position</div>
+  </header>
+
+  <section class="page-title">
+    <h2>How Does It Compare?</h2>
+    <p class="page-lede">
+      Against a curated set of launch, satcom and defence primes, SpaceX is the growth outlier and
+      the valuation outlier. It ranks near the top on revenue growth and gross margin, near the
+      bottom on operating margin and return on capital, and trades at a sales multiple that only
+      works if Starlink and Starship deliver the FY28 path.
+    </p>
+  </section>
+
+  <!-- ══════════ COMPS ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">Comparable Companies</div>
+      <div class="band-note">Latest fiscal / TTM · sorted by market cap · SpaceX on FY25 vs today’s EV</div>
+    </div>
+    <div class="band-body">
+      <!-- fig:peer-table -->
+      <table class="dtable compact">
+        <thead>
+          <tr>
+            <th style="width:44mm">Company</th>
+            <th>Market cap</th>
+            <th>Rev growth</th>
+            <th>Gross margin</th>
+            <th>Op margin</th>
+            <th>ROIC</th>
+            <th>EV / Sales</th>
+            <th>EV / EBITDA</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="hl"><td>SpaceX <span class="sub">SPCX</span></td><td>$965B</td><td>+33.2%</td><td>49.4%</td><td class="neg">-13.9%</td><td class="neg">-3.6%</td><td>48.4×</td><td>210.8×</td></tr>
+          <tr><td>Boeing <span class="sub">BA</span></td><td>$183B</td><td>+34.5%</td><td>4.7%</td><td class="neg">-5.4%</td><td class="neg">-7.7%</td><td>2.4×</td><td>31.9×</td></tr>
+          <tr><td>Lockheed Martin <span class="sub">LMT</span></td><td>$134B</td><td>+5.7%</td><td>11.8%</td><td>11.9%</td><td>20.1%</td><td>2.0×</td><td>15.3×</td></tr>
+          <tr><td>Northrop Grumman <span class="sub">NOC</span></td><td>$80B</td><td>+2.2%</td><td>20.1%</td><td>10.2%</td><td>10.0%</td><td>2.2×</td><td>13.3×</td></tr>
+          <tr><td>Rocket Lab <span class="sub">RKLB</span></td><td>$48B</td><td>+38.0%</td><td>36.6%</td><td class="neg">-33.2%</td><td class="neg">-8.1%</td><td>68.4×</td><td class="sub">n/m</td></tr>
+          <tr><td>AST SpaceMobile <span class="sub">ASTS</span></td><td>$29B</td><td>+1505.2%</td><td class="neg">-27.0%</td><td class="neg">-440.5%</td><td class="neg">-6.4%</td><td>341.2×</td><td class="sub">n/m</td></tr>
+          <tr><td>Viasat <span class="sub">VSAT</span></td><td>$11B</td><td>+2.7%</td><td>30.4%</td><td>2.4%</td><td>0.0%</td><td>3.5×</td><td>8.3×</td></tr>
+          <tr><td>Iridium <span class="sub">IRDM</span></td><td>$5B</td><td>+4.9%</td><td>70.4%</td><td>23.8%</td><td>6.4%</td><td>7.8×</td><td>16.2×</td></tr>
+          <tr class="em"><td>Peer median <span class="sub">excl. SPCX</span></td><td>$48B</td><td>+5.7%</td><td>20.1%</td><td>2.4%</td><td>0.0%</td><td>3.5×</td><td>15.3×</td></tr>
+        </tbody>
+      </table>
+<!-- /fig:peer-table -->
+    </div>
+  </section>
+
+  <!-- ══════════ SCATTER + RANKS ══════════ -->
+  <section class="band cols-2w">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Growth Against Valuation</div>
+        <div class="band-note">Revenue growth vs EV/Sales · ASTS excluded from scatter</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:growth-vs-multiple -->
+<svg viewBox="0 0 404.49 196" role="img" aria-label="Revenue growth against EV to sales for Space Exploration Technologies Corp. and its peer set">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="30" y1="112.8" x2="390.49" y2="112.8"/><line x1="30" y1="76.8" x2="390.49" y2="76.8"/><line x1="30" y1="40.8" x2="390.49" y2="40.8"/></g>
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="45.67" y1="12" x2="45.67" y2="156"/><line x1="124.04" y1="12" x2="124.04" y2="156"/><line x1="202.41" y1="12" x2="202.41" y2="156"/><line x1="280.78" y1="12" x2="280.78" y2="156"/><line x1="359.15" y1="12" x2="359.15" y2="156"/></g>
+<line x1="45.67" y1="151.06" x2="374.82" y2="61.56" stroke="#14181D" stroke-width="1" stroke-dasharray="4 3" opacity="0.45"/>
+<text x="357.15" y="59.82" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4" text-anchor="end">peer fit</text>
+<g font-family="Inter, sans-serif"><circle cx="305.86" cy="61.68" r="7" fill="#A9853F" fill-opacity="0.18"/><circle cx="305.86" cy="61.68" r="3.8" fill="#A9853F"/><text x="298.86" y="64.68" fill="#14181D" font-size="8.8" font-weight="700" text-anchor="end">SPCX</text><circle cx="316.04" cy="144.48" r="2.8" fill="#79838B"/><text x="309.04" y="147.48" fill="#797F86" font-size="8" font-weight="500" text-anchor="end">BA</text><circle cx="90.34" cy="145.2" r="2.8" fill="#79838B"/><text x="97.34" y="148.2" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">LMT</text><circle cx="62.91" cy="144.84" r="2.8" fill="#79838B"/><text x="69.91" y="147.84" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">NOC</text><circle cx="343.47" cy="25.68" r="2.8" fill="#79838B"/><text x="336.47" y="28.68" fill="#797F86" font-size="8" font-weight="500" text-anchor="end">RKLB</text><circle cx="66.83" cy="142.5" r="2.8" fill="#79838B"/><text x="73.83" y="145.5" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">VSAT</text><circle cx="84.07" cy="134.76" r="2.8" fill="#79838B"/><text x="91.07" y="137.76" fill="#797F86" font-size="8" font-weight="500" text-anchor="start">IRDM</text></g>
+<line x1="30" y1="156" x2="390.49" y2="156" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="25" y="151.8">0×</text><text x="25" y="115.8">20×</text><text x="25" y="79.8">40×</text><text x="25" y="43.8">60×</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="45.67" y="171">0%</text><text x="124.04" y="171">10%</text><text x="202.41" y="171">20%</text><text x="280.78" y="171">30%</text><text x="359.15" y="171">40%</text></g>
+<text x="4" y="8" fill="#797F86" font-family="Inter, sans-serif" font-size="7.2" letter-spacing="0.08em" font-weight="600">EV / SALES</text>
+<text x="390.49" y="193" fill="#797F86" font-family="Inter, sans-serif" font-size="7.2" letter-spacing="0.08em" font-weight="600" text-anchor="end">REVENUE GROWTH, LATEST FISCAL YEAR</text>
+</svg>
+<!-- /fig:growth-vs-multiple -->
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head">
+        <div class="band-title">Where SpaceX Ranks</div>
+        <div class="band-note">Percentile in the eight-name set</div>
+      </div>
+      <div class="band-body">
+        <!-- fig:peer-ranks -->
+        <div class="pctrow t-neutral">
+          <div class="pctlab">Revenue growth</div>
+          <div class="pcttrack"><div class="pctfill" style="width:57%"></div></div>
+          <div class="pctval">57th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bull">
+          <div class="pctlab">Gross margin</div>
+          <div class="pcttrack"><div class="pctfill" style="width:86%"></div></div>
+          <div class="pctval">86th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bear">
+          <div class="pctlab">Operating margin</div>
+          <div class="pcttrack"><div class="pctfill" style="width:29%"></div></div>
+          <div class="pctval">29th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-neutral">
+          <div class="pctlab">Return on capital</div>
+          <div class="pcttrack"><div class="pctfill" style="width:43%"></div></div>
+          <div class="pctval">43th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bear">
+          <div class="pctlab">Cheapness on EV/Sales</div>
+          <div class="pcttrack"><div class="pctfill" style="width:29%"></div></div>
+          <div class="pctval">29th <span>pct</span></div>
+        </div>
+        <div class="pctrow t-bear">
+          <div class="pctlab">Cheapness on EV/EBITDA</div>
+          <div class="pcttrack"><div class="pctfill" style="width:0%"></div></div>
+          <div class="pctval">0th <span>pct</span></div>
+        </div>
+<!-- /fig:peer-ranks -->
+        <p style="margin:3mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          Cheapness ranks are low because there are almost no earnings to multiply. The growth and
+          gross-margin ranks are the operating story; the multiple is the bet on FY28.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <p class="pull" style="margin-top:4mm">
+    <b>Defence primes grow mid-single digits at 2× sales; Rocket Lab grows like SpaceX at 68×.</b>
+    SpaceX sits between them on growth and far above the primes on price. The scatter does not
+    explain the multiple — Starship optionality and Starlink recurrence do, or do not.
+  </p>
+
+  <!-- ══════════ THE ALTERNATIVES ══════════ -->
+  <section class="band cols-3">
+    <div>
+      <div class="band-head"><div class="band-title">Rocket Lab &nbsp;·&nbsp; RKLB</div></div>
+      <div class="band-body t-neutral">
+        <dl class="kvlist">
+          <div class="kv"><dt>Revenue growth</dt><dd class="pos">+38.0%</dd></div>
+          <div class="kv"><dt>Gross margin</dt><dd>36.6%</dd></div>
+          <div class="kv"><dt>Operating margin</dt><dd class="neg">−33.2%</dd></div>
+          <div class="kv"><dt>EV / Sales</dt><dd class="neg">68.4×</dd></div>
+        </dl>
+        <div class="score-verdict" style="margin-top:2.4mm">Smaller launch pure-play</div>
+        <div style="font-size:6.4pt;line-height:1.45;color:var(--muted);margin-top:1.2mm">
+          Same growth shape without Starlink recurrence or Starship scale — and a richer sales multiple.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head"><div class="band-title">Lockheed Martin &nbsp;·&nbsp; LMT</div></div>
+      <div class="band-body t-bull">
+        <dl class="kvlist">
+          <div class="kv"><dt>Revenue growth</dt><dd>+5.7%</dd></div>
+          <div class="kv"><dt>Operating margin</dt><dd class="pos">11.9%</dd></div>
+          <div class="kv"><dt>ROIC</dt><dd class="pos">20.1%</dd></div>
+          <div class="kv"><dt>EV / Sales</dt><dd class="pos">2.0×</dd></div>
+        </dl>
+        <div class="score-verdict" style="margin-top:2.4mm">The cash compounder</div>
+        <div style="font-size:6.4pt;line-height:1.45;color:var(--muted);margin-top:1.2mm">
+          Defence-prime economics SpaceX does not have yet — and will not trade like until margins land.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head"><div class="band-title">Boeing &nbsp;·&nbsp; BA</div></div>
+      <div class="band-body t-bear">
+        <dl class="kvlist">
+          <div class="kv"><dt>Revenue growth</dt><dd class="pos">+34.5%</dd></div>
+          <div class="kv"><dt>Gross margin</dt><dd class="neg">4.7%</dd></div>
+          <div class="kv"><dt>Operating margin</dt><dd class="neg">−5.4%</dd></div>
+          <div class="kv"><dt>EV / Sales</dt><dd class="pos">2.4×</dd></div>
+        </dl>
+        <div class="score-verdict" style="margin-top:2.4mm">Legacy heavy lift</div>
+        <div style="font-size:6.4pt;line-height:1.45;color:var(--muted);margin-top:1.2mm">
+          Comparable top-line growth without reusable economics; SLS is the foil, not the peer.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Peer set is curated: BA, LMT, NOC, RKLB, ASTS, VSAT, IRDM plus SPCX. Market data as of
+        7 August 2026; peer fundamentals trailing twelve months per Financial Modeling Prep. SpaceX
+        columns use FY25 filings against today’s enterprise value — FMP has no TTM ratio row yet.
+        ASTS (341× sales) is shown in the table but excluded from the scatter so it does not compress
+        the plot. The regression is descriptive, not a valuation method.
+      </div>
+      <div class="footer-page">Page 4 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>SpaceX</b> &nbsp;·&nbsp; NASDAQ: SPCX</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">05</span> Valuation &amp; What's Priced In</div>
+  </header>
+
+  <section class="page-title">
+    <h2>What Is It Worth?</h2>
+    <p class="page-lede">
+      No five-year multiple history, no positive earnings, and eight weeks of trading. Valuation
+      collapses to one question: what sales multiple the market will pay on FY28 revenue if the
+      build-out lands. Everything else is a bridge to that number.
+    </p>
+  </section>
+
+  <!-- ══════════ WHERE IT TRADES ══════════ -->
+  <section class="statstrip c6" style="margin-top:4.5mm">
+    <div class="metric">
+      <div class="metric-label">Share Price</div>
+      <div class="metric-value">$128.85</div>
+      <div class="metric-sub">IPO range $104.83–$225.64</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Enterprise Value</div>
+      <div class="metric-value">$904.2B</div>
+      <div class="metric-sub">$964.8B cap · net cash</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">EV / S FY25A</div>
+      <div class="metric-value">48.4×</div>
+      <div class="metric-sub">On $18.7B</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">EV / S FY26E</div>
+      <div class="metric-value">22.3×</div>
+      <div class="metric-sub">Cons. $40.5B</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">EV / S FY28E</div>
+      <div class="metric-value pos">6.3×</div>
+      <div class="metric-sub">Cons. $144.7B</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Net Cash</div>
+      <div class="metric-value">$60.6B</div>
+      <div class="metric-sub">$100.0B · $39.4B debt</div>
+    </div>
+  </section>
+
+  <!-- ══════════ FORWARD MULTIPLES + CONSENSUS GAP ══════════ -->
+  <section class="band cols-2" style="margin-top:4.5mm">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Forward EV / Sales</div>
+        <div class="band-note">Today’s EV ÷ revenue in each period</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:forward-multiples -->
+<svg viewBox="0 0 377.53 132" role="img" aria-label="Enterprise value to sales on reported and estimated revenue">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="26" y1="73.64" x2="371.53" y2="73.64"/><line x1="26" y1="45.27" x2="371.53" y2="45.27"/></g>
+<g font-family="Inter, sans-serif"><rect x="37.75" y="33.36" width="45.61" height="68.64" fill="#14181D"/><text x="60.55" y="27.36" fill="#14181D" font-size="8" font-weight="700" text-anchor="middle">48.4×</text><rect x="106.85" y="61.01" width="45.61" height="40.99" fill="#79838B"/><text x="129.66" y="55.01" fill="#14181D" font-size="8" font-weight="700" text-anchor="middle">28.9×</text><rect x="175.96" y="70.37" width="45.61" height="31.63" fill="#79838B"/><text x="198.76" y="64.37" fill="#14181D" font-size="8" font-weight="700" text-anchor="middle">22.3×</text><rect x="245.06" y="84.84" width="45.61" height="17.16" fill="#CDD0D2"/><text x="267.87" y="78.84" fill="#14181D" font-size="8" font-weight="700" text-anchor="middle">12.1×</text><rect x="314.17" y="93.07" width="45.61" height="8.93" fill="#CDD0D2"/><text x="336.98" y="87.07" fill="#14181D" font-size="8" font-weight="700" text-anchor="middle">6.3×</text></g>
+<line x1="26" y1="102" x2="371.53" y2="102" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="21" y="105">0×</text><text x="21" y="76.64">20×</text><text x="21" y="48.27">40×</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7" text-anchor="middle"><text x="60.55" y="115">FY25A</text><text x="129.66" y="115">Q2 RUN-RATE</text><text x="198.76" y="115">FY26E</text><text x="267.87" y="115">FY27E</text><text x="336.98" y="115">FY28E</text></g>
+<text x="0" y="128" fill="#A8ADB2" font-family="Inter, sans-serif" font-size="6.8">Enterprise value today divided by revenue in each period · the multiple only works if the estimates do</text>
+</svg>
+<!-- /fig:forward-multiples -->
+      </div>
+    </div>
+    <div>
+      <div class="band-head">
+        <div class="band-title">What FY26 Consensus Requires</div>
+        <div class="band-note">H2 needs $28.0B · +45.9% sequential each quarter</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:consensus-gap -->
+<svg viewBox="0 0 404.49 148" role="img" aria-label="Open bars are what the $40.5B full-year consensus requires · 46% sequential growth in each">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="30" y1="92.44" x2="398.49" y2="92.44"/><line x1="30" y1="66.89" x2="398.49" y2="66.89"/><line x1="30" y1="41.33" x2="398.49" y2="41.33"/></g>
+<g font-family="Inter, sans-serif"><rect x="46.58" y="94.01" width="58.96" height="23.99" fill="#14181D"/><text x="76.06" y="88.01" fill="#14181D" font-size="7.8" font-weight="600" text-anchor="middle">$4.69B</text><rect x="138.71" y="78.06" width="58.96" height="39.94" fill="#14181D"/><text x="168.19" y="72.06" fill="#14181D" font-size="7.8" font-weight="600" text-anchor="middle">$7.81B</text><rect x="230.83" y="59.73" width="58.96" height="58.27" fill="none" stroke="#797F86" stroke-width="1.2" stroke-dasharray="3 2"/><text x="260.31" y="53.73" fill="#797F86" font-size="7.8" font-weight="600" text-anchor="middle">$11.40B</text><rect x="322.95" y="32.99" width="58.96" height="85.01" fill="none" stroke="#797F86" stroke-width="1.2" stroke-dasharray="3 2"/><text x="352.43" y="26.99" fill="#797F86" font-size="7.8" font-weight="600" text-anchor="middle">$16.63B</text></g>
+<line x1="30" y1="118" x2="398.49" y2="118" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="25" y="121">0</text><text x="25" y="95.44">5B</text><text x="25" y="69.89">10B</text><text x="25" y="44.33">15B</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.6" text-anchor="middle"><text x="76.06" y="132">Q1 26A</text><text x="168.19" y="132">Q2 26A</text><text x="260.31" y="132">Q3 26E</text><text x="352.43" y="132">Q4 26E</text></g>
+<text x="6" y="11" fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7">Open bars are what the $40.5B full-year consensus requires · 46% sequential growth in each</text>
+</svg>
+<!-- /fig:consensus-gap -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ REVERSE SALES MULTIPLE ══════════ -->
+  <section class="band" style="margin-top:4.5mm">
+    <div class="band-head">
+      <div class="band-title">Reverse Multiple — What Today’s Price Requires On FY28 Sales</div>
+      <div class="band-note">No earnings to discount · EV $904.2B · share count held near 7.5B</div>
+    </div>
+    <div class="band-body cols-3">
+      <div>
+        <div class="micro">If Street FY28 Lands</div>
+        <dl class="kvlist" style="margin-top:2mm">
+          <div class="kv"><dt>FY28E revenue (cons.)</dt><dd>$144.7B</dd></div>
+          <div class="kv"><dt>Implied exit EV/S</dt><dd>6.3×</dd></div>
+          <div class="kv"><dt>Vs defence primes</dt><dd class="pos">~3× their ~2×</dd></div>
+          <div class="kv"><dt>Verdict</dt><dd>Demanding, not absurd</dd></div>
+        </dl>
+      </div>
+      <div>
+        <div class="micro">If Our Base Lands</div>
+        <dl class="kvlist" style="margin-top:2mm">
+          <div class="kv"><dt>FY28E revenue (base)</dt><dd>$100B</dd></div>
+          <div class="kv"><dt>EV/S at today’s price</dt><dd class="neg">9.0×</dd></div>
+          <div class="kv"><dt>Our exit multiple</dt><dd><b>12.0×</b></dd></div>
+          <div class="kv"><dt>Verdict</dt><dd>Needs re-rating up</dd></div>
+        </dl>
+      </div>
+      <div class="t-neutral">
+        <div class="micro">Which Is It?</div>
+        <div class="score-verdict" style="margin-top:2mm">The multiple only works if sales do</div>
+        <p style="margin:2mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          At Street FY28 the stock already prices a mid-single-digit sales multiple. At our $100B
+          base it needs the market to pay <b>12×</b> — the page-6 exit — for $150 to clear. Reject
+          both paths and 48.4× trailing sales has nowhere to hide.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ THE STREET ══════════ -->
+  <section class="band cols-2w" style="margin-top:4.5mm">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Street Target Revisions</div>
+        <div class="band-note">Average target by lookback · barely moved while shares fell 43%</div>
+      </div>
+      <div class="band-body chart">
+        <!-- fig:estimate-revisions -->
+<svg viewBox="0 0 404.49 112" role="img" aria-label="Street estimate revisions over the last twelve months">
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="34" y1="68.29" x2="360.49" y2="68.29"/><line x1="34" y1="48.86" x2="360.49" y2="48.86"/><line x1="34" y1="29.43" x2="360.49" y2="29.43"/><line x1="34" y1="10" x2="360.49" y2="10"/></g>
+<path d="M34,24.67 L142.83,24.67 L251.66,62.03 L360.49,28.07 L360.49,78 L34,78 Z" fill="#8E2C22" fill-opacity="0.07"/>
+<polyline points="34,24.67 142.83,24.67 251.66,62.03 360.49,28.07" fill="none" stroke="#8E2C22" stroke-width="1.8" stroke-linejoin="round"/>
+<circle cx="34" cy="24.67" r="2.8" fill="#8E2C22"/>
+<circle cx="142.83" cy="24.67" r="1.8" fill="#8E2C22"/>
+<circle cx="251.66" cy="62.03" r="1.8" fill="#8E2C22"/>
+<circle cx="360.49" cy="28.07" r="2.8" fill="#8E2C22"/>
+<line x1="34" y1="78" x2="360.49" y2="78" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="29" y="71.29">$190</text><text x="29" y="51.86">$200</text><text x="29" y="32.43">$210</text><text x="29" y="13">$220</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.4" text-anchor="middle"><text x="34" y="92">ALL-TIME AVG</text><text x="142.83" y="92">LAST QUARTER</text><text x="251.66" y="92">LAST MONTH</text><text x="360.49" y="92">TODAY</text></g>
+<text x="34" y="16.67" fill="#797F86" font-family="Inter, sans-serif" font-size="8" font-weight="600" text-anchor="middle">$212</text>
+<text x="366.49" y="31.07" fill="#8E2C22" font-family="Inter, sans-serif" font-size="9" font-weight="700">$211</text>
+<text x="366.49" y="41.07" fill="#797F86" font-family="Inter, sans-serif" font-size="7.6">−0.8%</text>
+<text x="34" y="108" fill="#A8ADB2" font-family="Inter, sans-serif" font-size="6.8">Average Street target by lookback window · barely moved while the shares fell 43% from the June high</text>
+</svg>
+<!-- /fig:estimate-revisions -->
+      </div>
+    </div>
+    <div>
+      <div class="band-head">
+        <div class="band-title">Estimates &amp; Ratings</div>
+        <div class="band-note">35 analysts · grades as of 1 Aug</div>
+      </div>
+      <div class="band-body">
+        <dl class="kvlist">
+          <div class="kv"><dt>Mean target, today</dt><dd>$210.70</dd></div>
+          <div class="kv"><dt>Median / range</dt><dd>$210 · $115–$401</dd></div>
+          <div class="kv"><dt>FY26 revenue cons.</dt><dd>$40.5B</dd></div>
+          <div class="kv"><dt>FY27 / FY28 revenue</dt><dd>$74.9B · $144.7B</dd></div>
+          <div class="kv"><dt>FY26 / FY28 EPS</dt><dd class="neg">−$0.54 · $4.14</dd></div>
+          <div class="kv"><dt>Ratings</dt><dd>27 buy · 6 hold · 2 sell</dd></div>
+        </dl>
+        <p style="margin:2.6mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          Street targets have held near <b>$210</b> while the shares lost 43% from the June high —
+          the revision signal is the gap, not a cut. Our $150 sits <b>28.8%</b> below that mean.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Forward multiples use today’s enterprise value against filed FY25 revenue and Financial Modeling
+        Prep consensus for FY26–FY28. The consensus-gap chart solves the constant sequential growth rate
+        that bridges Q2 actuals to the $40.5B full-year number. There is no five-year multiple band —
+        the company listed on 12 June 2026. Reverse-multiple arithmetic is a sensitivity exercise, not
+        a DCF forecast.
+      </div>
+      <div class="footer-page">Page 5 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>SpaceX</b> &nbsp;·&nbsp; NASDAQ: SPCX</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">06</span> Scenarios &amp; Target Derivation</div>
+  </header>
+
+  <section class="page-title">
+    <h2>How We Got To $150</h2>
+    <p class="page-lede">
+      Every assumption behind the three targets on page one is on this page. Change FY28 revenue or
+      the exit sales multiple and the number moves — that is the point. There are no earnings to
+      multiply yet, so the grid is built on sales.
+    </p>
+  </section>
+
+  <!-- ══════════ ASSUMPTIONS ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">The Assumptions Behind Each Case</div>
+      <div class="band-note">12-month horizon · valued on FY28E EV/Sales · target date August 2027</div>
+    </div>
+    <div class="band-body">
+      <table class="dtable compact">
+        <thead>
+          <tr>
+            <th style="width:46mm">Driver</th>
+            <th style="width:22mm">Bear</th>
+            <th style="width:22mm">Base</th>
+            <th style="width:22mm">Bull</th>
+            <th style="text-align:left;padding-left:6mm">Why it moves</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>FY28E revenue</td>
+            <td>$58B</td><td><b>$100B</b></td><td class="pos">$150B</td>
+            <td class="say" style="padding-left:6mm">Street mean $144.7B</td>
+          </tr>
+          <tr>
+            <td>FY28E operating margin</td>
+            <td class="neg">2.0%</td><td><b>14.0%</b></td><td class="pos">22.0%</td>
+            <td class="say" style="padding-left:6mm">Starlink mix + Starship cadence</td>
+          </tr>
+          <tr>
+            <td>Exit EV / Sales</td>
+            <td>7.0×</td><td><b>12.0×</b></td><td>15.0×</td>
+            <td class="say" style="padding-left:6mm">Trailing is 48.4× today</td>
+          </tr>
+          <tr>
+            <td>Share count, B</td>
+            <td>7.8</td><td><b>7.8</b></td><td>7.8</td>
+            <td class="say" style="padding-left:6mm">SBC dilution vs today’s 7.49B</td>
+          </tr>
+          <tr>
+            <td>Net debt / (cash)</td>
+            <td>$0</td><td><b>$0</b></td><td>$0</td>
+            <td class="say" style="padding-left:6mm">Cash burned into the build</td>
+          </tr>
+          <tr class="em">
+            <td>12-month target</td>
+            <td class="neg">$48</td><td><b>$150</b></td><td class="pos">$292</td>
+            <td class="say" style="padding-left:6mm"><b>−62.7% / +16.4% / +126.6%</b></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════ PATHS ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">What Each Case Looks Like</div>
+      <div class="band-note">FY25 actual, then three years modelled</div>
+    </div>
+    <div class="band-body chart">
+      <!-- fig:scenario-paths -->
+<svg viewBox="0 0 800 172" role="img" aria-label="Revenue and operating margin paths for the bull, base and bear cases">
+<text x="8" y="10" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4" letter-spacing="0.09em" font-weight="600">REVENUE, $B</text>
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="34" y1="120.09" x2="346" y2="120.09"/><line x1="34" y1="102.57" x2="346" y2="102.57"/><line x1="34" y1="85.06" x2="346" y2="85.06"/><line x1="34" y1="67.54" x2="346" y2="67.54"/><line x1="34" y1="50.03" x2="346" y2="50.03"/><line x1="34" y1="32.51" x2="346" y2="32.51"/></g>
+<polyline points="34,124.52 138,115.89 242,106.78 346,96.97" fill="none" stroke="#8E2C22" stroke-width="1.3" stroke-dasharray="4 3" stroke-linejoin="round"/>
+<circle cx="346" cy="96.97" r="2.6" fill="#8E2C22"/>
+<text x="352" y="99.97" fill="#8E2C22" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">$58B</text>
+<polyline points="34,124.52 138,112.38 242,94.17 346,67.54" fill="none" stroke="#14181D" stroke-width="1.9" stroke-linejoin="round"/>
+<circle cx="346" cy="67.54" r="2.6" fill="#14181D"/>
+<text x="352" y="70.54" fill="#14181D" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">$100B</text>
+<polyline points="34,124.52 138,109.58 242,80.15 346,32.51" fill="none" stroke="#1E6B48" stroke-width="1.3" stroke-dasharray="4 3" stroke-linejoin="round"/>
+<circle cx="346" cy="32.51" r="2.6" fill="#1E6B48"/>
+<text x="352" y="35.51" fill="#1E6B48" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">$150B</text>
+<circle cx="34" cy="124.52" r="2.6" fill="#14181D"/>
+<line x1="34" y1="132" x2="346" y2="132" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="29" y="123.09">25</text><text x="29" y="105.57">50</text><text x="29" y="88.06">75</text><text x="29" y="70.54">100</text><text x="29" y="53.03">125</text><text x="29" y="35.51">150</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.8" text-anchor="middle"><text x="34" y="147">FY25A</text><text x="138" y="147">FY26E</text><text x="242" y="147">FY27E</text><text x="346" y="147">FY28E</text></g>
+<text x="410" y="10" fill="#797F86" font-family="Inter, sans-serif" font-size="7.4" letter-spacing="0.09em" font-weight="600">OPERATING MARGIN</text>
+<g stroke="#E7E5E0" stroke-width="0.7"><line x1="436" y1="132" x2="748" y2="132"/><line x1="436" y1="108.09" x2="748" y2="108.09"/><line x1="436" y1="84.17" x2="748" y2="84.17"/><line x1="436" y1="60.26" x2="748" y2="60.26"/><line x1="436" y1="36.35" x2="748" y2="36.35"/></g>
+<polyline points="436,117.41 540,112.87 644,98.52 748,79.39" fill="none" stroke="#8E2C22" stroke-width="1.3" stroke-dasharray="4 3" stroke-linejoin="round"/>
+<circle cx="748" cy="79.39" r="2.6" fill="#8E2C22"/>
+<text x="754" y="82.39" fill="#8E2C22" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">2.0%</text>
+<polyline points="436,117.41 540,96.13 644,72.22 748,50.7" fill="none" stroke="#14181D" stroke-width="1.9" stroke-linejoin="round"/>
+<circle cx="748" cy="50.7" r="2.6" fill="#14181D"/>
+<text x="754" y="53.7" fill="#14181D" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">14.0%</text>
+<polyline points="436,117.41 540,88.96 644,55.48 748,31.57" fill="none" stroke="#1E6B48" stroke-width="1.3" stroke-dasharray="4 3" stroke-linejoin="round"/>
+<circle cx="748" cy="31.57" r="2.6" fill="#1E6B48"/>
+<text x="754" y="34.57" fill="#1E6B48" font-family="Inter, sans-serif" font-size="8.4" font-weight="700">22.0%</text>
+<circle cx="436" cy="117.41" r="2.6" fill="#14181D"/>
+<line x1="436" y1="132" x2="748" y2="132" stroke="#DEDBD4" stroke-width="0.8"/>
+<g fill="#A8ADB2" font-family="IBM Plex Mono, monospace" font-size="7.6" text-anchor="end"><text x="431" y="135">-20%</text><text x="431" y="111.09">-10%</text><text x="431" y="87.17">0%</text><text x="431" y="63.26">10%</text><text x="431" y="39.35">20%</text></g>
+<g fill="#A8ADB2" font-family="Inter, sans-serif" font-size="7.8" text-anchor="middle"><text x="436" y="147">FY25A</text><text x="540" y="147">FY26E</text><text x="644" y="147">FY27E</text><text x="748" y="147">FY28E</text></g>
+</svg>
+<!-- /fig:scenario-paths -->
+    </div>
+  </section>
+
+  <!-- ══════════ FALSIFIABLE CONDITIONS ══════════ -->
+  <section class="band cols-2">
+    <div>
+      <div class="band-head">
+        <div class="band-title">For The Bull Case To Be Right</div>
+        <div class="band-note">All four, not one</div>
+      </div>
+      <div class="band-body">
+        <div class="trigger up"><i>▲</i><span>Starship V3 completes orbital refuelling in 2026</span></div>
+        <div class="trigger up"><i>▲</i><span>H2 revenue clears the $28B needed for $40.5B FY26</span></div>
+        <div class="trigger up"><i>▲</i><span>Starlink subscriber economics disclosed and rising</span></div>
+        <div class="trigger up"><i>▲</i><span>Operating margin crosses zero on a full-year basis by FY27</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="band-head">
+        <div class="band-title">For The Bear Case To Be Right</div>
+        <div class="band-note">Any two are enough</div>
+      </div>
+      <div class="band-body">
+        <div class="trigger down"><i>▼</i><span>Starship slips past mid-2027 without a propellant demo</span></div>
+        <div class="trigger down"><i>▼</i><span>Lock-up expiry floods float without a staged secondary</span></div>
+        <div class="trigger down"><i>▼</i><span>Another equity raise before free cash flow turns</span></div>
+        <div class="trigger down"><i>▼</i><span>Q3 sequential growth prints under 25%</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ SENSITIVITY + EV CHECK ══════════ -->
+  <section class="band cols-2u">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Target Price Sensitivity</div>
+        <div class="band-note">FY28E revenue × exit EV/Sales · 7.8B shares</div>
+      </div>
+      <div class="band-body">
+        <!-- fig:sensitivity -->
+    <table class="sens">
+      <thead>
+      <tr><th class="corner">FY28E revenue</th><th>7×</th><th>9×</th><th>12×</th><th>15×</th><th>18×</th></tr>
+      </thead>
+      <tbody>
+      <tr><td class="axis">$58B</td><td class="b1">$52</td><td class="b1">$67</td><td class="b1">$89</td><td class="b2">$112</td><td class="b3">$134</td></tr>
+      <tr><td class="axis">$78B</td><td class="b1">$70</td><td class="b1">$90</td><td class="b2">$120</td><td class="b4">$150</td><td class="b5">$180</td></tr>
+      <tr><td class="axis">$100B</td><td class="b1">$90</td><td class="b2">$115</td><td class="b4 here">$154</td><td class="b5">$192</td><td class="b5">$231</td></tr>
+      <tr><td class="axis">$122B</td><td class="b1">$109</td><td class="b3">$141</td><td class="b5">$188</td><td class="b5">$235</td><td class="b5">$282</td></tr>
+      <tr><td class="axis">$150B</td><td class="b3">$135</td><td class="b4">$173</td><td class="b5">$231</td><td class="b5">$288</td><td class="b5">$346</td></tr>
+      </tbody>
+    </table>
+<!-- /fig:sensitivity -->
+      </div>
+    </div>
+    <div>
+      <div class="band-head">
+        <div class="band-title">Expected Value Check</div>
+      </div>
+      <div class="band-body">
+        <dl class="kvlist">
+          <div class="kv"><dt>Bear $48 × 25%</dt><dd>$12.00</dd></div>
+          <div class="kv"><dt>Base $150 × 50%</dt><dd>$75.00</dd></div>
+          <div class="kv"><dt>Bull $292 × 25%</dt><dd>$73.00</dd></div>
+          <div class="kv"><dt><b>Probability-weighted</b></dt><dd><b>$160.00</b></dd></div>
+          <div class="kv"><dt>Headline base target</dt><dd>$150.00</dd></div>
+          <div class="kv"><dt>Expected return</dt><dd class="pos">+24.2%</dd></div>
+        </dl>
+        <p style="margin:3mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          The weighted value lands <b>~6.7% above</b> the headline base, so the bull tail is doing
+          real work. That is intentional: the bear costs 63% and the bull pays 127%. The asymmetry,
+          not the point estimate, is the reason for a bullish rating.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Scenario targets are Ticker Alpha model outputs: FY28E revenue × exit EV/Sales, net debt held
+        at zero, divided by 7.8B shares to absorb two years of stock compensation above today’s 7.49B.
+        Paths are independent of Street targets. Probabilities are model-assigned and subjective.
+        Targets are valued at a twelve-month horizon and are not predictions of price.
+      </div>
+      <div class="footer-page">Page 6 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>SpaceX</b> &nbsp;·&nbsp; NASDAQ: SPCX</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">07</span> Key Catalysts</div>
+  </header>
+
+  <section class="page-title">
+    <h2>What To Watch, And When</h2>
+    <p class="page-lede">
+      Seven events over the next fourteen months, each scored for how much of the thesis it settles.
+      The two heaviest dates are a Starship demonstration SpaceX controls, and a lock-up expiry it
+      does not.
+    </p>
+  </section>
+
+  <!-- ══════════ TIMELINE ══════════ -->
+  <section class="band" style="margin-top:4mm">
+    <div class="band-head">
+      <div class="band-title">The Next Fourteen Months</div>
+      <div class="band-note">Dot size is impact · a hollow dot means the date is estimated, not confirmed</div>
+    </div>
+    <div class="band-body">
+      <div class="legend" style="margin-bottom:2.4mm">
+        <span><i style="background:#1E6B48"></i>Positive skew</span>
+        <span><i style="background:#14181D"></i>Two-sided</span>
+        <span><i style="background:#8E2C22"></i>Negative skew</span>
+      </div>
+      <div class="chart">
+        <!-- fig:catalyst-timeline -->
+<svg viewBox="0 0 800 128" role="img" aria-label="Scheduled catalysts grouped into lanes over the next eighteen months">
+<g font-family="Inter, sans-serif"><text x="150.89" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q3 26</text><rect x="209.78" y="22" width="160.62" height="98" fill="#F5F4F1"/><line x1="209.78" y1="22" x2="209.78" y2="120" stroke="#DEDBD4" stroke-width="0.7"/><text x="290.09" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q4 26</text><line x1="370.4" y1="22" x2="370.4" y2="120" stroke="#DEDBD4" stroke-width="0.7"/><text x="450.71" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q1 27</text><rect x="531.02" y="22" width="160.62" height="98" fill="#F5F4F1"/><line x1="531.02" y1="22" x2="531.02" y2="120" stroke="#DEDBD4" stroke-width="0.7"/><text x="611.32" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q2 27</text><line x1="691.63" y1="22" x2="691.63" y2="120" stroke="#DEDBD4" stroke-width="0.7"/><text x="739.82" y="14" fill="#A8ADB2" font-size="7.2" letter-spacing="0.11em" font-weight="600" text-anchor="middle">Q3 27</text></g>
+<line x1="92" y1="22" x2="788" y2="22" stroke="#DEDBD4" stroke-width="0.7"/>
+<g font-family="Inter, sans-serif"><line x1="92" y1="42" x2="788" y2="42" stroke="#DEDBD4" stroke-width="0.7"/><text x="78" y="45" fill="#797F86" font-size="7" letter-spacing="0.11em" font-weight="600" text-anchor="end">RESULTS</text><line x1="92" y1="76" x2="788" y2="76" stroke="#DEDBD4" stroke-width="0.7"/><text x="78" y="79" fill="#797F86" font-size="7" letter-spacing="0.11em" font-weight="600" text-anchor="end">PROGRAMME</text><line x1="92" y1="110" x2="788" y2="110" stroke="#DEDBD4" stroke-width="0.7"/><text x="78" y="113" fill="#797F86" font-size="7" letter-spacing="0.11em" font-weight="600" text-anchor="end">SUPPLY</text></g>
+<g font-family="Inter, sans-serif"><circle cx="140.18" cy="76" r="5.7" fill="#FDFDFC" stroke="#14181D" stroke-width="1.8"/><text x="140.18" y="64.3" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Starship V3</text><text x="140.18" y="92.7" fill="#A8ADB2" font-size="7" text-anchor="middle">Aug–Sep 2026</text><circle cx="252.62" cy="42" r="5.7" fill="#FDFDFC" stroke="#14181D" stroke-width="1.8"/><text x="252.62" y="30.3" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Q3 FY26</text><text x="252.62" y="58.7" fill="#A8ADB2" font-size="7" text-anchor="middle">early Nov 2026</text><circle cx="322.22" cy="110" r="5.7" fill="#8E2C22"/><text x="322.22" y="98.3" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Lock-up</text><text x="322.22" y="126.7" fill="#A8ADB2" font-size="7" text-anchor="middle">9 Dec 2026</text><circle cx="445.35" cy="42" r="5.7" fill="#FDFDFC" stroke="#14181D" stroke-width="1.8"/><text x="445.35" y="30.3" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">FY26 + guide</text><text x="445.35" y="58.7" fill="#A8ADB2" font-size="7" text-anchor="middle">late Feb 2027</text><circle cx="541.72" cy="76" r="5" fill="#FDFDFC" stroke="#1E6B48" stroke-width="1.8"/><text x="541.72" y="65" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Starlink 100M</text><text x="541.72" y="92" fill="#A8ADB2" font-size="7" text-anchor="middle">H1 2027</text><circle cx="627.38" cy="110" r="5" fill="#FDFDFC" stroke="#8E2C22" stroke-width="1.8"/><text x="627.38" y="99" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Funding</text><text x="627.38" y="126" fill="#A8ADB2" font-size="7" text-anchor="middle">mid 2027 2027</text><circle cx="723.75" cy="42" r="5" fill="#FDFDFC" stroke="#14181D" stroke-width="1.8"/><text x="723.75" y="31" fill="#14181D" font-size="8.4" font-weight="600" text-anchor="middle">Q2 FY27</text><text x="723.75" y="58" fill="#A8ADB2" font-size="7" text-anchor="middle">Aug 2027</text></g>
+</svg>
+<!-- /fig:catalyst-timeline -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ REGISTER ══════════ -->
+  <section class="band" style="margin-top:4mm">
+    <div class="band-head">
+      <div class="band-title">Catalyst Register</div>
+      <div class="band-note">Impact is the share of the thesis the event settles, not the expected price move</div>
+    </div>
+    <div class="band-body">
+      <!-- fig:catalyst-register -->
+    <div class="catrow">
+      <div>
+        <div class="cat-day">Aug–Sep</div>
+        <div class="cat-year">2026</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Starship V3 orbital refuelling demonstration</div>
+        <div class="cat-note">The gate on lunar and Mars revenue and on the heavy-lift Starlink deployment that underwrites the bull case. <b>Watch:</b> A clean propellant transfer between two vehicles. Slippage past December pushes the bull path a year right.</div>
+      </div>
+      <div class="cat-cell t-brass">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        <div class="cat-foot">Decisive</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">All three</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">early Nov</div>
+        <div class="cat-year">2026</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Q3 FY2026 results</div>
+        <div class="cat-note">The first test of whether the June quarter's step-change repeats. Consensus needs roughly $11.4B here. <b>Watch:</b> Sequential revenue growth. Anything under 25% and the full-year number is unreachable.</div>
+      </div>
+      <div class="cat-cell t-brass">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        <div class="cat-foot">Decisive</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">All three</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">9 Dec</div>
+        <div class="cat-year">2026</div>
+        <div class="cat-conf fixed">Confirmed</div>
+      </div>
+      <div>
+        <div class="cat-name">180-day lock-up expiry</div>
+        <div class="cat-note">Free float can rise from 4.9% of shares outstanding to a multiple of that overnight. <b>Watch:</b> Any staged-release or secondary-offering agreement announced before the date.</div>
+      </div>
+      <div class="cat-cell t-brass">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        <div class="cat-foot">Decisive</div>
+      </div>
+      <div class="cat-cell t-bear">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Negative</div>
+        <div class="cat-foot">Bear</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">late Feb</div>
+        <div class="cat-year">2027</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Q4 FY2026 results and first full-year guidance</div>
+        <div class="cat-note">The first framing of a full year as a public company, and the base every downstream estimate is priced off. <b>Watch:</b> FY2027 revenue guidance against the $74.9B consensus, and whether breakeven is dated.</div>
+      </div>
+      <div class="cat-cell t-brass">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        <div class="cat-foot">Decisive</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">All three</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">H1</div>
+        <div class="cat-year">2027</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Starlink subscriber disclosure</div>
+        <div class="cat-note">Recurring consumer revenue is what turns a launch contractor into a platform, and it is not yet broken out. <b>Watch:</b> Any segment disclosure at all. Its absence is itself informative.</div>
+      </div>
+      <div class="cat-cell">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div class="cat-foot">High</div>
+      </div>
+      <div class="cat-cell t-bull">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Positive</div>
+        <div class="cat-foot">Bull</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">mid 2027</div>
+        <div class="cat-year">2027</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Next capital raise</div>
+        <div class="cat-note">Net cash of $61B against a first-half burn of $34B leaves roughly a year of runway at the current rate. <b>Watch:</b> Equity rather than debt would confirm the dilution assumed in the bear case.</div>
+      </div>
+      <div class="cat-cell">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div class="cat-foot">High</div>
+      </div>
+      <div class="cat-cell t-bear">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Negative</div>
+        <div class="cat-foot">Bear</div>
+      </div>
+    </div>
+    <div class="catrow">
+      <div>
+        <div class="cat-day">Aug</div>
+        <div class="cat-year">2027</div>
+        <div class="cat-conf">Estimated</div>
+      </div>
+      <div>
+        <div class="cat-name">Q2 FY2027 results</div>
+        <div class="cat-note">Falls on the target date. The multiple applied on page 6 is the one the market will be paying here. <b>Watch:</b> Whether operating margin has crossed zero on a full-year basis.</div>
+      </div>
+      <div class="cat-cell">
+        <div class="score-label">Impact</div>
+        <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        <div class="cat-foot">High</div>
+      </div>
+      <div class="cat-cell t-neutral">
+        <div class="score-label">Skew</div>
+        <div class="cat-skew">Two-sided</div>
+        <div class="cat-foot">Bull or bear</div>
+      </div>
+    </div>
+<!-- /fig:catalyst-register -->
+    </div>
+  </section>
+
+  <!-- ══════════ THE ONE THAT MATTERS + UNSCHEDULED ══════════ -->
+  <section class="band cols-2w" style="margin-top:4mm">
+    <div>
+      <div class="band-head">
+        <div class="band-title">If You Only Watch One Thing</div>
+        <div class="band-note">9 Dec · lock-up expiry</div>
+      </div>
+      <div class="band-body">
+        <p class="pull tight">
+          Free float is 4.9% today. When the 180-day lock-up lifts, sellable supply can multiply
+          overnight — before Starship settles the bull case.
+        </p>
+        <table class="dtable compact" style="margin-top:3mm">
+          <thead>
+            <tr>
+              <th>Float after 9 Dec</th>
+              <th style="text-align:left">Reads as</th>
+              <th>Target</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Staged / secondary agreed</td><td class="say">Supply managed; IPO washout can finish</td><td class="pos">$150+</td></tr>
+            <tr><td>Float doubles, orderly</td><td class="say">Absorption risk, base case intact</td><td>$150</td></tr>
+            <tr><td>Unrestricted flood</td><td class="say">Mechanical selling dominates the tape</td><td class="neg">$48</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head">
+        <div class="band-title">Not On This Calendar</div>
+        <div class="band-note">No date</div>
+      </div>
+      <div class="band-body">
+        <div style="font-size:7.1pt;line-height:1.45;color:var(--ink-soft);margin-bottom:2.4mm">
+          Unscheduled events, any of which can move the shares further than the register above.
+        </div>
+        <div class="trigger dot"><i>●</i><span>An FAA or FCC grounding of Falcon or Starship</span></div>
+        <div class="trigger dot"><i>●</i><span>A Starlink spectrum or debris-rule change</span></div>
+        <div class="trigger dot"><i>●</i><span>Amazon Kuiper or a China LEO constellation cadence jump</span></div>
+        <div class="trigger dot"><i>●</i><span>A major DoD or NASA award re-compete loss</span></div>
+        <div class="trigger dot"><i>●</i><span>Key-person or governance event around the CEO</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        Lock-up expiry is fixed by the IPO underwriting agreement (9 December 2026). Other dates are
+        estimated from programme commentary and a typical quarterly cadence. Impact scores, skew and
+        float thresholds are Ticker Alpha model outputs, not company guidance.
+      </div>
+      <div class="footer-page">Page 7 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<div class="sheet">
+<div class="page" style="--rating:var(--bull)">
+
+  <header class="runhead">
+    <div class="runhead-left">
+      <div class="seal-sm">TA</div>
+      <div class="runhead-id">Ticker Alpha &nbsp;·&nbsp; <b>SpaceX</b> &nbsp;·&nbsp; NASDAQ: SPCX</div>
+    </div>
+    <div class="runhead-right"><span class="runhead-no">08</span> Risks &amp; Signals</div>
+  </header>
+
+  <section class="page-title">
+    <h2>What Could Break This</h2>
+    <p class="page-lede">
+      Six risks ranked by what they would cost rather than how likely they are, each with the
+      observable that tells you it is happening. A risk you cannot monitor is not a risk, it is an anxiety.
+    </p>
+  </section>
+
+  <!-- ══════════ RISK REGISTER ══════════ -->
+  <section class="band">
+    <div class="band-head">
+      <div class="band-title">Risk Register</div>
+      <div class="band-note">Severity is impact on our base target · likelihood is over 24 months</div>
+    </div>
+    <div class="band-body">
+      <div class="risk">
+        <div class="risk-no">1</div>
+        <div>
+          <div class="risk-title">Starship slips past the bull window</div>
+          <div class="risk-desc">Orbital refuelling is the gate on lunar, Mars and heavy Starlink deployment. Slippage past mid-2027 pushes the bull path a year right. <b>Watch:</b> a clean propellant transfer between two vehicles.</div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">2</div>
+        <div>
+          <div class="risk-title">Lock-up float flood</div>
+          <div class="risk-desc">Free float is 4.9% (366M shares). On 9 December 2026 the 180-day lock-up lifts and sellable supply can multiply overnight. <b>Watch:</b> any staged-release or secondary agreement before the date.</div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span></div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">3</div>
+        <div>
+          <div class="risk-title">Capex burn outruns the cash pile</div>
+          <div class="risk-desc">H1 FCF was −$34.1B against $60.6B net cash — roughly a year of runway at the current rate before another raise. <b>Watch:</b> equity rather than debt financing, and Q3 capex vs revenue.</div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">4</div>
+        <div>
+          <div class="risk-title">Starlink ARPU and LEO competition</div>
+          <div class="risk-desc">Recurring consumer revenue is what turns a launch contractor into a platform, and it is not yet broken out. Kuiper and China LEO are the named threats. <b>Watch:</b> any segment disclosure at all.</div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">5</div>
+        <div>
+          <div class="risk-title">Regulatory, spectrum and debris rules</div>
+          <div class="risk-desc">FAA flight licenses, FCC spectrum and orbital-debris rules sit outside the factory and can idle vehicles or satellites without a commercial miss. <b>Watch:</b> any grounding or constellation-size cap.</div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="risk">
+        <div class="risk-no">6</div>
+        <div>
+          <div class="risk-title">Musk concentration and governance</div>
+          <div class="risk-desc">CEO Elon Musk and directors hold an aggregate <b>57.8%</b> of shares. Strategy, capital allocation and key-person risk are not diversified. <b>Watch:</b> dual-class changes, related-party deals, or distraction events.</div>
+        </div>
+        <div class="risk-cell t-neutral">
+          <div class="score-label">Severity</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        </div>
+        <div class="risk-cell t-bear">
+          <div class="score-label">Likelihood</div>
+          <div class="meter sm"><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ OWNERSHIP ══════════ -->
+  <section class="band cols-2w">
+    <div>
+      <div class="band-head">
+        <div class="band-title">Ownership After The IPO</div>
+        <div class="band-note">Form 4 holdings as of IPO-date filings</div>
+      </div>
+      <div class="band-body">
+        <dl class="kvlist">
+          <div class="kv"><dt>Shares outstanding</dt><dd>7.49B</dd></div>
+          <div class="kv"><dt>Free float</dt><dd>4.9% · 366M sh</dd></div>
+          <div class="kv"><dt>Insiders &amp; directors</dt><dd><b>57.8%</b></dd></div>
+          <div class="kv"><dt>Other pre-IPO holders</dt><dd>37.3%</dd></div>
+          <div class="kv"><dt>Lock-up expiry</dt><dd class="neg">9 Dec 2026</dd></div>
+          <div class="kv"><dt>Sessions since IPO</dt><dd>39</dd></div>
+        </dl>
+        <p style="margin:3mm 0 0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          Musk’s line is the sum after pre-IPO class conversions settled on 15 June. There is no
+          meaningful open-market insider tape yet — the company has been public for eight weeks —
+          so Form 4 flow is not charted.
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <div class="band-head">
+        <div class="band-title">Reading The Signals</div>
+        <div class="band-note">Evidence, not trivia</div>
+      </div>
+      <div class="band-body">
+        <p style="margin:0;font-size:7.1pt;line-height:1.5;color:var(--ink-soft)">
+          The ownership fact that matters is supply, not sentiment. <b>95.1%</b> of the share count
+          is still locked or tightly held. December decides whether the IPO washout finishes or
+          restarts. Analyst ratings (27 / 6 / 2) have not moved with the −43% drawdown from the high;
+          Street targets near $211 are the lagging indicator.
+        </p>
+        <p class="pull tight" style="margin-top:3mm">
+          Nothing in the ownership file contradicts the bullish case. The lock-up calendar can still break it.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ METHODOLOGY ══════════ -->
+  <section class="method">
+    <div class="micro">Methodology &amp; Limitations</div>
+    <div class="method-cols">
+      <div>
+        <h4>How the targets are built</h4>
+        <p>
+          Each case sets FY28E revenue and an exit EV/Sales multiple, holds net debt at zero and
+          divides by 7.8B shares. Probabilities are subjective; the headline is the base case at $150.
+        </p>
+      </div>
+      <div>
+        <h4>Where the data comes from</h4>
+        <p>
+          Prices, consensus estimates, analyst targets and Form 4 holdings from Financial Modeling Prep;
+          fundamentals from SpaceX SEC filings. Peer set on page 4. Data as of 7 August 2026.
+        </p>
+      </div>
+      <div>
+        <h4>What this cannot do</h4>
+        <p>
+          Generated automatically from structured data. Eight weeks of trading, three filed quarters
+          and no segment breakout. It cannot verify Starlink ARPU, interview management, or price an
+          event it was never told about.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-row">
+      <div class="footnote">
+        This report is for informational purposes only. It is not investment advice, an offer, or a
+        solicitation to buy or sell any security, and it does not consider the objectives or
+        circumstances of any individual. Past performance does not indicate future results.
+        Ticker Alpha holds no position in the securities discussed.
+      </div>
+      <div class="footer-page">Page 8 of 8</div>
+    </div>
+  </footer>
+
+</div>
+</div>
+
+<section class="ta-cta">
+  <h2>This report was generated on demand.</h2>
+  <p>
+    Every figure above comes from primary filings and live market data, assembled
+    and written up automatically. Ticker Alpha is building this for any listed
+    company &mdash; so the research you need on a Tuesday afternoon takes a minute,
+    not a week.
+  </p>
+  <div class="ta-cta-row">
+    <a class="ta-btn" href="../reports.html">See the other reports</a>
+    <a class="ta-btn ghost" href="../company.html?t=SPCX">Explore SPCX&rsquo;s market data</a>
+  </div>
+  <div class="ta-cta-note">Free while in preview. No account needed to read.</div>
+</section>
+
+<script>
+(function () {
+  var A4 = 210 * 96 / 25.4;
+  function fit() {
+    var pad = window.innerWidth < 640 ? 8 : 48;
+    var s = Math.min(1, (window.innerWidth - pad) / A4);
+    document.documentElement.style.setProperty("--fit", s);
+  }
+  addEventListener("resize", fit, { passive: true });
+  addEventListener("orientationchange", fit);
+  fit();
+})();</script>
+</body>
+</html>

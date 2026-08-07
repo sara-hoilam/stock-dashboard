@@ -63,7 +63,8 @@ body{font-family:"IBM Plex Sans",system-ui,sans-serif;background:var(--ground);
 main{max-width:1180px;margin:0 auto;padding:34px 28px 80px}
 a{color:inherit}
 
-.masthead{max-width:860px;margin:0 0 32px}
+.masthead{max-width:1180px;margin:0 0 32px}
+.masthead h1,.masthead p{max-width:680px}
 .masthead h1{font-family:"IBM Plex Serif",Georgia,serif;font-size:31px;font-weight:600;
   letter-spacing:-.02em;line-height:1.15;margin-bottom:11px}
 .masthead p{font-size:15px;line-height:1.6;color:var(--ink-2)}
@@ -71,8 +72,9 @@ a{color:inherit}
   font-weight:600;color:var(--accent);margin-bottom:9px}
 
 /* Why these are worth reading, said in four beats rather than a paragraph. */
-.sells{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));
-  gap:14px 22px;margin-top:22px}
+.sells{list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px 20px;margin-top:24px}
+@media (max-width:900px){ .sells{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .sells li{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;
   column-gap:11px;align-items:start}
 .sells svg{width:19px;height:19px;grid-row:1 / span 2;color:var(--accent);margin-top:1px}
@@ -135,13 +137,13 @@ a.rep:hover{transform:translateY(-3px);
       thesis &mdash; in eight pages, not eighty. Free to read while we are in preview.
     </p>
     <ul class="sells">
-      <li><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2 4 11h5l-1 7 7-9h-5l1-7Z"/></svg>
+      <li><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10.5" r="6.5"/><path d="M10 7v3.5l2.4 1.6"/><path d="M7.6 2.6h4.8"/></svg>
         <b>Minutes, not weeks</b><span>A full initiation while you make coffee</span></li>
-      <li><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h6l4 4v11H5z"/><path d="M11 2.5v4h4"/><path d="M7.5 10h5M7.5 13h5"/></svg>
+      <li><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5h6l4 4v11H5z"/><path d="M11 2.5v4h4"/><path d="M7.6 10.5h4.8M7.6 13.5h3"/></svg>
         <b>Straight from the filings</b><span>Every figure traced to SEC source data</span></li>
-      <li><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14l4-5 3 3 4-6 3 4"/><path d="M3 17h14"/></svg>
+      <li><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 13.4 7 8.9l3 2.8 4.2-5.4"/><path d="M14.2 6.3h2.9v2.9"/><path d="M2.8 17h14.4"/></svg>
         <b>Priced this morning</b><span>Live market data, not last quarter&rsquo;s</span></li>
-      <li><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2.5a4 4 0 0 0-4 4v.6A3.2 3.2 0 0 0 7 13v1.5a2.5 2.5 0 0 0 5 0V13a3.2 3.2 0 0 0 1-5.9v-.6a4 4 0 0 0-3-3.9Z"/></svg>
+      <li><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="7" height="7" rx="1.4"/><path d="M8.6 3.2v3.3M11.4 3.2v3.3M8.6 13.5v3.3M11.4 13.5v3.3M3.2 8.6h3.3M3.2 11.4h3.3M13.5 8.6h3.3M13.5 11.4h3.3"/></svg>
         <b>Frontier AI models</b><span>Reasoning that reads a 10-K end to end</span></li>
     </ul>
   </div>
@@ -160,15 +162,18 @@ a.rep:hover{transform:translateY(-3px);
       </div>
     </a>
 
-    <div class="rep soon">
-      <span class="badge">Coming soon</span>
-      <div class="rep-cover"><span>SPX</span></div>
-      <div class="rep-body">
-        <div class="rep-tick">PRIVATE</div>
-        <div class="rep-name">SpaceX</div>
-        <div class="rep-meta"><span>In preparation</span></div>
+    <a class="rep" href="reports/spcx.html">
+      <span class="badge live">Available</span>
+      <div class="rep-cover">
+        <img src="reports/spcx-cover.png" alt="SpaceX equity research report cover" loading="lazy" width="420" height="594">
       </div>
-    </div>
+      <div class="rep-body">
+        <div class="rep-tick">NASDAQ: SPCX</div>
+        <div class="rep-name">Space Exploration Technologies</div>
+        <div class="rep-meta"><span>7 Aug 2026</span><i>·</i><span>8 pages</span><i>·</i><span>Initiation</span></div>
+        <div class="rep-read">Read the report →</div>
+      </div>
+    </a>
 
     <div class="rep soon">
       <span class="badge">Coming soon</span>

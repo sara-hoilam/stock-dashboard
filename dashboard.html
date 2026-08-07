@@ -126,7 +126,7 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:24px 28px 72px}
 .ident-with-logo{display:flex;flex-direction:row;align-items:flex-start;gap:12px;min-width:0}
 /* Locked until generated reports ship. Reads as a real control so the offer
    registers, but muted so nobody thinks it failed when it does not unlock. */
-.period .unlockbtn{margin-bottom:10px}
+.ident>.unlockbtn{margin-left:auto;align-self:center}
 .unlockbtn{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
   padding:7px 13px;border:1px dashed var(--rule);border-radius:8px;
   background:var(--sunk);color:var(--ink-2);text-decoration:none;
@@ -2100,7 +2100,7 @@ function marketOnly(ticker, company, why){
         </div>
         </div>
       </div>
-      <div class="period">${unlockReportBtn(c.ticker || ticker)}</div>
+      ${unlockReportBtn(c.ticker || ticker)}
     </div>
 
     <nav class="mtabs" id="mtabs" role="tablist" aria-label="Report sections">
@@ -3570,8 +3570,8 @@ function render(){
         </div>
         </div>
       </div>
+      ${unlockReportBtn(c.ticker)}
       <div class="period">
-        ${unlockReportBtn(c.ticker)}
         <div class="qpick" id="qpick"></div>
         <div class="small">
           ${q.start ? longDate(q.start) + " – " : ""}${longDate(q.end)} ·
