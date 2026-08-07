@@ -115,6 +115,26 @@ main{max-width:var(--page,1680px);margin:0 auto;padding:26px 28px 72px}
 .btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
 .empty-foot{font-size:12px;color:var(--ink-3)}
 
+/* Inline empty states inside the portfolio table */
+.pf-empty{
+  padding:28px 20px 32px;text-align:center;color:var(--ink-3);
+}
+.pf-empty h3{
+  margin:0 0 8px;font-size:15px;font-weight:600;color:var(--ink);
+  letter-spacing:-.01em;
+}
+.pf-empty p{margin:0 0 16px;font-size:13px;line-height:1.45;max-width:320px;margin-left:auto;margin-right:auto}
+.pf-quick{
+  display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 0 16px;
+}
+.pf-quick button{
+  border:1px solid var(--rule);background:var(--sunk);color:var(--ink-2);
+  border-radius:8px;padding:7px 12px;font:inherit;font-size:12.5px;font-weight:600;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;cursor:pointer;
+}
+.pf-quick button:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.pulse .v.placeholder{color:var(--ink-3);font-weight:600}
+
 /* ---- pulse / overview cards ---------------------------------------------- */
 .sumhead{
   display:flex;justify-content:space-between;align-items:baseline;
@@ -681,6 +701,8 @@ tr.on td{background:var(--accent-soft)}
 .cal-sub.on .cal-check{
   background:var(--accent);border-color:var(--accent);color:#fff;
 }
+.cal-sub.locked{cursor:default}
+.cal-sub.locked:hover{background:transparent}
 .cal-check svg{width:12px;height:12px}
 </style>
 </head>
@@ -872,6 +894,17 @@ const priceFmt = v => v == null || !Number.isFinite(v) ? "—"
   : v >= 1000 ? v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})
   : v.toFixed(2);
 const signedIn = () => !!(window.TA && window.TA.signedIn && window.TA.signedIn());
+/** Open stock/ETF/crypto lots — cash alone does not count as a tracked portfolio. */
+const hasHoldings = () => (S.positions || []).some(p => p && (Number(p.quantity) || 0) > 0);
+const QUICK_ADD = [
+  { symbol: "AAPL", name: "Apple" },
+  { symbol: "MSFT", name: "Microsoft" },
+  { symbol: "NVDA", name: "NVIDIA" },
+  { symbol: "GOOGL", name: "Alphabet" },
+  { symbol: "AMZN", name: "Amazon" },
+  { symbol: "SPY", name: "S&P 500 ETF" },
+  { symbol: "QQQ", name: "Nasdaq 100 ETF" },
+];
 const todayISO = () => {
   const d = new Date();
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
@@ -1726,7 +1759,7 @@ function halfDonutSvg(parts){
   return `<svg class="donut" viewBox="0 0 120 70" aria-hidden="true">${arcs}</svg>`;
 }
 
-/* ---- render: empty ------------------------------------------------------- */
+/* ---- render: empty helpers ---------------------------------------------- */
 function promptSignIn(){
   if (window.TA && typeof window.TA.signIn === "function") window.TA.signIn();
   else {
@@ -1735,81 +1768,42 @@ function promptSignIn(){
   }
 }
 
-/** Signed-out gate — portfolio and watchlist are account-specific. */
-function renderSignInGate(){
-  const app = document.getElementById("app");
-  app.innerHTML = `
-    <section class="empty panel">
-      <div class="empty-bg" aria-hidden="true"></div>
-      <div class="empty-card">
-        <h1>Your portfolio</h1>
-        <p class="lead">Please log in to add and view your portfolio or watchlist.</p>
-        <div class="empty-actions" style="justify-content:center">
-          <button type="button" class="btn btn-primary" id="empty-login">Log in</button>
+function pulsePlaceholderHtml(){
+  const parts = ["Cash", "Stocks", "Funds", "ETFs", "Crypto"].map(name => ({
+    name, value: 0, pct: 0, colour: ASSET_COLORS[name],
+  }));
+  return `
+      <div class="cell">
+        <div class="k">Total Assets · USD</div>
+        <div class="v num placeholder">—</div>
+        <div class="donut-wrap">
+          ${halfDonutSvg(parts)}
+          <div class="donut-legend">${parts.map(p => `
+            <span><i style="background:${p.colour}"></i>${esc(p.name)}
+              <b>—</b></span>`).join("")}</div>
         </div>
-        <p class="empty-foot">Holdings and watchlists stay private to your account</p>
       </div>
-    </section>`;
-  document.getElementById("empty-login").onclick = promptSignIn;
+      <div class="cell">
+        <div class="k">Daily Return</div>
+        <div class="v num placeholder">—</div>
+      </div>
+      <div class="cell">
+        <div class="k">Total Return ${infoTip(
+          "Unrealized P/L on open holdings, dividends received, and realized gains/losses from sells (booked on the sell date)."
+        )}</div>
+        <div class="v num placeholder">—</div>
+      </div>
+      <div class="cell">
+        <div class="k">Volatility Score ${infoTip(
+          "0–100 score from your holdings: 65% weight on annualised 60-day price volatility (capped at 50% vol → 100), and 35% on concentration (Herfindahl–Hirschman of position weights). Calm < 33, Moderate < 66, else Elevated."
+        )}</div>
+        <div class="v placeholder">—</div>
+      </div>`;
 }
 
-function renderEmpty(){
-  const app = document.getElementById("app");
-  app.innerHTML = `
-    <section class="empty panel">
-      <div class="empty-bg" aria-hidden="true"></div>
-      <div class="empty-card">
-        <h1>Build your portfolio</h1>
-        <p class="lead">Track your stocks, see real-time performance, and compare against the market — without linking a brokerage.</p>
-        <ul class="benefits">
-          <li><span class="ico" aria-hidden="true">+</span>
-            <div><b>One place for holdings</b>
-            <span>Add ticker, quantity, and average buy price. P/L is calculated from live quotes.</span></div></li>
-          <li><span class="ico" aria-hidden="true">%</span>
-            <div><b>Performance at a glance</b>
-            <span>Daily return, book P/L vs cost, allocation, and a volatility score.</span></div></li>
-          <li><span class="ico" aria-hidden="true">◎</span>
-            <div><b>Stays on your account</b>
-            <span>Your portfolio and watchlist sync across devices when you are signed in.</span></div></li>
-        </ul>
-        <div class="empty-actions">
-          <form class="pf-search" id="empty-search">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none"
-              stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5 18 18" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round"/></svg>
-            <input type="text" id="empty-q" placeholder="Search a ticker to add…" autocomplete="off"
-                   role="combobox" aria-expanded="false" aria-controls="empty-ac">
-            <div class="pf-ac" id="empty-ac" role="listbox"></div>
-          </form>
-          <button type="button" class="btn btn-primary" id="empty-add">
-            <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            Add Asset
-          </button>
-        </div>
-        <p class="empty-foot">Stocks, ETFs, and crypto · Enter quantity and average buy price from your brokerage</p>
-      </div>
-    </section>`;
-
-  document.getElementById("empty-add").onclick = () => openAddModal();
-  wireTickerSearch("empty-q", "empty-ac", "empty-search", sym => openAddModal(sym));
-}
-
-/* ---- render: dashboard --------------------------------------------------- */
-function renderDashboard(){
-  const app = document.getElementById("app");
-  const alloc = allocation(S.positions);
-  const day = dailyReturn(S.positions);
-  const book = bookReturn(S.positions);
-  const vol = volatilityScore(S.positions);
+function pulseLiveHtml(alloc, day, book, vol){
   const arrow = v => v > 0 ? "▲ " : v < 0 ? "▼ " : "";
-
-  app.innerHTML = `
-    <div class="sumhead">
-      <h2>Portfolio Overview</h2>
-      <div class="sub"><button type="button" class="btn btn-primary" id="dash-add" style="min-height:34px;padding:0 14px;font-size:12.5px">+ Add Asset</button></div>
-    </div>
-    <div class="pulse" id="pulse">
+  return `
       <div class="cell">
         <div class="k">Total Assets · USD</div>
         <div class="v num">${esc(money(alloc.sum).replace("$",""))}</div>
@@ -1841,7 +1835,29 @@ function renderDashboard(){
         <div class="v">${vol ? `${esc(String(vol.score))}<span class="dim"> /100</span>` : "—"}</div>
         ${vol ? `<div class="scale" title="Weighted vol + concentration"><i style="left:${vol.score}%"></i></div>
           <div class="chg mut">${esc(vol.label)}</div>` : ""}
-      </div>
+      </div>`;
+}
+
+/* ---- render: dashboard --------------------------------------------------- */
+function renderDashboard(){
+  const app = document.getElementById("app");
+  const live = signedIn() && hasHoldings();
+  const alloc = allocation(S.positions);
+  const day = dailyReturn(S.positions);
+  const book = bookReturn(S.positions);
+  const vol = volatilityScore(S.positions);
+  if (!live && S.selected !== "PORTFOLIO" && S.selected !== "CASH"
+      && !(S.positions || []).some(p => p.symbol === S.selected)) {
+    S.selected = "PORTFOLIO";
+  }
+
+  app.innerHTML = `
+    <div class="sumhead">
+      <h2>Portfolio Overview</h2>
+      <div class="sub"><button type="button" class="btn btn-primary" id="dash-add" style="min-height:34px;padding:0 14px;font-size:12.5px">+ Add Asset</button></div>
+    </div>
+    <div class="pulse" id="pulse">
+      ${live ? pulseLiveHtml(alloc, day, book, vol) : pulsePlaceholderHtml()}
     </div>
 
     <section class="panel">
@@ -2001,10 +2017,12 @@ async function renderList(){
 
   if (!signedIn()) {
     if (searchHost) searchHost.innerHTML = "";
-    host.innerHTML = `<div class="note">${S.view === "watchlist"
-      ? "Please log in to add and view your watchlist."
-      : "Please log in to add and view your portfolio."}
-      <div style="margin-top:12px"><button type="button" class="btn btn-primary" id="rows-login">Log in</button></div>
+    host.innerHTML = `<div class="pf-empty">
+      <h3>${S.view === "watchlist" ? "Your watchlist" : "Your portfolio"}</h3>
+      <p>${S.view === "watchlist"
+        ? "Log in to add tickers to your watchlist and track them here."
+        : "Log in to add holdings and track performance against the market."}</p>
+      <button type="button" class="btn btn-primary" id="rows-login">Log in</button>
     </div>`;
     const btn = document.getElementById("rows-login");
     if (btn) btn.onclick = promptSignIn;
@@ -2059,6 +2077,24 @@ async function renderList(){
         <div class="wl-ac" id="wl-ac"></div>
       </form>`;
     wireTickerSearch("wl-q", "wl-ac", "wl-search", sym => openAddModal(sym));
+
+    if (!hasHoldings()) {
+      host.innerHTML = `<div class="pf-empty">
+        <h3>Add your first holding</h3>
+        <p>Quick-add a ticker, or search above — enter quantity and average buy price to start tracking.</p>
+        <div class="pf-quick" id="pf-quick">
+          ${QUICK_ADD.map(q => `
+            <button type="button" data-qa="${esc(q.symbol)}" title="${esc(q.name)}">+ ${esc(q.symbol)}</button>`).join("")}
+        </div>
+        <button type="button" class="btn btn-primary" id="rows-add">Add Asset</button>
+      </div>`;
+      host.querySelectorAll("[data-qa]").forEach(btn => {
+        btn.onclick = () => openAddModal(btn.dataset.qa);
+      });
+      const addBtn = document.getElementById("rows-add");
+      if (addBtn) addBtn.onclick = () => openAddModal();
+      return;
+    }
 
     const rows = S.positions.slice().sort((a, b) =>
       ((markPrice(b) || 0) * b.quantity) - ((markPrice(a) || 0) * a.quantity));
@@ -2344,7 +2380,7 @@ async function drawRightChart(){
     return;
   }
 
-  // Portfolio vs indexes (percentage). Cash row uses the same overview chart.
+  // Portfolio vs indexes (percentage). Without holdings, indexes only.
   idxBar.hidden = false;
   idxBar.innerHTML = INDEXES.map(i => `
     <button type="button" class="idx-chip" data-sym="${i.sym}"
@@ -2359,12 +2395,15 @@ async function drawRightChart(){
     };
   });
 
+  const live = signedIn() && hasHoldings();
   const alloc = allocation(S.positions);
-  if (S.selected === "CASH") {
+  const lines = [];
+
+  if (live && S.selected === "CASH") {
     setSym("Cash", { logo: false });
     priceEl.textContent = money(alloc.cash).replace("$", "");
     metaEl.innerHTML = `${alloc.sum > 0 ? ((alloc.cash / alloc.sum) * 100).toFixed(1) : "0.0"}% of total assets`;
-  } else {
+  } else if (live) {
     setSym("Portfolio", { logo: false });
     priceEl.textContent = money(alloc.sum).replace("$", "");
     const book = bookReturn(S.positions);
@@ -2374,10 +2413,20 @@ async function drawRightChart(){
       `Total <span class="${dir(book.pct)}">${esc(pct(book.pct))}</span>` +
       ` · ${esc(rangeLabel)} realized <span class="${dir(rangeBook.realized)}">${esc(moneySigned(rangeBook.realized))}</span>` +
       ` · chart = current mix (simulated) vs indexes`;
+  } else {
+    setSym("Market", { logo: false });
+    priceEl.textContent = "";
+    metaEl.innerHTML = signedIn()
+      ? "Market indexes · add a holding to compare your portfolio"
+      : "Market indexes · log in to track your portfolio here";
   }
 
-  const portBars = toPctSeries(await portfolioSeries(from));
-  const lines = [{ id: "Portfolio", colour: "#38b37d", points: portBars }];
+  if (live) {
+    const portBars = toPctSeries(await portfolioSeries(from));
+    if (portBars.length) {
+      lines.push({ id: "Portfolio", colour: "#38b37d", points: portBars });
+    }
+  }
   for (const ix of INDEXES) {
     if (!S.indexes[ix.sym]) continue;
     const bars = toPctSeries(await seriesForSymbol(ix.sym, from));
@@ -3136,9 +3185,11 @@ async function loadPortfolioDiscover(){
   const symbols = await activeDiscoverSymbols();
   const symSet = new Set(symbols);
   if (!symSet.size) {
-    renderDiscover([], S.view === "watchlist"
-      ? "Add tickers to your watchlist to see related news here."
-      : "Add holdings to see news about your tickers here.");
+    renderDiscover([], !signedIn()
+      ? "Log in to see news about your tickers here."
+      : S.view === "watchlist"
+        ? "Add tickers to your watchlist to see related news here."
+        : "Add holdings to see news about your tickers here.");
     return;
   }
 
@@ -3286,6 +3337,7 @@ const CAL = {
   events: [],
   wired: false,
   prefs: null,
+  defaultsApplied: false,
 };
 
 function isoDate(y, m, d){
@@ -3315,16 +3367,19 @@ function weekDays(weekStartISO){
   });
 }
 function defaultCalPrefs(){
-  return { portfolio: true, watchlist: true, economics: true, tickers: [] };
+  // U.S. Economics is always on; portfolio/watchlist turn on only when the
+  // signed-in user actually has those sources (see applyCalPrefsDefaults).
+  return { portfolio: false, watchlist: false, economics: true, tickers: [] };
 }
 function loadCalPrefs(){
   try {
     const raw = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || "null");
     if (!raw || typeof raw !== "object") return defaultCalPrefs();
     return {
-      portfolio: raw.portfolio !== false,
-      watchlist: raw.watchlist !== false,
-      economics: raw.economics !== false,
+      portfolio: !!raw.portfolio,
+      watchlist: !!raw.watchlist,
+      // Always keep the U.S. economics calendar selected.
+      economics: true,
       tickers: [...new Set((raw.tickers || []).map(s => String(s).toUpperCase()).filter(Boolean))],
     };
   } catch {
@@ -3332,8 +3387,25 @@ function loadCalPrefs(){
   }
 }
 function saveCalPrefs(p){
-  CAL.prefs = p;
-  try { localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(p)); } catch {}
+  CAL.prefs = { ...p, economics: true };
+  try { localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(CAL.prefs)); } catch {}
+}
+
+/** Seed calendar checkboxes from login + holdings/watchlist presence. */
+async function applyCalPrefsDefaults(){
+  const saved = loadCalPrefs();
+  let hasWl = false;
+  if (signedIn()) {
+    try { hasWl = (await loadWatchlistItems()).length > 0; } catch {}
+  }
+  const prefs = {
+    economics: true,
+    portfolio: !!(signedIn() && hasHoldings()),
+    watchlist: !!(signedIn() && hasWl),
+    tickers: saved.tickers || [],
+  };
+  saveCalPrefs(prefs);
+  return prefs;
 }
 
 async function calendarSymbols(){
@@ -3614,7 +3686,12 @@ async function loadPortfolioCalendar(){
     CAL.selected = days.includes(t) ? t : days[0];
   }
 
-  CAL.prefs = loadCalPrefs();
+  if (!CAL.defaultsApplied) {
+    await applyCalPrefsDefaults();
+    CAL.defaultsApplied = true;
+  } else {
+    CAL.prefs = loadCalPrefs();
+  }
   const syms = await calendarSymbols();
   const from = days[0];
   const to = days[6];
@@ -3639,15 +3716,16 @@ function renderCalSubs(){
   const host = document.getElementById("cal-subs");
   if (!host) return;
   const prefs = CAL.prefs || loadCalPrefs();
-  CAL.prefs = prefs;
+  CAL.prefs = { ...prefs, economics: true };
   const rows = [
     { id: "portfolio", label: "My Portfolio", pinned: true, on: prefs.portfolio },
     { id: "watchlist", label: "My Watchlist", pinned: true, on: prefs.watchlist },
-    { id: "economics", label: "U.S. Economics Calendar", pinned: true, on: prefs.economics },
+    { id: "economics", label: "U.S. Economics Calendar", pinned: true, on: true, locked: true },
     ...prefs.tickers.map(t => ({ id: `t:${t}`, label: t, pinned: false, on: true, symbol: t })),
   ];
   host.innerHTML = rows.map(r => `
-    <label class="cal-sub${r.on ? " on" : ""}" data-id="${esc(r.id)}">
+    <label class="cal-sub${r.on ? " on" : ""}${r.locked ? " locked" : ""}" data-id="${esc(r.id)}"
+      ${r.locked ? 'title="U.S. Economics Calendar is always on"' : ""}>
       <span class="cal-check" aria-hidden="true">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"
              stroke-linecap="round" stroke-linejoin="round"><path d="m5 10.5 3.2 3.2L15 6.5"/></svg>
@@ -3658,10 +3736,10 @@ function renderCalSubs(){
     el.onclick = e => {
       e.preventDefault();
       const id = el.dataset.id;
-      const p = { ...CAL.prefs, tickers: [...CAL.prefs.tickers] };
+      if (id === "economics") return; // always selected
+      const p = { ...CAL.prefs, tickers: [...CAL.prefs.tickers], economics: true };
       if (id === "portfolio") p.portfolio = !p.portfolio;
       else if (id === "watchlist") p.watchlist = !p.watchlist;
-      else if (id === "economics") p.economics = !p.economics;
       else if (id.startsWith("t:")) {
         const sym = id.slice(2);
         // Unchecking a ticker removes it from the subscribed list.
@@ -3905,11 +3983,13 @@ function renderTradePanel(kind){
     const held = heldSymbols();
     host.innerHTML = bucket.loading
       ? `<div class="note"><span class="load"></span></div>`
-      : `<div class="note">${!held.length
-          ? "Add holdings to see filings for your tickers."
-          : isIns
-            ? "No insider filings for your holdings in the last 7 days."
-            : "No congressional disclosures for your holdings in the last 14 days."}</div>`;
+      : `<div class="note">${!signedIn()
+          ? "Log in and add holdings to see filings for your tickers."
+          : !held.length
+            ? "Add holdings to see filings for your tickers."
+            : isIns
+              ? "No insider filings for your holdings in the last 7 days."
+              : "No congressional disclosures for your holdings in the last 14 days."}</div>`;
     return;
   }
 
@@ -4052,11 +4132,14 @@ async function boot(showLoading = true){
   // Leaving an account: drop mirrored holdings so the next visitor cannot see them.
   if (_wasSignedIn === true && !isIn) clearLocalCaches();
   _wasSignedIn = isIn;
+  // Re-seed calendar sources whenever auth (or the account) changes.
+  CAL.defaultsApplied = false;
 
   if (!isIn) {
     S.transactions = [];
     S.positions = [];
-    renderSignInGate();
+    S.selected = "PORTFOLIO";
+    renderDashboard();
     return;
   }
 
@@ -4089,7 +4172,8 @@ async function boot(showLoading = true){
       }, 2000);
     }
   } else {
-    renderEmpty();
+    S.selected = "PORTFOLIO";
+    renderDashboard();
   }
 }
 
