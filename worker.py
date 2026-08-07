@@ -16,6 +16,7 @@ worker.py -- the only process allowed to talk to the SEC.
     python worker.py prices [TICKER...] fill price requests, or named symbols
     python worker.py analyst [TICKER...] fill coverage requests, or named symbols
     python worker.py intraday TICKER    refresh one chart series
+    python worker.py long-closes [T...] 10y closes for the correlation heatmap
     python worker.py stats              coverage summary
     python worker.py run                the long-running loop (this is what
                                         Render runs)
@@ -1259,6 +1260,27 @@ def main(argv: list[str]) -> int:
             return 2
         for t in argv[1:]:
             log(f"{t}: {'ok' if refresh_intraday(t.upper()) else 'no data'}")
+    elif cmd == "long-closes":
+        # Named symbols, or drain whatever the portfolio pages have queued.
+        if len(argv) > 1:
+            for t in argv[1:]:
+                sym = t.upper()
+                try:
+                    rows = market.closes(sym, years=10)
+                except market.MarketError as exc:
+                    log(f"{sym}: {exc}")
+                    continue
+                n = store.upsert_long_closes(sym, rows)
+                log(f"{sym}: {n} closes"
+                    + (f" ({rows[0]['d']} -> {rows[-1]['d']})" if rows else ""))
+        else:
+            total = 0
+            while True:
+                n = drain_long_closes(5)
+                total += n
+                if not n:
+                    break
+            log(f"long closes: {total} symbols filled")
     elif cmd == "stats":
         for k, v in (store.stats() or {}).items():
             print(f"  {k:<24} {v}")

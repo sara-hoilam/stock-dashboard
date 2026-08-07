@@ -2523,6 +2523,20 @@ function drawCormap(){
     return { sym, cells };
   });
 
+  // One year holds a single instance of each month -- about 21 trading days --
+  // which is below the threshold for every cell, so the grid would be entirely
+  // blank. An empty table looks broken; say why and point at the fix.
+  const usable = rows.reduce((a, r) =>
+    a + r.cells.filter(c => c.r !== null && c.n >= CORMAP_MIN_N).length, 0);
+  if (!usable) {
+    const best = rows.reduce((a, r) =>
+      Math.max(a, ...r.cells.map(c => c.n || 0)), 0);
+    return note(
+      `A single calendar month over ${CORMAP.years} year${CORMAP.years === 1 ? "" : "s"} holds
+       only about ${best} trading day${best === 1 ? "" : "s"} — too few to measure correlation
+       against. Try 3Y or longer, which stacks every January together.`);
+  }
+
   const head = `<tr><th class="sym"></th>${
     CORMAP_MONTHS.map(m => `<th>${m}</th>`).join("")}</tr>`;
   const body = rows.map(row => `<tr><th class="sym">${esc(row.sym)}</th>${
