@@ -504,8 +504,11 @@ tbody tr:hover td{background:var(--sunk)}
 /* Ticker box for the correlation panel. Sits between the header and the plot
    so the plot keeps the same box as the drawdown chart beside it. */
 .corr-search{display:flex;gap:7px;padding:2px 14px 8px}
+/* The suggestion list is absolute, so the field needs to be its containing
+   block -- on the flex row itself it would be measured against the panel. */
+.corr-field{position:relative;flex:1;min-width:0}
 .corr-search input{
-  flex:1;min-width:0;background:var(--sunk);border:1px solid var(--rule);
+  width:100%;min-width:0;background:var(--sunk);border:1px solid var(--rule);
   border-radius:8px;padding:7px 11px;font:inherit;font-size:12.5px;color:var(--ink);
   text-transform:uppercase}
 .corr-search input::placeholder{color:var(--ink-3);text-transform:none}
@@ -3004,10 +3007,27 @@ function drawIndexDrawdown(hostId, state, idPrefix){
    close series. The correlation chart is new. Both share the drawdown's box so
    the pair reads as one row. */
 const CO_DD = { range: "5Y", interval: "daily" };
+// SPX carries five years of daily bars where an ordinary company has ten
+// months, so it is both the comparison people want and the deepest series
+// available to compare against.
+const CORR_DEFAULT = "SPX";
 const CORR = { range: "1Y", other: null, bars: null, state: "idle", poll: null };
 
 function drawCompanyDrawdown(){
   drawIndexDrawdown("co-dd-chart", CO_DD, "codd");
+}
+
+/** Index symbols read as tickers in the data but not to a reader. */
+const CORR_LABEL = { SPX: "S&P 500", IXIC: "Nasdaq 100", DJI: "Dow Jones" };
+const corrLabel = sym => CORR_LABEL[sym] || sym || "";
+
+/** Plain words for r, on the five bands a reader actually distinguishes. */
+function corrStrength(r){
+  if (r >= 0.6) return "strongly positive correlation";
+  if (r >= 0.2) return "slightly positive correlation";
+  if (r > -0.2) return "no correlation";
+  if (r > -0.6) return "slightly negative correlation";
+  return "strongly negative correlation";
 }
 
 /** Daily returns keyed by date, from a bars array. */
@@ -3043,6 +3063,9 @@ async function loadCorrelation(sym){
     CORR.state = "bad"; return drawCorrelation();
   }
   if (sym === (S.ticker || "").toUpperCase()) {
+    // Reaching here from the default on an S&P page is not a user error, so
+    // swap to a different benchmark rather than showing a scolding.
+    if (sym === CORR_DEFAULT) return loadCorrelation("SPY");
     CORR.state = "self"; return drawCorrelation();
   }
   clearTimeout(CORR.poll);
@@ -3142,10 +3165,20 @@ function drawCorrelation(){
   parts.push(`<line x1="${X(0)}" y1="${mt}" x2="${X(0)}" y2="${mt + ph}" stroke="var(--rule)"/>
     <line x1="${ml}" y1="${Y(0)}" x2="${W - mr}" y2="${Y(0)}" stroke="var(--rule)"/>`);
 
+  // A dot is one day's pair, so it cannot belong to one ticker or the other.
+  // What it can say is whether the two agreed that day: green where both moved
+  // the same way, pink where they moved opposite ways. Correlation is exactly
+  // the balance between those two colours, so the scatter now shows its own
+  // headline number. The axis titles carry a colour each to name the tickers.
+  let agree = 0;
   days.forEach((d, i) => {
-    parts.push(`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(ys[i]).toFixed(1)}" r="2.1"
-      fill="var(--accent)" fill-opacity=".5"><title>${esc(d)} · ${
-      esc(CORR.other)} ${pct(xs[i])} · ${esc(S.ticker || "")} ${pct(ys[i])}</title></circle>`);
+    const same = (xs[i] >= 0) === (ys[i] >= 0);
+    if (same) agree++;
+    parts.push(`<circle cx="${X(xs[i]).toFixed(1)}" cy="${Y(ys[i]).toFixed(1)}" r="2.3"
+      fill="${same ? "var(--up)" : "var(--down)"}" fill-opacity=".62"
+      ><title>${esc(d)} · ${esc(CORR.other)} ${pct(xs[i])} · ${
+      esc(S.ticker || "")} ${pct(ys[i])} · ${same ? "same direction" : "opposite directions"
+      }</title></circle>`);
   });
 
   // Least-squares line, clipped to the plot.
@@ -3154,47 +3187,110 @@ function drawCorrelation(){
   const clamp = p => Math.max(-ym, Math.min(ym, p));
   parts.push(`<line x1="${X(ends[0].vx).toFixed(1)}" y1="${Y(clamp(ends[0].vy)).toFixed(1)}"
     x2="${X(ends[1].vx).toFixed(1)}" y2="${Y(clamp(ends[1].vy)).toFixed(1)}"
-    stroke="var(--dd)" stroke-width="1.6" opacity=".85"/>`);
+    stroke="var(--accent)" stroke-width="1.8" opacity=".95"/>`);
 
+  const mineName = esc(S.ticker || "");
+  const theirName = esc(corrLabel(CORR.other));
   parts.push(`<text x="${ml + pw / 2}" y="${H - 3}" text-anchor="middle" class="ax"
-      >${esc(CORR.other)} daily return</text>
+      fill="var(--down)">${theirName} daily return</text>
     <text transform="translate(11,${mt + ph / 2}) rotate(-90)" text-anchor="middle" class="ax"
-      >${esc(S.ticker || "")} daily return</text>`);
+      fill="var(--up)">${mineName} daily return</text>`);
 
   const r = fit.r;
-  const strength = Math.abs(r) >= 0.8 ? "very strong" : Math.abs(r) >= 0.6 ? "strong"
-    : Math.abs(r) >= 0.4 ? "moderate" : Math.abs(r) >= 0.2 ? "weak" : "little to no";
   host.innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" class="lchart" role="img"
-       aria-label="Daily returns of ${esc(S.ticker || "")} against ${esc(CORR.other)}">
+       aria-label="Daily returns of ${mineName} against ${theirName}">
        ${parts.join("")}</svg>
      <div class="lkey">
        <span><b style="font-size:13px;color:var(--ink)">r = ${r.toFixed(2)}</b></span>
-       <span>${esc(strength)} ${r < 0 ? "inverse " : ""}relationship</span>
+       <span><b>${esc(corrStrength(r))}</b></span>
+       <span><i style="background:var(--up)"></i>same direction (${agree})</span>
+       <span><i style="background:var(--down)"></i>opposite (${days.length - agree})</span>
        <span>β ${fit.slope.toFixed(2)}</span>
        <span>${days.length} shared days</span>
      </div>
-     <div class="lread">Each dot is one trading day. The line is the least-squares
-       fit; β is its slope.</div>`;
+     <div class="lread">Each dot is one trading day. The blue line is the
+       least-squares fit; β is its slope.</div>`;
+}
+
+/** Same suggestion list as the header search, on the correlation box: typing
+    "Tesla" should offer TSLA rather than requiring the ticker to be known. */
+function wireCorrSuggest(input, onPick){
+  const ac = document.getElementById("corr-ac");
+  if (!ac) return () => {};
+  let items = [], idx = -1, timer = null;
+  const close = () => {
+    ac.classList.remove("open"); ac.innerHTML = "";
+    input.setAttribute("aria-expanded", "false"); idx = -1;
+  };
+  const take = x => { if (!x) return; input.value = x.ticker; close(); onPick(x.ticker); };
+
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    const term = input.value.trim();
+    if (term.length < 1) return close();
+    timer = setTimeout(async () => {
+      let rows = [];
+      try { rows = (await API.search(term)) || []; } catch { return close(); }
+      if (input.value.trim() !== term) return;       // typed on while waiting
+      items = rows.slice(0, 8); idx = -1;
+      if (!items.length) return close();
+      ac.innerHTML = items.map((x, i) => {
+        const kind = x.kind && x.kind !== "stock" ? ` · ${x.kind}` : "";
+        return `<div role="option" data-i="${i}" aria-selected="false"><b>${esc(x.ticker)}</b>` +
+               `<span>${esc(x.name || "")}${esc(kind)}</span></div>`;
+      }).join("");
+      ac.classList.add("open");
+      input.setAttribute("aria-expanded", "true");
+    }, 130);
+  });
+
+  ac.addEventListener("mousedown", ev => {
+    const d = ev.target.closest("[data-i]");
+    if (d) { ev.preventDefault(); take(items[+d.dataset.i]); }
+  });
+  input.addEventListener("keydown", ev => {
+    if (!ac.classList.contains("open")) return;
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      ev.preventDefault();
+      idx = (idx + (ev.key === "ArrowDown" ? 1 : items.length - 1)) % items.length;
+      [...ac.children].forEach((c, i) => c.setAttribute("aria-selected", i === idx));
+    } else if (ev.key === "Enter") {
+      ev.preventDefault(); take(idx >= 0 ? items[idx] : items[0]);
+    } else if (ev.key === "Escape") close();
+  });
+  input.addEventListener("blur", () => setTimeout(close, 120));
+  return close;
 }
 
 function wireCorrelation(){
   const input = document.getElementById("corr-q");
   const go = document.getElementById("corr-go");
   if (!input || !go) return;
+  const closeAc = wireCorrSuggest(input, sym => loadCorrelation(sym));
   const submit = () => {
+    closeAc();
     const v = input.value.trim();
     if (v) loadCorrelation(v);
   };
   go.onclick = submit;
-  input.onkeydown = ev => { if (ev.key === "Enter") { ev.preventDefault(); submit(); } };
+  input.addEventListener("keydown", ev => {
+    // The suggestion list handles Enter while it is open.
+    if (ev.key === "Enter" && !document.getElementById("corr-ac").classList.contains("open")) {
+      ev.preventDefault(); submit();
+    }
+  });
 
   wireIndexRange("corr-range", () => CORR.range, r => { CORR.range = r; }, drawCorrelation);
   wireIndexRange("co-dd-range", () => CO_DD.range, r => {
     CO_DD.range = r;
     CO_DD.interval = indexDdDefaultInterval(r);
   }, drawCompanyDrawdown);
-  drawCorrelation();
+
+  // Against the market by default: the comparison almost everyone wants first,
+  // and the one that makes beta mean what people expect it to mean.
+  if (!CORR.other) loadCorrelation(CORR_DEFAULT);
+  else drawCorrelation();
 }
 
 async function load(ticker, source){
@@ -3557,8 +3653,12 @@ function render(){
               </div>
             </div>
             <div class="corr-search">
-              <input type="text" id="corr-q" placeholder="Compare with a ticker…"
-                     autocomplete="off" aria-label="Ticker to correlate against">
+              <div class="corr-field">
+                <input type="text" id="corr-q" placeholder="Compare with another ticker…"
+                       autocomplete="off" role="combobox" aria-expanded="false"
+                       aria-controls="corr-ac" aria-label="Ticker to correlate against">
+                <div class="ac" id="corr-ac" role="listbox"></div>
+              </div>
               <button type="button" id="corr-go">Plot</button>
             </div>
             <div class="lwrap idx-dd-chart" id="corr-chart"></div>
